@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Инвариант I-24 (ADR-013): ни здесь, ни где-либо ещё в проекте не должно появиться
+         ни одного uses-permission. Приложение не умеет обращаться в сеть в принципе. -->
+    <application
+        android:name=".CorrienteApplication"
+        android:allowBackup="false"
+        android:label="@string/app_name"
+        android:theme="@style/Theme.Corriente"
+        android:supportsRtl="true">
+        <!-- android:icon намеренно не задан - иконка приложения не часть T1.1 (см. итоговое
+             сообщение сессии), Android подставит системную по умолчанию до этапа полировки. -->
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:theme="@style/Theme.Corriente">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>

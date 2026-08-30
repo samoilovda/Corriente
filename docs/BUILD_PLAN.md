@@ -56,7 +56,8 @@
 
 ```
 Kotlin stdlib, Coroutines
-androidx.compose (BOM), material3, activity-compose, navigation-compose, lifecycle-viewmodel-compose
+androidx.compose (BOM), material3, activity-compose, navigation-compose, lifecycle-viewmodel-compose,
+material-icons-extended (иконки нижней навигации — в -core их нет)
 androidx.room: runtime, ktx, compiler (KSP), testing
 androidx.datastore: preferences
 androidx.glance: glance-appwidget, glance-material3        (с этапа 4)

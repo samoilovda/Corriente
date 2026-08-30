@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Базовая тема окна для Compose-приложения (splash/фон до отрисовки первого кадра).
+         Вся реальная тема - в CorrienteTheme.kt через Material3 Compose. -->
+    <style name="Theme.Corriente" parent="android:Theme.Material.Light.NoActionBar" />
+</resources>

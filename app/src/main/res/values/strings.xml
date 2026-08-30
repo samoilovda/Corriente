@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Corriente</string>
+    <string name="nav_transactions">Операции</string>
+    <string name="nav_accounts">Счета</string>
+    <string name="nav_report">Отчёт</string>
+    <string name="nav_settings">Настройки</string>
+</resources>
