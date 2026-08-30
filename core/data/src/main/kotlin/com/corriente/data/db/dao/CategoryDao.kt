@@ -28,4 +28,7 @@ interface CategoryDao {
     /** Слияние: все операции категории [fromId] переезжают на [intoId], исходная категория удаляется. */
     @Query("UPDATE txn SET category_id = :intoId WHERE category_id = :fromId")
     suspend fun reassignTransactions(fromId: String, intoId: String)
+
+    @Query("DELETE FROM category")
+    suspend fun deleteAll()
 }

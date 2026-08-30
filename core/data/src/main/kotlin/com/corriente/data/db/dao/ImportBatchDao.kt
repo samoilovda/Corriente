@@ -26,4 +26,7 @@ interface ImportBatchDao {
         """
     )
     suspend fun deleteOrphanedImportCategories()
+
+    @Query("DELETE FROM import_batch")
+    suspend fun deleteAll()
 }

@@ -17,4 +17,10 @@ interface AppSettingDao {
 
     @Query("SELECT value FROM app_setting WHERE `key` = :key")
     fun observe(key: String): Flow<String?>
+
+    @Query("SELECT * FROM app_setting")
+    suspend fun getAll(): List<AppSettingEntity>
+
+    @Query("DELETE FROM app_setting")
+    suspend fun deleteAll()
 }

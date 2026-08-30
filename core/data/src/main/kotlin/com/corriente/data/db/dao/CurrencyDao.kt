@@ -24,4 +24,7 @@ interface CurrencyDao {
 
     @Query("SELECT * FROM currency WHERE code = :code")
     suspend fun getByCode(code: String): CurrencyEntity?
+
+    @Query("DELETE FROM currency")
+    suspend fun deleteAll()
 }

@@ -33,4 +33,7 @@ interface TxnDao {
 
     @Query("DELETE FROM txn WHERE import_batch_id = :batchId")
     suspend fun deleteByImportBatch(batchId: String)
+
+    @Query("DELETE FROM txn")
+    suspend fun deleteAll()
 }

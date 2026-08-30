@@ -14,4 +14,10 @@ interface ImportAliasDao {
 
     @Query("SELECT * FROM import_alias WHERE source_app = :sourceApp AND kind = :kind")
     suspend fun getForApp(sourceApp: String, kind: ImportAliasKind): List<ImportAliasEntity>
+
+    @Query("SELECT * FROM import_alias")
+    suspend fun getAll(): List<ImportAliasEntity>
+
+    @Query("DELETE FROM import_alias")
+    suspend fun deleteAll()
 }

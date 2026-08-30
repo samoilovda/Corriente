@@ -1,0 +1,112 @@
+package com.corriente.data.repository
+
+import com.corriente.data.db.dao.AccountDao
+import com.corriente.data.db.dao.TxnDao
+import com.corriente.data.model.Txn
+import com.corriente.data.model.toDomain
+import com.corriente.data.model.toEntity
+import com.corriente.money.Money
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
+import java.time.LocalDate
+import java.util.UUID
+
+/**
+ * Ядро денежной логики приложения. Здесь и только здесь enforced инварианты, которые Room
+ * не проверяет на уровне схемы (T0.4, ARCHITECTURE.md §3.2):
+ *  - I-1: amount всегда положителен, знак операции определяется её видом ([Txn.Expense]/
+ *    [Txn.Income]/[Txn.Transfer]), а не значением суммы.
+ *  - I-15/I-23: валюта операции равна валюте счёта на момент записи.
+ *  - I-11: у перевода нет категории, у расхода/дохода нет второго счёта — гарантировано типом
+ *    [Txn], здесь дополнительно нечего проверять.
+ *  - I-7а: курс перевода — производная от двух сумм, здесь не хранится и не запрашивается.
+ */
+class TxnRepository(
+    private val txnDao: TxnDao,
+    private val accountDao: AccountDao,
+) {
+    fun observeAll(): Flow<List<Txn>> = txnDao.observeAll().map { list -> list.map { it.toDomain() } }
+
+    fun observeForAccount(accountId: String): Flow<List<Txn>> =
+        txnDao.observeForAccount(accountId).map { list -> list.map { it.toDomain() } }
+
+    suspend fun addExpense(accountId: String, amount: Money, categoryId: String?, date: LocalDate, note: String? = null): Txn {
+        requireAmountMatchesAccount(accountId, amount)
+        val now = System.currentTimeMillis()
+        val txn = Txn.Expense(
+            id = UUID.randomUUID().toString(),
+            date = date,
+            createdAt = now,
+            updatedAt = now,
+            accountId = accountId,
+            amount = amount,
+            categoryId = categoryId,
+            note = note,
+        )
+        txnDao.insert(txn.toEntity())
+        return txn
+    }
+
+    suspend fun addIncome(accountId: String, amount: Money, categoryId: String?, date: LocalDate, note: String? = null): Txn {
+        requireAmountMatchesAccount(accountId, amount)
+        val now = System.currentTimeMillis()
+        val txn = Txn.Income(
+            id = UUID.randomUUID().toString(),
+            date = date,
+            createdAt = now,
+            updatedAt = now,
+            accountId = accountId,
+            amount = amount,
+            categoryId = categoryId,
+            note = note,
+        )
+        txnDao.insert(txn.toEntity())
+        return txn
+    }
+
+    /**
+     * Перевод между счетами, в том числе между валютами (T2.1). [fromAmount]/[toAmount] —
+     * единственный источник истины; неявный курс сделки = toAmount / fromAmount, вычисляется
+     * на слое ViewModel/UI для показа, здесь не хранится (I-7а, I-12).
+     */
+    suspend fun addTransfer(
+        fromAccountId: String,
+        fromAmount: Money,
+        toAccountId: String,
+        toAmount: Money,
+        date: LocalDate,
+        note: String? = null,
+    ): Txn {
+        require(fromAccountId != toAccountId) { "Cannot transfer an account to itself" }
+        require(fromAmount.isPositive) { "Transfer fromAmount must be positive" }
+        require(toAmount.isPositive) { "Transfer toAmount must be positive" }
+        requireAmountMatchesAccount(fromAccountId, fromAmount)
+        requireAmountMatchesAccount(toAccountId, toAmount)
+        val now = System.currentTimeMillis()
+        val txn = Txn.Transfer(
+            id = UUID.randomUUID().toString(),
+            date = date,
+            createdAt = now,
+            updatedAt = now,
+            fromAccountId = fromAccountId,
+            fromAmount = fromAmount,
+            toAccountId = toAccountId,
+            toAmount = toAmount,
+            note = note,
+        )
+        txnDao.insert(txn.toEntity())
+        return txn
+    }
+
+    suspend fun delete(txn: Txn) {
+        txnDao.delete(txn.toEntity())
+    }
+
+    private suspend fun requireAmountMatchesAccount(accountId: String, amount: Money) {
+        require(amount.isPositive) { "Transaction amount must be positive (sign comes from kind, I-1)" }
+        val account = requireNotNull(accountDao.getById(accountId)) { "Account $accountId not found" }
+        require(amount.currency.code == account.currencyCode) {
+            "Amount currency ${amount.currency} does not match account currency ${account.currencyCode} (I-15)"
+        }
+    }
+}

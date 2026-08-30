@@ -27,4 +27,7 @@ interface AccountDao {
 
     @Query("SELECT EXISTS(SELECT 1 FROM txn WHERE account_id = :accountId OR to_account_id = :accountId)")
     suspend fun hasTransactions(accountId: String): Boolean
+
+    @Query("DELETE FROM account")
+    suspend fun deleteAll()
 }
