@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Инвариант I-24 (ADR-013): в приложении нет сети. Здесь и в манифестах :app/:widget
+  не должно появиться ни одного <uses-permission> — это проверяется файловым сканом
+  verifyInvariantGuards (корневой build.gradle.kts).
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" />

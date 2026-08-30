@@ -60,9 +60,13 @@ val verifyInvariantGuards by tasks.registering {
         }
 
         // I-24: в приложении нет сети — ни одного uses-permission в манифесте.
+        // XML-комментарии (в т.ч. этот самый, который объясняет правило) вырезаются заранее,
+        // иначе скан находит слово "uses-permission" в тексте собственного предупреждения.
         manifests.forEach { file ->
             val relativePath = file.relativeTo(rootDir).path
-            file.readText().lineSequence().forEachIndexed { index, line ->
+            val withoutComments = file.readText()
+                .replace(Regex("""<!--.*?-->""", RegexOption.DOT_MATCHES_ALL), "")
+            withoutComments.lineSequence().forEachIndexed { index, line ->
                 if (line.contains("uses-permission")) {
                     violations += "$relativePath:${index + 1}: uses-permission запрещён (I-24, нет сети)\n    ${line.trim()}"
                 }
