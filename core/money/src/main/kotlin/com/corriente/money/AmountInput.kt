@@ -61,5 +61,26 @@ data class AmountInput(
 
     companion object {
         fun empty(): AmountInput = AmountInput()
+
+        /**
+         * Сборка из уже набранной строки (напр. поле "начальный остаток", T1.3) — прогоняет
+         * символы через тот же [appendDigit]/[appendDecimalPoint], что и клавиатура, поэтому
+         * так же не зависит от локали (I-25). И `.`, и `,` — десятичный разделитель; всё
+         * остальное (пробелы-разделители тысяч и пр.) игнорируется.
+         */
+        fun fromText(text: String, currency: Currency): AmountInput {
+            var input = empty()
+            for (char in text) {
+                when {
+                    char in '0'..'9' -> input = input.appendDigit(char, currency)
+                    char == '.' || char == ',' -> {
+                        // У валюты без минорных единиц дробной части нет — всё после разделителя отбрасываем.
+                        if (currency.minorUnits == 0) return input
+                        input = input.appendDecimalPoint(currency)
+                    }
+                }
+            }
+            return input
+        }
     }
 }

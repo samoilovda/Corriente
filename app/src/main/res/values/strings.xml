@@ -14,4 +14,23 @@
     <string name="currencies_search_hint">Поиск по коду или названию</string>
     <string name="currencies_symbol">Символ</string>
     <string name="currencies_display_scale">Знаков после запятой</string>
+
+    <string name="accounts_add">Добавить счёт</string>
+    <string name="accounts_new">Новый счёт</string>
+    <string name="accounts_edit">Счёт</string>
+    <string name="accounts_name">Название</string>
+    <string name="accounts_currency">Валюта</string>
+    <string name="accounts_kind">Тип</string>
+    <string name="accounts_opening_balance">Начальный остаток</string>
+    <string name="accounts_include_in_total">Учитывать в общем итоге</string>
+    <string name="accounts_excluded_from_total">не в итоге</string>
+    <string name="accounts_archive">В архив</string>
+    <string name="accounts_delete">Удалить</string>
+    <string name="accounts_archived">Архив</string>
+    <string name="accounts_unarchive">Вернуть из архива</string>
+
+    <string name="account_kind_cash">Наличные</string>
+    <string name="account_kind_card">Карта</string>
+    <string name="account_kind_savings">Накопления</string>
+    <string name="account_kind_debt">Долг</string>
 </resources>

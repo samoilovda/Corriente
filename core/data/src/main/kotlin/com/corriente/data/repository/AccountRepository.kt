@@ -21,7 +21,12 @@ class AccountRepository(private val dao: AccountDao) {
 
     fun observeActive(): Flow<List<Account>> = dao.observeActive().map { list -> list.map { it.toDomain() } }
 
+    fun observeArchived(): Flow<List<Account>> = dao.observeArchived().map { list -> list.map { it.toDomain() } }
+
     suspend fun getById(id: String): Account? = dao.getById(id)?.toDomain()
+
+    /** I-23: пока false — поле валюты счёта ещё можно редактировать, после — заблокировано навсегда. */
+    suspend fun hasTransactions(id: String): Boolean = dao.hasTransactions(id)
 
     suspend fun create(
         name: String,
@@ -30,6 +35,7 @@ class AccountRepository(private val dao: AccountDao) {
         openingBalance: Money,
         color: Int,
         icon: String? = null,
+        includeInTotal: Boolean = true,
     ): Account {
         require(openingBalance.currency == currency) {
             "Opening balance currency ${openingBalance.currency} does not match $currency"
@@ -44,7 +50,7 @@ class AccountRepository(private val dao: AccountDao) {
             icon = icon,
             displayOrder = 0,
             isArchived = false,
-            includeInTotal = true,
+            includeInTotal = includeInTotal,
         )
         dao.insert(account.toEntity())
         return account
@@ -57,11 +63,15 @@ class AccountRepository(private val dao: AccountDao) {
     }
 
     /**
-     * I-23: разрешено только пока у счёта нет ни одной операции. Смена валюты после первой
-     * операции — не UI-ограничение, а инвариант; отказ здесь работает независимо от того,
-     * позволяет ли экран редактирования нажать на поле валюты.
+     * Валюта и начальный остаток счёта. I-23: разрешено только пока у счёта нет ни одной
+     * операции — после первой операции и валюта, и остаток становятся историческими фактами.
+     * Отказ здесь работает независимо от того, позволяет ли экран нажать на поле валюты.
      */
-    suspend fun changeCurrencyBeforeFirstUse(id: String, newCurrency: CurrencyCode, newOpeningBalance: Money) {
+    suspend fun setCurrencyAndOpeningBalanceBeforeFirstUse(
+        id: String,
+        newCurrency: CurrencyCode,
+        newOpeningBalance: Money,
+    ) {
         require(newOpeningBalance.currency == newCurrency) {
             "Opening balance currency ${newOpeningBalance.currency} does not match $newCurrency"
         }

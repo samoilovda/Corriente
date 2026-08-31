@@ -87,4 +87,39 @@ class AmountInputTest {
         val input = AmountInput.empty().backspace()
         assertTrue(input.isEmpty)
     }
+
+    @Test
+    fun `fromText reads a plain typed amount, comma or dot as the decimal separator`() {
+        assertEquals(Minor(123456), AmountInput.fromText("1234.56", rub).toMinorOrNull(rub))
+        assertEquals(Minor(123456), AmountInput.fromText("1234,56", rub).toMinorOrNull(rub))
+        assertEquals(Minor(150000), AmountInput.fromText("1500", rub).toMinorOrNull(rub))
+    }
+
+    @Test
+    fun `fromText ignores thousands spaces and caps the fraction`() {
+        assertEquals(Minor(123456), AmountInput.fromText("1 234.567", rub).toMinorOrNull(rub))
+        assertEquals(Minor(5000), AmountInput.fromText("50.00", rub).toMinorOrNull(rub))
+        assertEquals(Minor(50), AmountInput.fromText("50.7", clp).toMinorOrNull(clp)) // CLP: всё после точки отброшено
+    }
+
+    @Test
+    fun `fromText on blank is empty`() {
+        assertNull(AmountInput.fromText("", rub).toMinorOrNull(rub))
+        assertNull(AmountInput.fromText("   ", rub).toMinorOrNull(rub))
+    }
+
+    @Test
+    fun `fromText does not depend on the default locale`() {
+        val original = java.util.Locale.getDefault()
+        try {
+            java.util.Locale.setDefault(java.util.Locale.US)
+            val us = AmountInput.fromText("1234,56", rub).toMinorOrNull(rub)
+            java.util.Locale.setDefault(java.util.Locale.forLanguageTag("ru-RU"))
+            val ru = AmountInput.fromText("1234,56", rub).toMinorOrNull(rub)
+            assertEquals(Minor(123456), us)
+            assertEquals(us, ru)
+        } finally {
+            java.util.Locale.setDefault(original)
+        }
+    }
 }
