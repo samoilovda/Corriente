@@ -2,6 +2,8 @@ package com.corriente.data.repository
 
 import com.corriente.data.db.dao.CurrencyDao
 import com.corriente.data.db.entity.CurrencyEntity
+import com.corriente.data.model.ManagedCurrency
+import com.corriente.data.model.toManaged
 import com.corriente.money.Currency
 import com.corriente.money.CurrencyCode
 import kotlinx.coroutines.flow.Flow
@@ -16,6 +18,10 @@ class CurrencyRepository(private val dao: CurrencyDao) {
     fun observeAll(): Flow<List<Currency>> = dao.observeAll().map { list -> list.map { it.toDomain() } }
 
     fun observeActive(): Flow<List<Currency>> = dao.observeActive().map { list -> list.map { it.toDomain() } }
+
+    /** Полный справочник для экрана управления валютами (T1.2): с названием и флагом активности. */
+    fun observeManaged(): Flow<List<ManagedCurrency>> =
+        dao.observeAll().map { list -> list.map { it.toManaged() } }
 
     suspend fun getByCode(code: CurrencyCode): Currency? = dao.getByCode(code.code)?.toDomain()
 

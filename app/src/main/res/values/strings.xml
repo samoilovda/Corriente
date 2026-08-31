@@ -5,4 +5,13 @@
     <string name="nav_accounts">Счета</string>
     <string name="nav_report">Отчёт</string>
     <string name="nav_settings">Настройки</string>
+
+    <string name="back">Назад</string>
+    <string name="save">Сохранить</string>
+    <string name="cancel">Отмена</string>
+
+    <string name="currencies_title">Валюты</string>
+    <string name="currencies_search_hint">Поиск по коду или названию</string>
+    <string name="currencies_symbol">Символ</string>
+    <string name="currencies_display_scale">Знаков после запятой</string>
 </resources>
