@@ -1,7 +1,7 @@
 [versions]
 kotlin = "2.3.20"
 agp = "9.3.0"
-ksp = "2.3.20-2.0.4"
+ksp = "2.3.11"
 junit = "4.13.2"
 coroutines = "1.9.0"
 room = "2.8.4"
@@ -35,8 +35,9 @@ androidx-lifecycle-viewmodel-compose = { module = "androidx.lifecycle:lifecycle-
 compose-bom = { module = "androidx.compose:compose-bom", version.ref = "composeBom" }
 
 [plugins]
+# :core:money — чистый Kotlin/JVM. Android-модули с AGP 9+ используют встроенный
+# Kotlin (built-in Kotlin), плагин org.jetbrains.kotlin.android больше не нужен.
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
-kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 android-library = { id = "com.android.library", version.ref = "agp" }

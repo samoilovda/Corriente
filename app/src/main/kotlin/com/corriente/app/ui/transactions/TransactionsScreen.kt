@@ -3,6 +3,7 @@ package com.corriente.app.ui.transactions
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -13,6 +14,7 @@ import androidx.compose.ui.res.stringResource
 import com.corriente.app.R
 
 /** Список операций с группировкой по дням, ввод расхода/дохода — T1.5/T1.6. */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TransactionsScreen() {
     Scaffold(topBar = { TopAppBar(title = { Text(stringResource(R.string.nav_transactions)) }) }) { padding ->

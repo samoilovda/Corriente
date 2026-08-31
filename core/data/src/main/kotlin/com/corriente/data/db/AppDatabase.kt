@@ -70,7 +70,7 @@ abstract class AppDatabase : RoomDatabase() {
                             INSERT INTO currency(code, minor_units, display_scale, symbol, is_active, display_order)
                             VALUES (?, ?, ?, ?, ?, 0)
                             """.trimIndent(),
-                            arrayOf(c.code, c.minorUnits, c.minorUnits, c.symbol, isActive),
+                            arrayOf<Any>(c.code, c.minorUnits, c.minorUnits, c.symbol, isActive),
                         )
                     }
                     db.setTransactionSuccessful()

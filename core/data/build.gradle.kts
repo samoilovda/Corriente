@@ -1,6 +1,5 @@
 plugins {
     alias(libs.plugins.android.library)
-    alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.ksp)
 }
@@ -9,7 +8,7 @@ plugins {
 // НЕ содержит и не должен содержать сетевого кода (ADR-013, инвариант I-24).
 android {
     namespace = "com.corriente.data"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         minSdk = 26
@@ -37,8 +36,11 @@ kotlin {
 dependencies {
     implementation(project(":core:money"))
 
-    implementation(libs.room.runtime)
-    implementation(libs.room.ktx)
+    // api, не implementation: :app создаёт БД через Room.databaseBuilder и держит
+    // ссылку на AppDatabase (подтип RoomDatabase) в ручном DI-контейнере (ADR-011),
+    // поэтому типы Room — часть публичного API модуля.
+    api(libs.room.runtime)
+    api(libs.room.ktx)
     ksp(libs.room.compiler)
 
     implementation(libs.kotlinx.coroutines.android)

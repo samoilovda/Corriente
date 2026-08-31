@@ -6,7 +6,8 @@
 без серверной части и без сети вообще (ADR-013 — в приложении нет ни одной сетевой
 библиотеки и разрешения `INTERNET`).
 
-Статус: проектирование завершено, реализация начата (этап 0, T0.1–T0.3).
+Статус: проектирование завершено, реализация начата (этап 1, T1.1). Все модули
+(`:core:money`, `:core:data`, `:app`) собираются и тестируются.
 
 * [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — архитектурный документ: разбор открытых
   аналогов, ADR по модели денег и валют, схема данных, виджет, слои, риски и этапы работ.
@@ -20,42 +21,38 @@
 
 ## Сборка
 
+Требуется JDK 17+, Android SDK (platform 37, build-tools 36), доступ к Google Maven.
+Путь к SDK — в `local.properties` (`sdk.dir=...`, файл не коммитится) или переменной
+`ANDROID_HOME`.
+
 ```
-gradle :core:money:test verifyInvariantGuards   # всё, что реально проверяется в этой среде
+./gradlew check assembleDebug     # юнит-тесты всех модулей, lint, verifyInvariantGuards, debug APK
 ```
 
-`verifyInvariantGuards` — файловый скан **всего репозитория**, включая Android-модули,
-которые Gradle здесь не может даже сконфигурировать (см. ниже). После того как Android-модули
-раскомментированы в среде с доступом к Google Maven, обычный `gradle check` из корня проекта
-проверяет всё сразу, `:core:money:test` и `verifyInvariantGuards` в отдельном вызове больше не нужны.
+`verifyInvariantGuards` (корневой `build.gradle.kts`) — файловый скан **всего репозитория**
+на запрещённые конструкции (деньги через `Double`/`Float`, locale-зависимый разбор,
+`fallbackToDestructiveMigration`, `uses-permission` в манифестах). Сделан отдельной
+файловой задачей, а не Detekt-правилом, специально: читает `.kt` и `AndroidManifest.xml`
+с диска, поэтому не зависит от того, конфигурируется ли модуль. Подключён к `check`.
 
-### Известное ограничение окружения
+### Инструментальные тесты
 
-Разработка велась в среде без доступа к Google Maven (`dl.google.com` / `maven.google.com`
-блокируются политикой egress). Это значит, что **Android Gradle Plugin и все `androidx.*`
-(Room, Compose, Glance) в этой среде не резолвятся**, и Android-модули (`:core:data`, `:app`,
-`:widget`) физически нельзя даже сконфигурировать Gradle'ом — не то что собрать.
+`AppDatabaseMigrationTest` (`core/data/src/androidTest`) требует подключённого
+эмулятора или устройства:
 
-Поэтому:
+```
+./gradlew :core:data:connectedDebugAndroidTest
+```
 
-* `:core:money` — чистый Kotlin/JVM, не зависит от Android SDK, **полностью собирается,
-  тестируется и проверяется** в любой среде, включая эту.
-* `:core:data`, `:app`, `:widget` закомментированы в `settings.gradle.kts`. Их нужно
-  раскомментировать и собирать в среде с доступом к Google Maven (локальная машина
-  с Android Studio, или CI с обычным интернетом).
-* Защитный скан `verifyInvariantGuards` (корневой `build.gradle.kts`) — файловая проверка,
-  а не Detekt-плагин и не JUnit-тест внутри модуля: она читает `.kt`- и
-  `AndroidManifest.xml`-файлы с диска напрямую, поэтому работает даже для модулей,
-  которые Gradle не может сконфигурировать в этой среде.
+### Совместимость версий
 
-Если следующий этап работы идёт в среде с доступом к Google Maven — это ограничение снимается
-само собой, менять ничего не нужно, кроме раскомментирования модулей в `settings.gradle.kts`.
+AGP 9 использует встроенный Kotlin (built-in Kotlin) — плагин `org.jetbrains.kotlin.android`
+в Android-модулях не применяется, KGP приходит транзитивно с AGP. `:core:money` —
+чистый Kotlin/JVM (`org.jetbrains.kotlin.jvm`), не зависит от Android SDK
+(ARCHITECTURE.md §5.1). `:widget` появится на этапе 4 (BUILD_PLAN.md §6).
 
 ### Схема БД (`:core:data`)
 
-Room-сущности и DAO написаны по ARCHITECTURE.md §3.2 и не скомпилированы в этой сессии
-(см. ограничение выше). После первой успешной сборки в Android Studio Room сгенерирует
-`core/data/schemas/1.json` — этот файл нужно закоммитить (ADR-008, I-20): он даёт
-`MigrationTestHelper` эталон, с которым сверяется схема при каждой следующей миграции.
-`AppDatabaseMigrationTest` (`src/androidTest`) — инструментальный тест, нужен подключённый
-эмулятор/устройство; он же образец для будущих тестов миграций v1→v2 и далее.
+Room с `exportSchema=true` (ADR-008, I-20) пишет схему в `core/data/schemas/` при
+каждой сборке — файлы коммитятся. Они дают `MigrationTestHelper` эталон, с которым
+сверяется схема при каждой следующей миграции.
