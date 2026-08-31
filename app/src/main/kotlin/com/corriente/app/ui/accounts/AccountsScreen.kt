@@ -50,10 +50,9 @@ import com.corriente.money.MoneyFormatter
 @Composable
 fun AccountsScreen(
     viewModel: AccountsViewModel = viewModel(
-        factory = AccountsViewModel.factory(
-            corrienteContainer().accountRepository,
-            corrienteContainer().currencyRepository,
-        ),
+        factory = with(corrienteContainer()) {
+            AccountsViewModel.factory(accountRepository, currencyRepository, accountBalanceUseCase)
+        },
     ),
 ) {
     val state by viewModel.uiState.collectAsState()
@@ -68,14 +67,31 @@ fun AccountsScreen(
         },
     ) { padding ->
         LazyColumn(Modifier.fillMaxWidth().padding(padding)) {
-            items(state.active, key = { it.account.id }) { row ->
-                AccountListRow(
-                    title = row.account.name,
-                    subtitle = accountSubtitle(row.account.kind, row.account.includeInTotal),
-                    trailing = MoneyFormatter.format(row.account.openingBalance, row.currency),
-                    onClick = { viewModel.startEdit(row.account) },
-                )
-                HorizontalDivider()
+            if (state.groups.isEmpty() && state.archived.isEmpty()) {
+                item {
+                    Text(
+                        stringResource(R.string.accounts_empty),
+                        Modifier.padding(24.dp),
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
+            }
+            state.groups.forEach { group ->
+                item(key = "cur-${group.currency.code.code}") {
+                    CurrencyGroupHeader(
+                        title = "${group.currency.code.code} · ${group.currency.symbol}",
+                        total = group.total?.let { MoneyFormatter.format(it, group.currency) },
+                    )
+                }
+                items(group.rows, key = { it.account.id }) { row ->
+                    AccountListRow(
+                        title = row.account.name,
+                        subtitle = accountSubtitle(row.account.kind, row.account.includeInTotal),
+                        trailing = row.balance?.let { MoneyFormatter.format(it, group.currency) }.orEmpty(),
+                        onClick = { viewModel.startEdit(row.account) },
+                    )
+                    HorizontalDivider()
+                }
             }
             if (state.archived.isNotEmpty()) {
                 item {
@@ -111,6 +127,20 @@ fun AccountsScreen(
             onDelete = { current.editingId?.let(viewModel::deleteIfUnused); viewModel.closeEditor() },
         )
     }
+}
+
+@Composable
+private fun CurrencyGroupHeader(title: String, total: String?) {
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(title, Modifier.weight(1f), style = MaterialTheme.typography.titleSmall)
+        if (total != null) {
+            Text(total, style = MaterialTheme.typography.titleSmall)
+        }
+    }
+    HorizontalDivider()
 }
 
 @Composable

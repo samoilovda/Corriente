@@ -8,6 +8,8 @@ import com.corriente.data.db.entity.AccountKind
 import com.corriente.data.model.Account
 import com.corriente.data.repository.AccountRepository
 import com.corriente.data.repository.CurrencyRepository
+import com.corriente.data.usecase.AccountBalanceUseCase
+import com.corriente.data.usecase.totalsByCurrency
 import com.corriente.money.AmountInput
 import com.corriente.money.Currency
 import com.corriente.money.CurrencyCode
@@ -21,10 +23,20 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 /** Счёт вместе с его валютой — [Currency] нужна для форматирования сумм (MoneyFormatter). */
-data class AccountRow(val account: Account, val currency: Currency)
+data class AccountRow(val account: Account, val currency: Currency, val balance: Money? = null)
+
+/**
+ * Счета одной валюты и итог по ней (T1.7). [total] = null, если ни один счёт валюты не помечен
+ * `include_in_total`. Разные валюты — разные группы; складывать их между собой невозможно (I-8).
+ */
+data class CurrencyBalanceGroup(
+    val currency: Currency,
+    val rows: List<AccountRow>,
+    val total: Money?,
+)
 
 data class AccountsUiState(
-    val active: List<AccountRow> = emptyList(),
+    val groups: List<CurrencyBalanceGroup> = emptyList(),
     val archived: List<AccountRow> = emptyList(),
     val activeCurrencies: List<Currency> = emptyList(),
 )
@@ -88,17 +100,30 @@ internal fun openingBalanceText(minor: Minor, currency: Currency): String {
 class AccountsViewModel(
     private val accounts: AccountRepository,
     private val currencies: CurrencyRepository,
+    balances: AccountBalanceUseCase,
 ) : ViewModel() {
 
     val uiState: StateFlow<AccountsUiState> = combine(
-        accounts.observeActive(),
+        balances.observeBalances(),
         accounts.observeArchived(),
         currencies.observeAll(),
         currencies.observeActive(),
-    ) { active, archived, allCurrencies, activeCurrencies ->
+    ) { accountBalances, archived, allCurrencies, activeCurrencies ->
         val byCode = allCurrencies.associateBy { it.code.code }
+        val totals = totalsByCurrency(accountBalances)
+        val groups = accountBalances.groupBy { it.account.currency }.entries
+            .sortedBy { it.key.code }
+            .map { (code, group) ->
+                val currency = byCode[code.code] ?: fallbackCurrency(code)
+                CurrencyBalanceGroup(
+                    currency = currency,
+                    rows = group.sortedBy { it.account.displayOrder }
+                        .map { AccountRow(it.account, currency, it.balance) },
+                    total = totals[code],
+                )
+            }
         AccountsUiState(
-            active = active.map { it.toRow(byCode) },
+            groups = groups,
             archived = archived.map { it.toRow(byCode) },
             activeCurrencies = activeCurrencies,
         )
@@ -180,8 +205,12 @@ class AccountsViewModel(
     }
 
     companion object {
-        fun factory(accounts: AccountRepository, currencies: CurrencyRepository) = viewModelFactory {
-            initializer { AccountsViewModel(accounts, currencies) }
+        fun factory(
+            accounts: AccountRepository,
+            currencies: CurrencyRepository,
+            balances: AccountBalanceUseCase,
+        ) = viewModelFactory {
+            initializer { AccountsViewModel(accounts, currencies, balances) }
         }
     }
 }

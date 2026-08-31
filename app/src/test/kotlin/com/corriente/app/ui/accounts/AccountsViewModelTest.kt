@@ -1,13 +1,17 @@
 package com.corriente.app.ui.accounts
 
 import com.corriente.app.ui.currencies.FakeCurrencyDao
+import com.corriente.app.ui.txnentry.FakeTxnDao
 import com.corriente.data.db.entity.AccountKind
 import com.corriente.data.db.entity.CurrencyEntity
 import com.corriente.data.repository.AccountRepository
 import com.corriente.data.repository.CurrencyRepository
+import com.corriente.data.repository.TxnRepository
+import com.corriente.data.usecase.AccountBalanceUseCase
 import com.corriente.money.Currency
 import com.corriente.money.CurrencyCode
 import com.corriente.money.Minor
+import com.corriente.money.Money
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -41,8 +45,11 @@ class AccountsViewModelTest {
         displayOrder = 0,
     )
 
+    private lateinit var txnRepository: TxnRepository
+
     private fun build(): Triple<AccountsViewModel, FakeAccountDao, CurrencyRepository> {
         val accountDao = FakeAccountDao()
+        val txnDao = FakeTxnDao()
         val currencyDao = FakeCurrencyDao(
             listOf(
                 currencyEntity("RUB", 2, active = true),
@@ -51,9 +58,17 @@ class AccountsViewModelTest {
             ),
         )
         val currencies = CurrencyRepository(currencyDao)
-        val vm = AccountsViewModel(AccountRepository(accountDao), currencies)
+        val accountRepository = AccountRepository(accountDao)
+        txnRepository = TxnRepository(txnDao, accountDao)
+        val vm = AccountsViewModel(
+            accountRepository,
+            currencies,
+            AccountBalanceUseCase(accountRepository, txnRepository),
+        )
         return Triple(vm, accountDao, currencies)
     }
+
+    private fun activeRows(vm: AccountsViewModel) = vm.uiState.value.groups.flatMap { it.rows }
 
     private fun CoroutineScope.observe(vm: AccountsViewModel) {
         launch { vm.uiState.collect {} }
@@ -114,7 +129,7 @@ class AccountsViewModelTest {
         )
         advanceUntilIdle()
         assertTrue(ok)
-        val rows = vm.uiState.value.active
+        val rows = activeRows(vm)
         assertEquals(1, rows.size)
         assertEquals("Наличные", rows.single().account.name)
         assertEquals(Minor(1_000_000), rows.single().account.openingBalance.amount)
@@ -129,7 +144,7 @@ class AccountsViewModelTest {
         advanceUntilIdle()
         assertFalse(vm.save(AccountForm("  ", CurrencyCode("RUB"), AccountKind.CASH, "1", includeInTotal = true)))
         advanceUntilIdle()
-        assertTrue(vm.uiState.value.active.isEmpty())
+        assertTrue(activeRows(vm).isEmpty())
     }
 
     @Test
@@ -142,7 +157,7 @@ class AccountsViewModelTest {
             vm.save(AccountForm("Карта", CurrencyCode("RUB"), AccountKind.CARD, "0", includeInTotal = true))
             advanceUntilIdle()
 
-            val account = vm.uiState.value.active.single().account
+            val account = activeRows(vm).single().account
             dao.markHasTransactions(account.id)
 
             vm.startEdit(account)
@@ -152,7 +167,42 @@ class AccountsViewModelTest {
             // Пытаемся сменить валюту на USD — должно быть проигнорировано (I-23).
             vm.save(AccountForm("Карта", CurrencyCode("USD"), AccountKind.CARD, "0", includeInTotal = true))
             advanceUntilIdle()
-            assertEquals("RUB", vm.uiState.value.active.single().account.currency.code)
+            assertEquals("RUB", activeRows(vm).single().account.currency.code)
+        }
+
+    @Test
+    fun `accounts are grouped by currency with a per-currency total that skips excluded accounts`() =
+        runTest(dispatcher) {
+            val (vm, _, _) = build()
+            backgroundScope.observe(vm)
+            advanceUntilIdle()
+
+            vm.startCreate(); advanceUntilIdle()
+            vm.save(AccountForm("Наличные", CurrencyCode("RUB"), AccountKind.CASH, "10000", includeInTotal = true))
+            advanceUntilIdle()
+            vm.startCreate(); advanceUntilIdle()
+            vm.save(AccountForm("Долг", CurrencyCode("RUB"), AccountKind.DEBT, "-3000", includeInTotal = false))
+            advanceUntilIdle()
+            vm.startCreate(); advanceUntilIdle()
+            vm.save(AccountForm("Карта", CurrencyCode("USD"), AccountKind.CARD, "100", includeInTotal = true))
+            advanceUntilIdle()
+
+            val cash = activeRows(vm).first { it.account.name == "Наличные" }.account
+            // расход 1 500 ₽ и доход 500 ₽ по «Наличные» → баланс 10000 − 1500 + 500 = 9000
+            txnRepository.addExpense(cash.id, Money(Minor(1_500_00), CurrencyCode("RUB")), null, java.time.LocalDate.now(), null)
+            txnRepository.addIncome(cash.id, Money(Minor(500_00), CurrencyCode("RUB")), null, java.time.LocalDate.now(), null)
+            advanceUntilIdle()
+
+            val groups = vm.uiState.value.groups.associateBy { it.currency.code.code }
+            assertEquals(setOf("RUB", "USD"), groups.keys)
+
+            assertEquals(
+                Minor(9_000_00),
+                groups.getValue("RUB").rows.first { it.account.name == "Наличные" }.balance!!.amount,
+            )
+            // итог по RUB = только «Наличные» (9 000), «Долг» исключён из итога
+            assertEquals(Minor(9_000_00), groups.getValue("RUB").total!!.amount)
+            assertEquals(Minor(100_00), groups.getValue("USD").total!!.amount)
         }
 
     @Test
@@ -163,15 +213,15 @@ class AccountsViewModelTest {
         advanceUntilIdle()
         vm.save(AccountForm("Копилка", CurrencyCode("RUB"), AccountKind.SAVINGS, "0", includeInTotal = true))
         advanceUntilIdle()
-        val id = vm.uiState.value.active.single().account.id
+        val id = activeRows(vm).single().account.id
 
         vm.archive(id)
         advanceUntilIdle()
-        assertTrue(vm.uiState.value.active.isEmpty())
+        assertTrue(activeRows(vm).isEmpty())
         assertEquals(listOf(id), vm.uiState.value.archived.map { it.account.id })
 
         vm.unarchive(id)
         advanceUntilIdle()
-        assertEquals(listOf(id), vm.uiState.value.active.map { it.account.id })
+        assertEquals(listOf(id), activeRows(vm).map { it.account.id })
     }
 }

@@ -28,6 +28,7 @@
     <string name="accounts_delete">Удалить</string>
     <string name="accounts_archived">Архив</string>
     <string name="accounts_unarchive">Вернуть из архива</string>
+    <string name="accounts_empty">Счетов пока нет. Добавьте первый по кнопке «+».</string>
 
     <string name="account_kind_cash">Наличные</string>
     <string name="account_kind_card">Карта</string>
