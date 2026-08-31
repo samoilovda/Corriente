@@ -72,4 +72,13 @@
     <string name="txn_list_all_currencies">Все валюты</string>
     <string name="txn_list_empty">Операций пока нет. Добавьте первую по кнопке «+».</string>
     <string name="txn_list_no_match">Под фильтр ничего не подходит.</string>
+
+    <string name="report_period_month">Месяц</string>
+    <string name="report_period_quarter">Квартал</string>
+    <string name="report_period_year">Год</string>
+    <string name="report_period_custom">Период</string>
+    <string name="report_prev">Предыдущий период</string>
+    <string name="report_next">Следующий период</string>
+    <string name="report_total">Итого</string>
+    <string name="report_empty">За этот период операций с категориями нет.</string>
 </resources>

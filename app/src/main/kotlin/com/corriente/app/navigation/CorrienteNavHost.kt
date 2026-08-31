@@ -76,7 +76,9 @@ fun CorrienteNavHost() {
                 )
             }
             composable(CorrienteDestination.ACCOUNTS.route) { AccountsScreen() }
-            composable(CorrienteDestination.REPORT.route) { ReportScreen() }
+            composable(CorrienteDestination.REPORT.route) {
+                ReportScreen(onEditTransaction = { id -> navController.navigate("$TXN_EDIT_ROUTE/$id") })
+            }
             composable(CorrienteDestination.SETTINGS.route) {
                 SettingsScreen(
                     onOpenCurrencies = { navController.navigate(CURRENCIES_ROUTE) },

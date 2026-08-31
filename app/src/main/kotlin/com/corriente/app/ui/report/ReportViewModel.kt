@@ -1,0 +1,189 @@
+package com.corriente.app.ui.report
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
+import com.corriente.data.model.Txn
+import com.corriente.data.repository.CategoryRepository
+import com.corriente.data.repository.CurrencyRepository
+import com.corriente.data.repository.TxnRepository
+import com.corriente.data.usecase.CategoryTotal
+import com.corriente.data.usecase.ReportKind
+import com.corriente.data.usecase.categoryReport
+import com.corriente.money.Currency
+import com.corriente.money.CurrencyCode
+import com.corriente.money.MoneyFormatter
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
+import java.time.LocalDate
+
+data class ReportRow(
+    val categoryId: String?,
+    val name: String,
+    val amountText: String,
+    val sharePercent: Int,
+)
+
+data class TxnBrief(val id: String, val date: LocalDate, val amountText: String, val note: String?)
+
+data class Drilldown(val categoryName: String, val txns: List<TxnBrief>)
+
+data class ReportUiState(
+    val kind: ReportKind = ReportKind.EXPENSE,
+    val periodMode: PeriodMode = PeriodMode.MONTH,
+    val periodLabel: String = "",
+    val currencyCodes: List<String> = emptyList(),
+    val selectedCurrency: String? = null,
+    val rows: List<ReportRow> = emptyList(),
+    val totalText: String? = null,
+    val drilldown: Drilldown? = null,
+)
+
+/** Валюта с наибольшим числом операций-с-категорией за период (значение по умолчанию, T1.8). */
+internal fun dominantCurrency(txns: List<Txn>): String? = txns
+    .mapNotNull {
+        when (it) {
+            is Txn.Expense -> it.amount.currency.code
+            is Txn.Income -> it.amount.currency.code
+            is Txn.Transfer -> null
+        }
+    }
+    .groupingBy { it }.eachCount()
+    .maxByOrNull { it.value }?.key
+
+internal fun withShares(report: List<CategoryTotal>, names: Map<String, String>, currency: Currency): List<ReportRow> {
+    val grand = report.sumOf { it.total.amount.raw }
+    return report.map { total ->
+        ReportRow(
+            categoryId = total.categoryId,
+            name = total.categoryId?.let { names[it] } ?: "Без категории",
+            amountText = MoneyFormatter.format(total.total, currency),
+            sharePercent = if (grand == 0L) 0 else ((total.total.amount.raw * 100) / grand).toInt(),
+        )
+    }
+}
+
+class ReportViewModel(
+    private val txns: TxnRepository,
+    private val categories: CategoryRepository,
+    private val currencies: CurrencyRepository,
+    today: () -> LocalDate = LocalDate::now,
+) : ViewModel() {
+
+    private data class Form(
+        val kind: ReportKind = ReportKind.EXPENSE,
+        val mode: PeriodMode = PeriodMode.MONTH,
+        val anchor: LocalDate,
+        val customStart: LocalDate,
+        val customEnd: LocalDate,
+        val currency: String? = null,
+        val drilldownCategoryId: String? = null,
+        val drilldownActive: Boolean = false,
+    )
+
+    private val form = MutableStateFlow(today().let { Form(anchor = it, customStart = it.withDayOfMonth(1), customEnd = it) })
+
+    val uiState: StateFlow<ReportUiState> = combine(
+        form,
+        txns.observeAll(),
+        categories.observeAllForLookup(),
+        currencies.observeAll(),
+    ) { f, allTxns, allCategories, allCurrencies ->
+        val range = periodRange(f.mode, f.anchor, f.customStart, f.customEnd)
+        val byCode = allCurrencies.associateBy { it.code.code }
+        val names = allCategories.associate { it.id to it.name }
+        val inPeriod = allTxns.filter { it.date in range }
+        val currencyCodes = inPeriod
+            .mapNotNull {
+                when (it) {
+                    is Txn.Expense -> it.amount.currency.code
+                    is Txn.Income -> it.amount.currency.code
+                    is Txn.Transfer -> null
+                }
+            }
+            .groupingBy { it }.eachCount().entries.sortedByDescending { it.value }.map { it.key }
+        val selected = f.currency?.takeIf { it in currencyCodes } ?: currencyCodes.firstOrNull()
+        val currency = selected?.let { byCode[it] } ?: selected?.let { fallbackCurrency(it) }
+
+        val report = if (selected == null) emptyList() else
+            categoryReport(allTxns, CurrencyCode(selected), range, f.kind)
+        val rows = if (currency == null) emptyList() else withShares(report, names, currency)
+        val total = if (report.isEmpty() || currency == null) null else
+            MoneyFormatter.format(report.map { it.total }.reduce { a, b -> a + b }, currency)
+
+        val drilldown = if (f.drilldownActive && selected != null && currency != null) {
+            val catName = f.drilldownCategoryId?.let { names[it] } ?: "Без категории"
+            val briefs = inPeriod
+                .filter { txnMatches(it, f.kind, selected, f.drilldownCategoryId) }
+                .sortedByDescending { it.date }
+                .map { txn ->
+                    val amount = when (txn) {
+                        is Txn.Expense -> txn.amount
+                        is Txn.Income -> txn.amount
+                        is Txn.Transfer -> txn.fromAmount
+                    }
+                    TxnBrief(txn.id, txn.date, MoneyFormatter.format(amount, currency), txn.note)
+                }
+            Drilldown(catName, briefs)
+        } else {
+            null
+        }
+
+        ReportUiState(
+            kind = f.kind,
+            periodMode = f.mode,
+            periodLabel = periodLabel(f.mode, range),
+            currencyCodes = currencyCodes,
+            selectedCurrency = selected,
+            rows = rows,
+            totalText = total,
+            drilldown = drilldown,
+        )
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ReportUiState())
+
+    fun setKind(kind: ReportKind) = form.update { it.copy(kind = kind, drilldownActive = false) }
+
+    fun setPeriodMode(mode: PeriodMode) = form.update { it.copy(mode = mode, drilldownActive = false) }
+
+    fun shiftPeriod(delta: Long) = form.update {
+        it.copy(anchor = shiftAnchor(it.mode, it.anchor, delta), drilldownActive = false)
+    }
+
+    fun setCustomRange(start: LocalDate, end: LocalDate) = form.update {
+        it.copy(mode = PeriodMode.CUSTOM, customStart = start, customEnd = end, drilldownActive = false)
+    }
+
+    fun selectCurrency(code: String) = form.update { it.copy(currency = code, drilldownActive = false) }
+
+    fun openDrilldown(categoryId: String?) = form.update {
+        it.copy(drilldownCategoryId = categoryId, drilldownActive = true)
+    }
+
+    fun closeDrilldown() = form.update { it.copy(drilldownActive = false) }
+
+    companion object {
+        fun factory(
+            txns: TxnRepository,
+            categories: CategoryRepository,
+            currencies: CurrencyRepository,
+        ) = viewModelFactory {
+            initializer { ReportViewModel(txns, categories, currencies) }
+        }
+    }
+}
+
+private fun fallbackCurrency(code: String): Currency =
+    Currency(CurrencyCode(code), minorUnits = 2, displayScale = 2, symbol = code)
+
+private fun txnMatches(txn: Txn, kind: ReportKind, currency: String, categoryId: String?): Boolean = when {
+    kind == ReportKind.EXPENSE && txn is Txn.Expense ->
+        txn.amount.currency.code == currency && txn.categoryId == categoryId
+    kind == ReportKind.INCOME && txn is Txn.Income ->
+        txn.amount.currency.code == currency && txn.categoryId == categoryId
+    else -> false
+}
