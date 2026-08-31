@@ -55,4 +55,13 @@
 
     <string name="category_kind_expense">Расход</string>
     <string name="category_kind_income">Доход</string>
+
+    <string name="txn_entry_title">Новая операция</string>
+    <string name="txn_entry_account">Счёт</string>
+    <string name="txn_entry_category">Категория</string>
+    <string name="txn_entry_no_category">Без категории</string>
+    <string name="txn_entry_date">Дата</string>
+    <string name="txn_entry_note">Заметка</string>
+    <string name="txn_entry_backspace">Стереть</string>
+    <string name="txn_entry_no_accounts">Сначала создайте счёт на вкладке «Счета».</string>
 </resources>

@@ -22,10 +22,12 @@ import com.corriente.app.ui.currencies.CurrenciesScreen
 import com.corriente.app.ui.report.ReportScreen
 import com.corriente.app.ui.settings.SettingsScreen
 import com.corriente.app.ui.transactions.TransactionsScreen
+import com.corriente.app.ui.txnentry.TxnEntryScreen
 
-/** Маршруты вне нижней навигации — открываются из разделов (T1.2/T1.4: из «Настроек»). */
+/** Маршруты вне нижней навигации (T1.2/T1.4 — из «Настроек»; T1.5 — ввод по FAB). */
 private const val CURRENCIES_ROUTE = "currencies"
 private const val CATEGORIES_ROUTE = "categories"
+private const val TXN_ENTRY_ROUTE = "txn_entry"
 
 /**
  * Каркас навигации (T1.1): нижняя панель с четырьмя разделами. Содержимое разделов
@@ -64,7 +66,9 @@ fun CorrienteNavHost() {
             startDestination = CorrienteDestination.TRANSACTIONS.route,
             modifier = Modifier.padding(padding),
         ) {
-            composable(CorrienteDestination.TRANSACTIONS.route) { TransactionsScreen() }
+            composable(CorrienteDestination.TRANSACTIONS.route) {
+                TransactionsScreen(onAddTransaction = { navController.navigate(TXN_ENTRY_ROUTE) })
+            }
             composable(CorrienteDestination.ACCOUNTS.route) { AccountsScreen() }
             composable(CorrienteDestination.REPORT.route) { ReportScreen() }
             composable(CorrienteDestination.SETTINGS.route) {
@@ -78,6 +82,9 @@ fun CorrienteNavHost() {
             }
             composable(CATEGORIES_ROUTE) {
                 CategoriesScreen(onBack = { navController.popBackStack() })
+            }
+            composable(TXN_ENTRY_ROUTE) {
+                TxnEntryScreen(onDone = { navController.popBackStack() })
             }
         }
     }
