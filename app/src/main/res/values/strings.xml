@@ -71,6 +71,8 @@
     <string name="category_kind_income">Доход</string>
 
     <string name="txn_entry_title">Новая операция</string>
+    <string name="txn_add_expense">Добавить расход</string>
+    <string name="txn_add_income">Добавить доход</string>
     <string name="txn_entry_account">Счёт</string>
     <string name="txn_entry_category">Категория</string>
     <string name="txn_entry_no_category">Без категории</string>
@@ -83,7 +85,7 @@
 
     <string name="txn_list_all_accounts">Все счета</string>
     <string name="txn_list_all_currencies">Все валюты</string>
-    <string name="txn_list_empty">Операций пока нет. Добавьте первую по кнопке «+».</string>
+    <string name="txn_list_empty">Операций пока нет. Добавьте расход кнопкой «−» или доход кнопкой «+».</string>
     <string name="txn_list_no_match">Под фильтр ничего не подходит.</string>
 
     <string name="report_period_month">Месяц</string>

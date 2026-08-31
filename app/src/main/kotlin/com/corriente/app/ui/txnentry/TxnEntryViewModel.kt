@@ -63,11 +63,12 @@ class TxnEntryViewModel(
     private val categories: CategoryRepository,
     private val currencies: CurrencyRepository,
     private val editingTxnId: String? = null,
+    initialKind: EntryKind = EntryKind.EXPENSE,
     private val today: () -> LocalDate = LocalDate::now,
 ) : ViewModel() {
 
     private data class Form(
-        val kind: EntryKind = EntryKind.EXPENSE,
+        val kind: EntryKind,
         val amount: AmountInput = AmountInput.empty(),
         val selectedAccountId: String? = null,
         val selectedCategoryId: String? = null,
@@ -75,7 +76,7 @@ class TxnEntryViewModel(
         val note: String = "",
     )
 
-    private val form = MutableStateFlow(Form(date = today()))
+    private val form = MutableStateFlow(Form(kind = initialKind, date = today()))
 
     private val _finished = MutableStateFlow(false)
     val finished: StateFlow<Boolean> = _finished
@@ -207,8 +208,9 @@ class TxnEntryViewModel(
             categories: CategoryRepository,
             currencies: CurrencyRepository,
             editingTxnId: String? = null,
+            initialKind: EntryKind = EntryKind.EXPENSE,
         ) = viewModelFactory {
-            initializer { TxnEntryViewModel(txns, accounts, categories, currencies, editingTxnId) }
+            initializer { TxnEntryViewModel(txns, accounts, categories, currencies, editingTxnId, initialKind) }
         }
     }
 }

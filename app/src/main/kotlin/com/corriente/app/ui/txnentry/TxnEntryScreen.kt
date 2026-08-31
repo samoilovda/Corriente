@@ -52,10 +52,11 @@ import java.time.ZoneOffset
 fun TxnEntryScreen(
     onDone: () -> Unit,
     editingTxnId: String? = null,
+    initialKind: EntryKind = EntryKind.EXPENSE,
     viewModel: TxnEntryViewModel = viewModel(
         factory = with(corrienteContainer()) {
             TxnEntryViewModel.factory(
-                txnRepository, accountRepository, categoryRepository, currencyRepository, editingTxnId,
+                txnRepository, accountRepository, categoryRepository, currencyRepository, editingTxnId, initialKind,
             )
         },
     ),

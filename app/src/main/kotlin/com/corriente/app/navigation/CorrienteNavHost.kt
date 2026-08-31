@@ -24,6 +24,7 @@ import com.corriente.app.ui.currencies.CurrenciesScreen
 import com.corriente.app.ui.report.ReportScreen
 import com.corriente.app.ui.settings.SettingsScreen
 import com.corriente.app.ui.transactions.TransactionsScreen
+import com.corriente.app.ui.txnentry.EntryKind
 import com.corriente.app.ui.txnentry.TxnEntryScreen
 
 /** Маршруты вне нижней навигации (T1.2/T1.4 — из «Настроек»; T1.5 — ввод по FAB). */
@@ -71,7 +72,8 @@ fun CorrienteNavHost() {
         ) {
             composable(CorrienteDestination.TRANSACTIONS.route) {
                 TransactionsScreen(
-                    onAddTransaction = { navController.navigate(TXN_ENTRY_ROUTE) },
+                    onAddExpense = { navController.navigate("$TXN_ENTRY_ROUTE?kind=${EntryKind.EXPENSE.name}") },
+                    onAddIncome = { navController.navigate("$TXN_ENTRY_ROUTE?kind=${EntryKind.INCOME.name}") },
                     onEditTransaction = { id -> navController.navigate("$TXN_EDIT_ROUTE/$id") },
                 )
             }
@@ -91,8 +93,18 @@ fun CorrienteNavHost() {
             composable(CATEGORIES_ROUTE) {
                 CategoriesScreen(onBack = { navController.popBackStack() })
             }
-            composable(TXN_ENTRY_ROUTE) {
-                TxnEntryScreen(onDone = { navController.popBackStack() })
+            composable(
+                "$TXN_ENTRY_ROUTE?kind={kind}",
+                arguments = listOf(
+                    navArgument("kind") { type = NavType.StringType; defaultValue = EntryKind.EXPENSE.name },
+                ),
+            ) { entry ->
+                TxnEntryScreen(
+                    onDone = { navController.popBackStack() },
+                    initialKind = EntryKind.valueOf(
+                        entry.arguments?.getString("kind") ?: EntryKind.EXPENSE.name,
+                    ),
+                )
             }
             composable(
                 "$TXN_EDIT_ROUTE/{txnId}",

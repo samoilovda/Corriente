@@ -65,12 +65,17 @@ class TxnEntryViewModelTest {
         id = id, name = name, kind = kind, color = 0,
     )
 
-    private fun vm(fakes: Fakes, editingTxnId: String? = null): TxnEntryViewModel = TxnEntryViewModel(
+    private fun vm(
+        fakes: Fakes,
+        editingTxnId: String? = null,
+        initialKind: EntryKind = EntryKind.EXPENSE,
+    ): TxnEntryViewModel = TxnEntryViewModel(
         txns = TxnRepository(fakes.txnDao, fakes.accountDao),
         accounts = AccountRepository(fakes.accountDao),
         categories = CategoryRepository(fakes.categoryDao),
         currencies = CurrencyRepository(fakes.currencyDao),
         editingTxnId = editingTxnId,
+        initialKind = initialKind,
         today = { today },
     )
 
@@ -84,6 +89,16 @@ class TxnEntryViewModelTest {
 
     @After
     fun tearDown() = Dispatchers.resetMain()
+
+    @Test
+    fun `initialKind INCOME opens the form on the income branch`() = runTest(dispatcher) {
+        val fakes = Fakes().apply { seed() }
+        val model = vm(fakes, initialKind = EntryKind.INCOME)
+        backgroundScope.observe(model)
+        advanceUntilIdle()
+        assertEquals(EntryKind.INCOME, model.uiState.value.kind)
+        assertEquals(listOf("Зарплата"), model.uiState.value.categories.map { it.name })
+    }
 
     @Test
     fun `first account is selected by default and its currency drives the keypad`() = runTest(dispatcher) {

@@ -11,10 +11,12 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -40,7 +42,8 @@ import com.corriente.app.corrienteContainer
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TransactionsScreen(
-    onAddTransaction: () -> Unit,
+    onAddExpense: () -> Unit,
+    onAddIncome: () -> Unit,
     onEditTransaction: (String) -> Unit,
     viewModel: TransactionsViewModel = viewModel(
         factory = with(corrienteContainer()) {
@@ -53,8 +56,17 @@ fun TransactionsScreen(
     Scaffold(
         topBar = { TopAppBar(title = { Text(stringResource(R.string.nav_transactions)) }) },
         floatingActionButton = {
-            FloatingActionButton(onClick = onAddTransaction) {
-                Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.txn_entry_title))
+            // «+» доход слева, «−» расход справа (у thumb-зоны): расход — самый частый сценарий,
+            // основная кнопка; «+» вторичного цвета.
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                FloatingActionButton(
+                    onClick = onAddIncome,
+                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                    elevation = FloatingActionButtonDefaults.loweredElevation(),
+                ) { Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.txn_add_income)) }
+                FloatingActionButton(onClick = onAddExpense) {
+                    Icon(Icons.Filled.Remove, contentDescription = stringResource(R.string.txn_add_expense))
+                }
             }
         },
     ) { padding ->
