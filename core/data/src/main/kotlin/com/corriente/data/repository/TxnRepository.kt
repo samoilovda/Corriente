@@ -2,6 +2,7 @@ package com.corriente.data.repository
 
 import com.corriente.data.db.dao.AccountDao
 import com.corriente.data.db.dao.TxnDao
+import com.corriente.data.db.entity.TxnKind
 import com.corriente.data.model.Txn
 import com.corriente.data.model.toDomain
 import com.corriente.data.model.toEntity
@@ -98,8 +99,43 @@ class TxnRepository(
         return txn
     }
 
+    suspend fun getById(id: String): Txn? = txnDao.getById(id)?.toDomain()
+
+    /**
+     * Правка расхода/дохода (T1.6): сумма, категория, дата, заметка, счёт. Валюта суммы обязана
+     * совпадать с валютой нового счёта (I-15) — при смене счёта на другую валюту вызывающий
+     * обязан заново ввести сумму. Перевод этим методом не редактируется (T2.x).
+     */
+    suspend fun updateEntry(
+        id: String,
+        accountId: String,
+        amount: Money,
+        categoryId: String?,
+        date: LocalDate,
+        note: String?,
+    ): Txn {
+        val existing = requireNotNull(txnDao.getById(id)) { "Transaction $id not found" }
+        require(existing.kind != TxnKind.TRANSFER) { "Transfers are not editable here" }
+        requireAmountMatchesAccount(accountId, amount)
+        val updated = existing.copy(
+            accountId = accountId,
+            amountMinor = amount.amount.raw,
+            currencyCode = amount.currency.code,
+            categoryId = categoryId,
+            date = date.toString(),
+            note = note,
+            updatedAt = System.currentTimeMillis(),
+        )
+        txnDao.update(updated)
+        return updated.toDomain()
+    }
+
     suspend fun delete(txn: Txn) {
         txnDao.delete(txn.toEntity())
+    }
+
+    suspend fun deleteById(id: String) {
+        txnDao.getById(id)?.let { txnDao.delete(it) }
     }
 
     private suspend fun requireAmountMatchesAccount(accountId: String, amount: Money) {

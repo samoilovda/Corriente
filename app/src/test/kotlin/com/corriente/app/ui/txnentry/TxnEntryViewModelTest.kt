@@ -65,11 +65,12 @@ class TxnEntryViewModelTest {
         id = id, name = name, kind = kind, color = 0,
     )
 
-    private fun vm(fakes: Fakes): TxnEntryViewModel = TxnEntryViewModel(
+    private fun vm(fakes: Fakes, editingTxnId: String? = null): TxnEntryViewModel = TxnEntryViewModel(
         txns = TxnRepository(fakes.txnDao, fakes.accountDao),
         accounts = AccountRepository(fakes.accountDao),
         categories = CategoryRepository(fakes.categoryDao),
         currencies = CurrencyRepository(fakes.currencyDao),
+        editingTxnId = editingTxnId,
         today = { today },
     )
 
@@ -169,6 +170,41 @@ class TxnEntryViewModelTest {
         model.setKind(EntryKind.INCOME)
         advanceUntilIdle()
         assertNull(model.uiState.value.selectedCategoryId)
+    }
+
+    @Test
+    fun `edit mode prefills from the existing expense and save updates it in place`() = runTest(dispatcher) {
+        val fakes = Fakes().apply { seed() }
+        // сначала создаём операцию через отдельную VM
+        val creator = vm(fakes)
+        backgroundScope.observe(creator)
+        advanceUntilIdle()
+        creator.selectCategory("cat-food")
+        creator.pressDigit('5'); creator.pressDigit('0'); creator.pressDigit('0')
+        creator.setNote("такси")
+        advanceUntilIdle()
+        creator.save()
+        advanceUntilIdle()
+        val id = fakes.txnDao.rows.value.single().id
+
+        val editor = vm(fakes, editingTxnId = id)
+        backgroundScope.observe(editor)
+        advanceUntilIdle()
+        assertTrue(editor.isEditing)
+        assertEquals("500", editor.uiState.value.amountText)
+        assertEquals("cat-food", editor.uiState.value.selectedCategoryId)
+        assertEquals("такси", editor.uiState.value.note)
+
+        editor.pressDigit('0')          // 5000
+        editor.selectCategory(null)
+        advanceUntilIdle()
+        assertTrue(editor.save())
+        advanceUntilIdle()
+
+        val row = fakes.txnDao.rows.value.single()   // всё та же одна операция
+        assertEquals(id, row.id)
+        assertEquals(500000L, row.amountMinor)
+        assertNull(row.categoryId)
     }
 
     @Test

@@ -51,9 +51,12 @@ import java.time.ZoneOffset
 @Composable
 fun TxnEntryScreen(
     onDone: () -> Unit,
+    editingTxnId: String? = null,
     viewModel: TxnEntryViewModel = viewModel(
         factory = with(corrienteContainer()) {
-            TxnEntryViewModel.factory(txnRepository, accountRepository, categoryRepository, currencyRepository)
+            TxnEntryViewModel.factory(
+                txnRepository, accountRepository, categoryRepository, currencyRepository, editingTxnId,
+            )
         },
     ),
 ) {
@@ -66,10 +69,19 @@ fun TxnEntryScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(R.string.txn_entry_title)) },
+                title = {
+                    Text(stringResource(if (viewModel.isEditing) R.string.txn_entry_edit else R.string.txn_entry_title))
+                },
                 navigationIcon = {
                     IconButton(onClick = onDone) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
+                    }
+                },
+                actions = {
+                    if (viewModel.isEditing) {
+                        TextButton(onClick = viewModel::deleteEditing) {
+                            Text(stringResource(R.string.txn_entry_delete))
+                        }
                     }
                 },
             )
@@ -83,11 +95,13 @@ fun TxnEntryScreen(
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     FilterChip(
                         selected = state.kind == EntryKind.EXPENSE,
+                        enabled = !viewModel.isEditing,
                         onClick = { viewModel.setKind(EntryKind.EXPENSE) },
                         label = { Text(stringResource(R.string.category_kind_expense)) },
                     )
                     FilterChip(
                         selected = state.kind == EntryKind.INCOME,
+                        enabled = !viewModel.isEditing,
                         onClick = { viewModel.setKind(EntryKind.INCOME) },
                         label = { Text(stringResource(R.string.category_kind_income)) },
                     )

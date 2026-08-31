@@ -64,4 +64,11 @@
     <string name="txn_entry_note">Заметка</string>
     <string name="txn_entry_backspace">Стереть</string>
     <string name="txn_entry_no_accounts">Сначала создайте счёт на вкладке «Счета».</string>
+    <string name="txn_entry_edit">Редактировать операцию</string>
+    <string name="txn_entry_delete">Удалить</string>
+
+    <string name="txn_list_all_accounts">Все счета</string>
+    <string name="txn_list_all_currencies">Все валюты</string>
+    <string name="txn_list_empty">Операций пока нет. Добавьте первую по кнопке «+».</string>
+    <string name="txn_list_no_match">Под фильтр ничего не подходит.</string>
 </resources>

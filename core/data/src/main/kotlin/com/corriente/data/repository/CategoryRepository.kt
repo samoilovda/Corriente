@@ -7,6 +7,7 @@ import com.corriente.data.model.Category
 import com.corriente.data.model.toDomain
 import com.corriente.data.model.toEntity
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import java.util.UUID
 
@@ -22,6 +23,10 @@ class CategoryRepository(private val dao: CategoryDao) {
     fun observeActive(): Flow<List<Category>> = dao.observeActive().map { list -> list.map { it.toDomain() } }
 
     fun observeArchived(): Flow<List<Category>> = dao.observeArchived().map { list -> list.map { it.toDomain() } }
+
+    /** Активные и архивные вместе — для подстановки названий категорий в списке операций (T1.6). */
+    fun observeAllForLookup(): Flow<List<Category>> =
+        combine(observeActive(), observeArchived()) { active, archived -> active + archived }
 
     suspend fun getById(id: String): Category? = dao.getById(id)?.toDomain()
 

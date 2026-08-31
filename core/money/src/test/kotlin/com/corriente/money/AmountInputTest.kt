@@ -109,6 +109,16 @@ class AmountInputTest {
     }
 
     @Test
+    fun `fromMinor round-trips back through toMinorOrNull`() {
+        for (raw in listOf(0L, 5L, 1500L, 1205L, 999999L)) {
+            assertEquals(Minor(raw), AmountInput.fromMinor(Minor(raw), rub).toMinorOrNull(rub) ?: Minor(0))
+        }
+        assertEquals("15", AmountInput.fromMinor(Minor(1500), rub).displayText())
+        assertEquals("12.05", AmountInput.fromMinor(Minor(1205), rub).displayText())
+        assertEquals("42", AmountInput.fromMinor(Minor(42), clp).displayText())
+    }
+
+    @Test
     fun `fromText does not depend on the default locale`() {
         val original = java.util.Locale.getDefault()
         try {

@@ -28,6 +28,9 @@ interface TxnDao {
     @Query("SELECT * FROM txn ORDER BY date DESC, created_at DESC")
     fun observeAll(): Flow<List<TxnEntity>>
 
+    @Query("SELECT * FROM txn WHERE id = :id")
+    suspend fun getById(id: String): TxnEntity?
+
     @Query("SELECT COUNT(*) FROM txn WHERE import_hash = :importHash")
     suspend fun countByImportHash(importHash: String): Int
 

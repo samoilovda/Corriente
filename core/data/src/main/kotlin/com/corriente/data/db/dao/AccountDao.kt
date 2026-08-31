@@ -25,6 +25,9 @@ interface AccountDao {
     @Query("SELECT * FROM account WHERE is_archived = 1 ORDER BY display_order")
     fun observeArchived(): Flow<List<AccountEntity>>
 
+    @Query("SELECT * FROM account ORDER BY display_order")
+    fun observeAll(): Flow<List<AccountEntity>>
+
     @Query("SELECT * FROM account WHERE id = :id")
     suspend fun getById(id: String): AccountEntity?
 

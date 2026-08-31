@@ -40,6 +40,9 @@ class FakeAccountDao(
     override fun observeArchived(): Flow<List<AccountEntity>> =
         rows.map { list -> list.filter { it.isArchived }.sortedBy { it.displayOrder } }
 
+    override fun observeAll(): Flow<List<AccountEntity>> =
+        rows.map { list -> list.sortedBy { it.displayOrder } }
+
     override suspend fun getById(id: String): AccountEntity? = rows.value.firstOrNull { it.id == id }
 
     override suspend fun hasTransactions(accountId: String): Boolean = accountId in accountsWithTransactions

@@ -23,6 +23,9 @@ class AccountRepository(private val dao: AccountDao) {
 
     fun observeArchived(): Flow<List<Account>> = dao.observeArchived().map { list -> list.map { it.toDomain() } }
 
+    /** Все счета, включая архивные — для показа названий в списке операций (T1.6). */
+    fun observeAll(): Flow<List<Account>> = dao.observeAll().map { list -> list.map { it.toDomain() } }
+
     suspend fun getById(id: String): Account? = dao.getById(id)?.toDomain()
 
     /** I-23: пока false — поле валюты счёта ещё можно редактировать, после — заблокировано навсегда. */

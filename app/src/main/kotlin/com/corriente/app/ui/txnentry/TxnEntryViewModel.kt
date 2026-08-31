@@ -6,6 +6,7 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.corriente.data.db.entity.CategoryKind
 import com.corriente.data.model.Category
+import com.corriente.data.model.Txn
 import com.corriente.data.repository.AccountRepository
 import com.corriente.data.repository.CategoryRepository
 import com.corriente.data.repository.CurrencyRepository
@@ -61,6 +62,7 @@ class TxnEntryViewModel(
     private val accounts: AccountRepository,
     private val categories: CategoryRepository,
     private val currencies: CurrencyRepository,
+    private val editingTxnId: String? = null,
     private val today: () -> LocalDate = LocalDate::now,
 ) : ViewModel() {
 
@@ -77,6 +79,38 @@ class TxnEntryViewModel(
 
     private val _finished = MutableStateFlow(false)
     val finished: StateFlow<Boolean> = _finished
+
+    val isEditing: Boolean get() = editingTxnId != null
+
+    init {
+        if (editingTxnId != null) {
+            viewModelScope.launch {
+                val existing = txns.getById(editingTxnId) ?: return@launch
+                val (kind, accountId, amount, categoryId) = when (existing) {
+                    is Txn.Expense -> Quad(EntryKind.EXPENSE, existing.accountId, existing.amount, existing.categoryId)
+                    is Txn.Income -> Quad(EntryKind.INCOME, existing.accountId, existing.amount, existing.categoryId)
+                    is Txn.Transfer -> return@launch // переводы здесь не редактируются
+                }
+                val currency = currencies.getByCode(amount.currency)
+                    ?: Currency(amount.currency, minorUnits = 2, displayScale = 2, symbol = amount.currency.code)
+                form.value = Form(
+                    kind = kind,
+                    amount = AmountInput.fromMinor(amount.amount, currency),
+                    selectedAccountId = accountId,
+                    selectedCategoryId = categoryId,
+                    date = existing.date,
+                    note = existing.note.orEmpty(),
+                )
+            }
+        }
+    }
+
+    private data class Quad(
+        val kind: EntryKind,
+        val accountId: String,
+        val amount: Money,
+        val categoryId: String?,
+    )
 
     val uiState: StateFlow<TxnEntryUiState> = combine(
         form,
@@ -145,13 +179,25 @@ class TxnEntryViewModel(
         val money = Money(state.amount.toMinorOrNull(currency)!!, currency.code)
         val note = state.note.trim().ifBlank { null }
         viewModelScope.launch {
-            when (state.kind) {
-                EntryKind.EXPENSE -> txns.addExpense(accountId, money, state.selectedCategoryId, state.date, note)
-                EntryKind.INCOME -> txns.addIncome(accountId, money, state.selectedCategoryId, state.date, note)
+            if (editingTxnId != null) {
+                txns.updateEntry(editingTxnId, accountId, money, state.selectedCategoryId, state.date, note)
+            } else {
+                when (state.kind) {
+                    EntryKind.EXPENSE -> txns.addExpense(accountId, money, state.selectedCategoryId, state.date, note)
+                    EntryKind.INCOME -> txns.addIncome(accountId, money, state.selectedCategoryId, state.date, note)
+                }
             }
             _finished.value = true
         }
         return true
+    }
+
+    fun deleteEditing() {
+        val id = editingTxnId ?: return
+        viewModelScope.launch {
+            txns.deleteById(id)
+            _finished.value = true
+        }
     }
 
     companion object {
@@ -160,8 +206,9 @@ class TxnEntryViewModel(
             accounts: AccountRepository,
             categories: CategoryRepository,
             currencies: CurrencyRepository,
+            editingTxnId: String? = null,
         ) = viewModelFactory {
-            initializer { TxnEntryViewModel(txns, accounts, categories, currencies) }
+            initializer { TxnEntryViewModel(txns, accounts, categories, currencies, editingTxnId) }
         }
     }
 }

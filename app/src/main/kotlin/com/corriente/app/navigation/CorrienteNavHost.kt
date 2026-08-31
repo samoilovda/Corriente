@@ -12,10 +12,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import com.corriente.app.ui.accounts.AccountsScreen
 import com.corriente.app.ui.categories.CategoriesScreen
 import com.corriente.app.ui.currencies.CurrenciesScreen
@@ -28,6 +30,7 @@ import com.corriente.app.ui.txnentry.TxnEntryScreen
 private const val CURRENCIES_ROUTE = "currencies"
 private const val CATEGORIES_ROUTE = "categories"
 private const val TXN_ENTRY_ROUTE = "txn_entry"
+private const val TXN_EDIT_ROUTE = "txn_edit"
 
 /**
  * Каркас навигации (T1.1): нижняя панель с четырьмя разделами. Содержимое разделов
@@ -67,7 +70,10 @@ fun CorrienteNavHost() {
             modifier = Modifier.padding(padding),
         ) {
             composable(CorrienteDestination.TRANSACTIONS.route) {
-                TransactionsScreen(onAddTransaction = { navController.navigate(TXN_ENTRY_ROUTE) })
+                TransactionsScreen(
+                    onAddTransaction = { navController.navigate(TXN_ENTRY_ROUTE) },
+                    onEditTransaction = { id -> navController.navigate("$TXN_EDIT_ROUTE/$id") },
+                )
             }
             composable(CorrienteDestination.ACCOUNTS.route) { AccountsScreen() }
             composable(CorrienteDestination.REPORT.route) { ReportScreen() }
@@ -85,6 +91,15 @@ fun CorrienteNavHost() {
             }
             composable(TXN_ENTRY_ROUTE) {
                 TxnEntryScreen(onDone = { navController.popBackStack() })
+            }
+            composable(
+                "$TXN_EDIT_ROUTE/{txnId}",
+                arguments = listOf(navArgument("txnId") { type = NavType.StringType }),
+            ) { entry ->
+                TxnEntryScreen(
+                    onDone = { navController.popBackStack() },
+                    editingTxnId = entry.arguments?.getString("txnId"),
+                )
             }
         }
     }

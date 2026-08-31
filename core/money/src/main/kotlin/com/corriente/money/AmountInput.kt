@@ -68,6 +68,23 @@ data class AmountInput(
          * так же не зависит от локали (I-25). И `.`, и `,` — десятичный разделитель; всё
          * остальное (пробелы-разделители тысяч и пр.) игнорируется.
          */
+        /**
+         * Обратно из уже сохранённой суммы (напр. при открытии операции на редактирование,
+         * T1.6). [minor] обязан быть неотрицательным — знак операции живёт в её типе, не в сумме (I-1).
+         */
+        fun fromMinor(minor: Minor, currency: Currency): AmountInput {
+            require(minor.raw >= 0) { "AmountInput is unsigned; got ${minor.raw}" }
+            if (minor.raw == 0L) return empty()
+            val digits = minor.raw.toString().padStart(currency.minorUnits + 1, '0')
+            val integerPart = digits.dropLast(currency.minorUnits)
+            val fractionPart = digits.takeLast(currency.minorUnits)
+            var input = AmountInput(integerDigits = integerPart)
+            if (currency.minorUnits > 0 && fractionPart.any { it != '0' }) {
+                input = input.copy(hasDecimalPoint = true, fractionDigits = fractionPart)
+            }
+            return input
+        }
+
         fun fromText(text: String, currency: Currency): AmountInput {
             var input = empty()
             for (char in text) {
