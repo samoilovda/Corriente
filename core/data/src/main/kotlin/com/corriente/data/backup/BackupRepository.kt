@@ -37,8 +37,10 @@ class BackupRepository(private val db: AppDatabase) {
             schemaVersion = SCHEMA_VERSION,
             exportedAt = System.currentTimeMillis(),
             currencies = db.currencyDao().observeAll().first().map { it.toBackup() },
-            accounts = db.accountDao().observeActive().first().map { it.toBackup() },
-            categories = db.categoryDao().observeActive().first().map { it.toBackup() },
+            // observeAll, не observeActive: бэкап обязан сохранять состояние ПОЛНОСТЬЮ (I-21),
+            // включая архивные счета и категории.
+            accounts = db.accountDao().observeAll().first().map { it.toBackup() },
+            categories = db.categoryDao().observeAll().first().map { it.toBackup() },
             transactions = db.txnDao().observeAll().first().map { it.toBackup() },
             importBatches = db.importBatchDao().getAll().map { it.toBackup() },
             importAliases = db.importAliasDao().getAll().map { it.toBackup() },

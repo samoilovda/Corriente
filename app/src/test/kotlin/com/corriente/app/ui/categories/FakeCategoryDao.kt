@@ -41,6 +41,9 @@ class FakeCategoryDao : CategoryDao() {
     override fun observeArchived(): Flow<List<CategoryEntity>> =
         rows.map { list -> list.filter { it.isArchived }.sortedBy { it.displayOrder } }
 
+    override fun observeAll(): Flow<List<CategoryEntity>> =
+        rows.map { list -> list.sortedBy { it.displayOrder } }
+
     override suspend fun getById(id: String): CategoryEntity? = rows.value.firstOrNull { it.id == id }
 
     override suspend fun hasTransactions(categoryId: String): Boolean = txnCategory.containsValue(categoryId)

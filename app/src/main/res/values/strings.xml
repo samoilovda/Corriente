@@ -9,6 +9,19 @@
     <string name="back">Назад</string>
     <string name="save">Сохранить</string>
     <string name="cancel">Отмена</string>
+    <string name="ok">OK</string>
+
+    <string name="backup_export">Экспорт данных</string>
+    <string name="backup_export_hint">Сохранить всю базу в JSON-файл</string>
+    <string name="backup_import">Восстановить из файла</string>
+    <string name="backup_import_hint">Полностью заменить текущие данные</string>
+    <string name="backup_import_confirm_title">Заменить все данные?</string>
+    <string name="backup_import_confirm_text">Текущие счета, категории и операции будут удалены и заменены содержимым файла. Отменить это нельзя.</string>
+    <string name="backup_import_confirm_button">Заменить</string>
+    <string name="backup_result_exported">Данные сохранены в файл.</string>
+    <string name="backup_result_imported">Данные восстановлены из файла.</string>
+    <string name="backup_result_version">Файл создан более новой версией приложения (схема %1$d, приложение понимает до %2$d). Обновите приложение.</string>
+    <string name="backup_result_failed">Не удалось прочитать файл бэкапа.</string>
 
     <string name="currencies_title">Валюты</string>
     <string name="currencies_search_hint">Поиск по коду или названию</string>

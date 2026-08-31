@@ -31,6 +31,9 @@ abstract class CategoryDao {
     @Query("SELECT * FROM category WHERE is_archived = 1 ORDER BY display_order")
     abstract fun observeArchived(): Flow<List<CategoryEntity>>
 
+    @Query("SELECT * FROM category ORDER BY display_order")
+    abstract fun observeAll(): Flow<List<CategoryEntity>>
+
     @Query("SELECT * FROM category WHERE id = :id")
     abstract suspend fun getById(id: String): CategoryEntity?
 
