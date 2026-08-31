@@ -17,13 +17,15 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.corriente.app.ui.accounts.AccountsScreen
+import com.corriente.app.ui.categories.CategoriesScreen
 import com.corriente.app.ui.currencies.CurrenciesScreen
 import com.corriente.app.ui.report.ReportScreen
 import com.corriente.app.ui.settings.SettingsScreen
 import com.corriente.app.ui.transactions.TransactionsScreen
 
-/** Маршруты вне нижней навигации — открываются из разделов (T1.2: валюты из «Настроек»). */
+/** Маршруты вне нижней навигации — открываются из разделов (T1.2/T1.4: из «Настроек»). */
 private const val CURRENCIES_ROUTE = "currencies"
+private const val CATEGORIES_ROUTE = "categories"
 
 /**
  * Каркас навигации (T1.1): нижняя панель с четырьмя разделами. Содержимое разделов
@@ -66,10 +68,16 @@ fun CorrienteNavHost() {
             composable(CorrienteDestination.ACCOUNTS.route) { AccountsScreen() }
             composable(CorrienteDestination.REPORT.route) { ReportScreen() }
             composable(CorrienteDestination.SETTINGS.route) {
-                SettingsScreen(onOpenCurrencies = { navController.navigate(CURRENCIES_ROUTE) })
+                SettingsScreen(
+                    onOpenCurrencies = { navController.navigate(CURRENCIES_ROUTE) },
+                    onOpenCategories = { navController.navigate(CATEGORIES_ROUTE) },
+                )
             }
             composable(CURRENCIES_ROUTE) {
                 CurrenciesScreen(onBack = { navController.popBackStack() })
+            }
+            composable(CATEGORIES_ROUTE) {
+                CategoriesScreen(onBack = { navController.popBackStack() })
             }
         }
     }

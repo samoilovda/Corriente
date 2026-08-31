@@ -33,4 +33,26 @@
     <string name="account_kind_card">Карта</string>
     <string name="account_kind_savings">Накопления</string>
     <string name="account_kind_debt">Долг</string>
+
+    <string name="categories_title">Категории</string>
+    <string name="categories_add">Добавить категорию</string>
+    <string name="categories_new">Новая категория</string>
+    <string name="categories_edit">Категория</string>
+    <string name="categories_name">Название</string>
+    <string name="categories_icon">Иконка (эмодзи, необязательно)</string>
+    <string name="categories_color">Цвет</string>
+    <string name="categories_parent">Родительская категория</string>
+    <string name="categories_no_parent">Без родителя</string>
+    <string name="categories_expenses">Расходы</string>
+    <string name="categories_incomes">Доходы</string>
+    <string name="categories_archived">Архив</string>
+    <string name="categories_unarchive">Вернуть из архива</string>
+    <string name="categories_archive">В архив</string>
+    <string name="categories_delete">Удалить</string>
+    <string name="categories_merge">Объединить…</string>
+    <string name="categories_merge_title">Объединить «%1$s»</string>
+    <string name="categories_merge_hint">Операции переедут в выбранную категорию, а «%1$s» исчезнет. Выберите категорию:</string>
+
+    <string name="category_kind_expense">Расход</string>
+    <string name="category_kind_income">Доход</string>
 </resources>

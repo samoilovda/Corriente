@@ -4,31 +4,53 @@ import androidx.room.Dao
 import androidx.room.Delete
 import androidx.room.Insert
 import androidx.room.Query
+import androidx.room.Transaction
 import androidx.room.Update
 import com.corriente.data.db.entity.CategoryEntity
 import kotlinx.coroutines.flow.Flow
 
+/**
+ * `abstract class`, а не `interface`, ради [merge]: слияние обязано быть атомарным
+ * (переназначить операции и удалить категорию в одной транзакции), а `@Transaction` над
+ * методом с телом работает только в классе.
+ */
 @Dao
-interface CategoryDao {
+abstract class CategoryDao {
     @Insert
-    suspend fun insert(category: CategoryEntity): Long
+    abstract suspend fun insert(category: CategoryEntity): Long
 
     @Update
-    suspend fun update(category: CategoryEntity)
+    abstract suspend fun update(category: CategoryEntity)
 
     @Delete
-    suspend fun delete(category: CategoryEntity)
+    abstract suspend fun delete(category: CategoryEntity)
 
     @Query("SELECT * FROM category WHERE is_archived = 0 ORDER BY display_order")
-    fun observeActive(): Flow<List<CategoryEntity>>
+    abstract fun observeActive(): Flow<List<CategoryEntity>>
+
+    @Query("SELECT * FROM category WHERE is_archived = 1 ORDER BY display_order")
+    abstract fun observeArchived(): Flow<List<CategoryEntity>>
 
     @Query("SELECT * FROM category WHERE id = :id")
-    suspend fun getById(id: String): CategoryEntity?
+    abstract suspend fun getById(id: String): CategoryEntity?
 
-    /** Слияние: все операции категории [fromId] переезжают на [intoId], исходная категория удаляется. */
+    @Query("SELECT EXISTS(SELECT 1 FROM txn WHERE category_id = :categoryId)")
+    abstract suspend fun hasTransactions(categoryId: String): Boolean
+
+    @Query("SELECT COUNT(*) FROM category WHERE parent_id = :parentId")
+    abstract suspend fun childCount(parentId: String): Int
+
     @Query("UPDATE txn SET category_id = :intoId WHERE category_id = :fromId")
-    suspend fun reassignTransactions(fromId: String, intoId: String)
+    abstract suspend fun reassignTransactions(fromId: String, intoId: String)
+
+    /** Слияние (T1.4): операции категории [fromId] переезжают на [intoId], исходная удаляется. */
+    @Transaction
+    open suspend fun merge(fromId: String, intoId: String) {
+        reassignTransactions(fromId, intoId)
+        val from = getById(fromId) ?: return
+        delete(from)
+    }
 
     @Query("DELETE FROM category")
-    suspend fun deleteAll()
+    abstract suspend fun deleteAll()
 }

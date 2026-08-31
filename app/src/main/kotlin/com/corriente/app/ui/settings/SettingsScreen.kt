@@ -14,15 +14,19 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import com.corriente.app.R
 
-/** Настройки (T1.2 — валюты; T1.9 — бэкап/восстановление). */
+/** Настройки (T1.2 — валюты; T1.4 — категории; T1.9 — бэкап/восстановление). */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(onOpenCurrencies: () -> Unit) {
+fun SettingsScreen(onOpenCurrencies: () -> Unit, onOpenCategories: () -> Unit) {
     Scaffold(topBar = { TopAppBar(title = { Text(stringResource(R.string.nav_settings)) }) }) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
             ListItem(
                 headlineContent = { Text(stringResource(R.string.currencies_title)) },
                 modifier = Modifier.clickable(onClick = onOpenCurrencies),
+            )
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.categories_title)) },
+                modifier = Modifier.clickable(onClick = onOpenCategories),
             )
         }
     }
