@@ -2,6 +2,7 @@ plugins {
     alias(libs.plugins.android.library)
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.ksp)
+    alias(libs.plugins.room)
 }
 
 // Android-модуль: Room, DAO, миграции, CSV-импорт, бэкап (ARCHITECTURE.md §5.1).
@@ -21,10 +22,12 @@ android {
     }
 }
 
-ksp {
+room {
     // exportSchema=true (ARCHITECTURE.md ADR-008, I-20): схемы коммитятся в репозиторий,
-    // на их основе пишутся тесты миграций.
-    arg("room.schemaLocation", "$projectDir/schemas")
+    // на их основе пишутся тесты миграций. Плагин androidx.room сам передаёт эту
+    // директорию в KSP и подкладывает схемы в assets инструментальных тестов —
+    // MigrationTestHelper читает их оттуда.
+    schemaDirectory("$projectDir/schemas")
 }
 
 kotlin {

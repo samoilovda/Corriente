@@ -38,11 +38,14 @@
 ### Инструментальные тесты
 
 `AppDatabaseMigrationTest` (`core/data/src/androidTest`) требует подключённого
-эмулятора или устройства:
+эмулятора или устройства (API 26+):
 
 ```
-./gradlew :core:data:connectedDebugAndroidTest
+./gradlew connectedCheck
 ```
+
+Образец AVD: `system-images;android-36;google_apis;arm64-v8a` (или любой API 26+).
+Плагин `androidx.room` сам кладёт экспортированные схемы в assets этих тестов.
 
 ### Совместимость версий
 
@@ -53,6 +56,6 @@ AGP 9 использует встроенный Kotlin (built-in Kotlin) — п�
 
 ### Схема БД (`:core:data`)
 
-Room с `exportSchema=true` (ADR-008, I-20) пишет схему в `core/data/schemas/` при
-каждой сборке — файлы коммитятся. Они дают `MigrationTestHelper` эталон, с которым
-сверяется схема при каждой следующей миграции.
+Плагин `androidx.room` с `room { schemaDirectory(...) }` (ADR-008, I-20) пишет схему
+в `core/data/schemas/` при каждой сборке — файлы коммитятся. Они дают
+`MigrationTestHelper` эталон, с которым сверяется схема при каждой следующей миграции.
