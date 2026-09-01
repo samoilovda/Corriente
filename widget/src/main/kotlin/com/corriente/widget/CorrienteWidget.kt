@@ -1,6 +1,8 @@
 package com.corriente.widget
 
+import android.content.ComponentName
 import android.content.Context
+import android.content.Intent
 import android.os.UserManager
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.unit.dp
@@ -9,8 +11,10 @@ import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
 import androidx.glance.GlanceTheme
 import androidx.glance.LocalContext
+import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.SizeMode
+import androidx.glance.appwidget.action.actionStartActivity
 import androidx.glance.appwidget.cornerRadius
 import androidx.glance.appwidget.provideContent
 import androidx.glance.background
@@ -54,6 +58,14 @@ class CorrienteWidget : GlanceAppWidget() {
     }
 }
 
+private const val APP_PACKAGE = "com.corriente.app"
+
+private fun changeActiveAccountIntent() =
+    Intent().apply {
+        component = ComponentName(APP_PACKAGE, "$APP_PACKAGE.quick.ChangeActiveAccountActivity")
+        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    }
+
 @Composable
 private fun WidgetBody(snapshot: WidgetSnapshot, locked: Boolean) {
     val context = LocalContext.current
@@ -71,6 +83,14 @@ private fun WidgetBody(snapshot: WidgetSnapshot, locked: Boolean) {
                 Text(context.getString(R.string.widget_empty), style = captionStyle())
 
             else -> {
+                if (snapshot.activeAccountName.isNotEmpty()) {
+                    Text(
+                        text = snapshot.activeAccountName,
+                        style = captionStyle(),
+                        modifier = GlanceModifier.clickable(actionStartActivity(changeActiveAccountIntent())),
+                    )
+                    Spacer(GlanceModifier.height(4.dp))
+                }
                 snapshot.balances.forEach { line -> Text(line.formatted, style = balanceStyle()) }
 
                 if (snapshot.monthExpenses.isNotEmpty()) {

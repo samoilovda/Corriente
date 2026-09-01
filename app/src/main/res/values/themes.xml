@@ -3,4 +3,12 @@
     <!-- Базовая тема окна для Compose-приложения (splash/фон до отрисовки первого кадра).
          Вся реальная тема - в CorrienteTheme.kt через Material3 Compose. -->
     <style name="Theme.Corriente" parent="android:Theme.Material.Light.NoActionBar" />
+
+    <!-- Полупрозрачные Activity быстрого ввода из виджета (T4.3/T4.4). -->
+    <style name="Theme.Corriente.Translucent" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowContentOverlay">@null</item>
+        <item name="android:backgroundDimEnabled">true</item>
+    </style>
 </resources>

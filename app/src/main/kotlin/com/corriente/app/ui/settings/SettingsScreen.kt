@@ -34,6 +34,7 @@ fun SettingsScreen(
     onOpenCurrencies: () -> Unit,
     onOpenCategories: () -> Unit,
     onOpenImport: () -> Unit,
+    onOpenWidgetSettings: () -> Unit,
     backupViewModel: BackupViewModel = viewModel(
         factory = BackupViewModel.factory(corrienteContainer().backupRepository),
     ),
@@ -62,6 +63,11 @@ fun SettingsScreen(
             ListItem(
                 headlineContent = { Text(stringResource(R.string.categories_title)) },
                 modifier = Modifier.clickable(onClick = onOpenCategories),
+            )
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.widget_settings)) },
+                supportingContent = { Text(stringResource(R.string.widget_settings_hint)) },
+                modifier = Modifier.clickable(onClick = onOpenWidgetSettings),
             )
             ListItem(
                 headlineContent = { Text(stringResource(R.string.import_monefy)) },

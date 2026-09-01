@@ -27,11 +27,12 @@ data class WidgetSnapshot(
     val monthExpenses: List<CurrencyLine>,
     val quickCategories: List<QuickCategory>,
     val activeAccountId: String,
+    val activeAccountName: String,
     val computedAt: Long,
 ) {
     companion object {
         /** Заглушка до первого пересчёта / при недоступном хранилище (Direct Boot). */
-        val EMPTY = WidgetSnapshot(emptyList(), emptyList(), emptyList(), "", 0L)
+        val EMPTY = WidgetSnapshot(emptyList(), emptyList(), emptyList(), "", "", 0L)
     }
 }
 
@@ -150,11 +151,14 @@ fun buildWidgetSnapshot(
             QuickCategory(category.id, category.name, category.icon, category.color)
         }
 
+    val activeAccountName = accounts.firstOrNull { it.id == activeAccountId }?.name ?: ""
+
     return WidgetSnapshot(
         balances = balances,
         monthExpenses = monthExpenses,
         quickCategories = quickCategories,
         activeAccountId = activeAccountId,
+        activeAccountName = activeAccountName,
         computedAt = computedAt,
     )
 }

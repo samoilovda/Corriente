@@ -5,6 +5,7 @@ import androidx.room.Room
 import com.corriente.data.backup.BackupRepository
 import com.corriente.data.db.AppDatabase
 import com.corriente.data.imports.MonefyImportRepository
+import com.corriente.data.widget.WidgetConfigStore
 import com.corriente.data.repository.AccountRepository
 import com.corriente.data.repository.CategoryRepository
 import com.corriente.data.repository.CurrencyRepository
@@ -23,6 +24,8 @@ import com.corriente.data.usecase.CategoryReportUseCase
  */
 class AppContainer(context: Context) {
 
+    private val appContext = context.applicationContext
+
     val database: AppDatabase = Room.databaseBuilder(
         context.applicationContext,
         AppDatabase::class.java,
@@ -37,6 +40,7 @@ class AppContainer(context: Context) {
     val txnRepository: TxnRepository by lazy { TxnRepository(database.txnDao(), database.accountDao()) }
     val backupRepository: BackupRepository by lazy { BackupRepository(database) }
     val monefyImportRepository: MonefyImportRepository by lazy { MonefyImportRepository(database) }
+    val widgetConfigStore: WidgetConfigStore by lazy { WidgetConfigStore(appContext) }
 
     val accountBalanceUseCase: AccountBalanceUseCase by lazy {
         AccountBalanceUseCase(accountRepository, txnRepository)
