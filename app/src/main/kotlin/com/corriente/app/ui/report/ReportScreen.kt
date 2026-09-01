@@ -123,6 +123,13 @@ fun ReportScreen(
                 )
             } else {
                 LazyColumn(Modifier.fillMaxSize()) {
+                    if (state.monthly.any { it.valueMinor > 0 }) {
+                        item(key = "chart-monthly") { MonthlyBarChart(state.monthly) }
+                    }
+                    if (state.slices.any { it.valueMinor > 0 }) {
+                        item(key = "chart-structure") { CategoryDonut(state.slices) }
+                        item(key = "chart-divider") { HorizontalDivider() }
+                    }
                     items(state.rows, key = { it.categoryId ?: "none" }) { row ->
                         Row(
                             Modifier.fillMaxWidth()

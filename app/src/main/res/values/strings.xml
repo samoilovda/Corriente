@@ -147,4 +147,6 @@
     <string name="report_next">Следующий период</string>
     <string name="report_total">Итого</string>
     <string name="report_empty">За этот период операций с категориями нет.</string>
+    <string name="report_chart_monthly">По месяцам</string>
+    <string name="report_chart_structure">Структура категорий</string>
 </resources>

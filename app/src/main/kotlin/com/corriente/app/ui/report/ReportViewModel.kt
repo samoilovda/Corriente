@@ -11,6 +11,7 @@ import com.corriente.data.repository.TxnRepository
 import com.corriente.data.usecase.CategoryTotal
 import com.corriente.data.usecase.ReportKind
 import com.corriente.data.usecase.categoryReport
+import com.corriente.data.usecase.monthlySeries
 import com.corriente.money.Currency
 import com.corriente.money.CurrencyCode
 import com.corriente.money.MoneyFormatter
@@ -27,7 +28,14 @@ data class ReportRow(
     val name: String,
     val amountText: String,
     val sharePercent: Int,
+    val color: Int = 0,
 )
+
+/** T5.3: столбец графика «по месяцам» — значение уже посчитано (I-1), Float только в Canvas. */
+data class MonthlyBar(val label: String, val valueMinor: Long, val amountText: String)
+
+/** T5.3: доля категории для кольцевой диаграммы. */
+data class CategorySlice(val name: String, val valueMinor: Long, val color: Int, val amountText: String)
 
 data class TxnBrief(val id: String, val date: LocalDate, val amountText: String, val note: String?)
 
@@ -42,6 +50,8 @@ data class ReportUiState(
     val rows: List<ReportRow> = emptyList(),
     val totalText: String? = null,
     val drilldown: Drilldown? = null,
+    val monthly: List<MonthlyBar> = emptyList(),
+    val slices: List<CategorySlice> = emptyList(),
 )
 
 /** Валюта с наибольшим числом операций-с-категорией за период (значение по умолчанию, T1.8). */
@@ -56,7 +66,12 @@ internal fun dominantCurrency(txns: List<Txn>): String? = txns
     .groupingBy { it }.eachCount()
     .maxByOrNull { it.value }?.key
 
-internal fun withShares(report: List<CategoryTotal>, names: Map<String, String>, currency: Currency): List<ReportRow> {
+internal fun withShares(
+    report: List<CategoryTotal>,
+    names: Map<String, String>,
+    colors: Map<String, Int>,
+    currency: Currency,
+): List<ReportRow> {
     val grand = report.sumOf { it.total.amount.raw }
     return report.map { total ->
         ReportRow(
@@ -64,6 +79,7 @@ internal fun withShares(report: List<CategoryTotal>, names: Map<String, String>,
             name = total.categoryId?.let { names[it] } ?: "Без категории",
             amountText = MoneyFormatter.format(total.total, currency),
             sharePercent = if (grand == 0L) 0 else ((total.total.amount.raw * 100) / grand).toInt(),
+            color = total.categoryId?.let { colors[it] } ?: 0,
         )
     }
 }
@@ -97,6 +113,7 @@ class ReportViewModel(
         val range = periodRange(f.mode, f.anchor, f.customStart, f.customEnd)
         val byCode = allCurrencies.associateBy { it.code.code }
         val names = allCategories.associate { it.id to it.name }
+        val colors = allCategories.associate { it.id to it.color }
         val inPeriod = allTxns.filter { it.date in range }
         val currencyCodes = inPeriod
             .mapNotNull {
@@ -112,9 +129,28 @@ class ReportViewModel(
 
         val report = if (selected == null) emptyList() else
             categoryReport(allTxns, CurrencyCode(selected), range, f.kind)
-        val rows = if (currency == null) emptyList() else withShares(report, names, currency)
+        val rows = if (currency == null) emptyList() else withShares(report, names, colors, currency)
         val total = if (report.isEmpty() || currency == null) null else
             MoneyFormatter.format(report.map { it.total }.reduce { a, b -> a + b }, currency)
+
+        val monthly = if (selected == null || currency == null) emptyList() else
+            monthlySeries(allTxns, CurrencyCode(selected), f.kind, f.anchor, monthsBack = 6).map { point ->
+                MonthlyBar(
+                    label = "%02d.%02d".format(point.month.monthValue, point.month.year % 100),
+                    valueMinor = point.total.amount.raw,
+                    amountText = MoneyFormatter.format(point.total, currency),
+                )
+            }
+        val slices = if (currency == null) emptyList() else rows
+            .filter { it.amountText.isNotEmpty() }
+            .map { r ->
+                CategorySlice(
+                    name = r.name,
+                    valueMinor = report.first { it.categoryId == r.categoryId }.total.amount.raw,
+                    color = r.color,
+                    amountText = r.amountText,
+                )
+            }
 
         val drilldown = if (f.drilldownActive && selected != null && currency != null) {
             val catName = f.drilldownCategoryId?.let { names[it] } ?: "Без категории"
@@ -143,6 +179,8 @@ class ReportViewModel(
             rows = rows,
             totalText = total,
             drilldown = drilldown,
+            monthly = monthly,
+            slices = slices,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ReportUiState())
 

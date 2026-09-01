@@ -79,9 +79,13 @@ class ReportViewModelTest {
             com.corriente.data.usecase.CategoryTotal("a", Money(Minor(7_500), rub)),
             com.corriente.data.usecase.CategoryTotal("b", Money(Minor(2_500), rub)),
         )
-        val rows = withShares(report, mapOf("a" to "A", "b" to "B"), com.corriente.money.Currency(rub, 2, 2, "₽"))
+        val rows = withShares(
+            report, mapOf("a" to "A", "b" to "B"), mapOf("a" to 111, "b" to 222),
+            com.corriente.money.Currency(rub, 2, 2, "₽"),
+        )
         assertEquals(listOf(75, 25), rows.map { it.sharePercent })
         assertEquals(listOf("A", "B"), rows.map { it.name })
+        assertEquals(listOf(111, 222), rows.map { it.color })
     }
 
     @Test
