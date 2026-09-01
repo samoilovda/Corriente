@@ -48,7 +48,15 @@
     <string name="import_summary_operations">Обычных операций: %1$d</string>
     <string name="import_summary_transfers">Переводов: %1$d</string>
     <string name="import_summary_unpaired">Непарных половинок переводов: %1$d</string>
-    <string name="import_reviews_title">Требуют проверки (%1$d)</string>
+    <string name="import_reviews_title">Требуют проверки: %1$d из %2$d</string>
+    <string name="import_review_hint_unresolved">Не решено — импортируется как предложил разбор</string>
+    <string name="import_review_reset">Сбросить</string>
+    <string name="import_review_accept">Принять</string>
+    <string name="import_review_keep_separate">Не склеивать</string>
+    <string name="import_review_same_currency">Одна валюта</string>
+    <string name="import_review_exact_from">Списано</string>
+    <string name="import_review_exact_to">Зачислено</string>
+    <string name="import_review_exact_apply">Применить</string>
     <string name="import_errors_title">Не удалось разобрать строк: %1$d</string>
     <string name="import_confirm">Импортировать</string>
     <string name="import_confirm_hint">Запись в базу произойдёт только после нажатия. Повторный импорт того же файла ничего не добавит.</string>

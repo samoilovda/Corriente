@@ -55,10 +55,23 @@ data class PlannedTransfer(
     val toAmountMinor: Long,
     val toCurrency: CurrencyCode,
     val naturalKey: String,
+    /** Ключи половинок — чтобы при ручном «расклеить» (T3.3) собрать две обычные операции. */
+    val fromNaturalKey: String,
+    val toNaturalKey: String,
     val review: ReviewReason? = null,
 )
 
-data class ReviewItem(val reason: ReviewReason, val lines: List<Int>, val message: String)
+/**
+ * @param account имя счёта — только у [ReviewReason.ACCOUNT_CURRENCY_CONFLICT], для ручного выбора валюты.
+ * @param currencyChoices валюты, встреченные у этого счёта в файле (для того же случая).
+ */
+data class ReviewItem(
+    val reason: ReviewReason,
+    val lines: List<Int>,
+    val message: String,
+    val account: String? = null,
+    val currencyChoices: List<CurrencyCode> = emptyList(),
+)
 
 data class MonefyImportPlan(
     val accounts: List<PlannedAccount>,
@@ -105,6 +118,8 @@ object MonefyImportPlanner {
                 reviews += ReviewItem(
                     ReviewReason.ACCOUNT_CURRENCY_CONFLICT, listOf(row.line),
                     "счёт «${row.account}» встречается с разными валютами: $existing и ${row.currency}",
+                    account = row.account,
+                    currencyChoices = listOf(existing, row.currency),
                 )
             }
         }
@@ -180,6 +195,8 @@ object MonefyImportPlanner {
                 fromAccount = toH.thisAccount, fromAmountMinor = fromMinor, fromCurrency = toH.row.currency,
                 toAccount = fromH.thisAccount, toAmountMinor = toMinor, toCurrency = fromH.row.currency,
                 naturalKey = naturalKey(toH.row) + "->" + naturalKey(fromH.row),
+                fromNaturalKey = naturalKey(toH.row),
+                toNaturalKey = naturalKey(fromH.row),
                 review = review,
             )
         }
