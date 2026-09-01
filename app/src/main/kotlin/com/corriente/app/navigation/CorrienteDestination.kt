@@ -14,4 +14,14 @@ enum class CorrienteDestination(val route: String, val labelRes: Int, val icon: 
     ACCOUNTS("accounts", R.string.nav_accounts, Icons.Filled.AccountBalanceWallet),
     REPORT("report", R.string.nav_report, Icons.Filled.PieChart),
     SETTINGS("settings", R.string.nav_settings, Icons.Filled.Settings),
+    ;
+
+    companion object {
+        /**
+         * true — [route] это один из четырёх корневых разделов. Под-экраны (валюты, категории,
+         * импорт, ввод операции/перевода, FX-отчёт, настройки виджета и автобэкапа) открываются
+         * поверх и нижнюю панель не показывают.
+         */
+        fun isTopLevelRoute(route: String?): Boolean = entries.any { it.route == route }
+    }
 }
