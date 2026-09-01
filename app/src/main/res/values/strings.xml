@@ -128,6 +128,16 @@
     <string name="txn_list_all_currencies">Все валюты</string>
     <string name="txn_list_empty">Операций пока нет. Добавьте расход кнопкой «−» или доход кнопкой «+».</string>
     <string name="txn_list_no_match">Под фильтр ничего не подходит.</string>
+    <string name="txn_search_hint">Поиск по заметке и категории</string>
+    <string name="txn_filters">Фильтры</string>
+    <string name="txn_filter_all_categories">Все категории</string>
+    <string name="txn_filter_from">С даты</string>
+    <string name="txn_filter_to">По дату</string>
+    <string name="txn_filter_apply_period">Применить период</string>
+    <string name="txn_filter_amount_min">Сумма от</string>
+    <string name="txn_filter_amount_max">Сумма до</string>
+    <string name="txn_filter_apply_amount">Применить сумму</string>
+    <string name="txn_filter_clear">Сбросить фильтры</string>
 
     <string name="report_period_month">Месяц</string>
     <string name="report_period_quarter">Квартал</string>

@@ -11,8 +11,13 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.SwapHoriz
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -22,10 +27,13 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -56,12 +64,21 @@ fun TransactionsScreen(
     ),
 ) {
     val state by viewModel.uiState.collectAsState()
+    var showFilters by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.nav_transactions)) },
                 actions = {
+                    IconButton(onClick = { showFilters = true }) {
+                        BadgedBox(badge = { if (state.filter.isActive) Badge() }) {
+                            Icon(
+                                Icons.Filled.FilterList,
+                                contentDescription = stringResource(R.string.txn_filters),
+                            )
+                        }
+                    }
                     IconButton(onClick = onAddTransfer) {
                         Icon(Icons.Filled.SwapHoriz, contentDescription = stringResource(R.string.transfer_title))
                     }
@@ -84,6 +101,13 @@ fun TransactionsScreen(
         },
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
+            OutlinedTextField(
+                value = state.filter.query,
+                onValueChange = viewModel::setQuery,
+                singleLine = true,
+                label = { Text(stringResource(R.string.txn_search_hint)) },
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
+            )
             FilterBar(
                 accountLabel = state.accounts.firstOrNull { it.id == state.filter.accountId }?.name
                     ?: stringResource(R.string.txn_list_all_accounts),
@@ -98,7 +122,7 @@ fun TransactionsScreen(
             if (state.sections.isEmpty()) {
                 Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.Center) {
                     Text(
-                        stringResource(if (state.empty) R.string.txn_list_empty else R.string.txn_list_no_match),
+                        stringResource(if (state.noMatch) R.string.txn_list_no_match else R.string.txn_list_empty),
                         Modifier.padding(top = 48.dp),
                         style = MaterialTheme.typography.bodyMedium,
                     )
@@ -124,7 +148,94 @@ fun TransactionsScreen(
             }
         }
     }
+
+    if (showFilters) {
+        FilterSheet(
+            state = state,
+            onCategory = viewModel::setCategoryFilter,
+            onPeriod = viewModel::setPeriod,
+            onAmountRange = viewModel::setAmountRange,
+            onClear = viewModel::clearFilters,
+            onDismiss = { showFilters = false },
+        )
+    }
 }
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun FilterSheet(
+    state: TransactionsUiState,
+    onCategory: (String?) -> Unit,
+    onPeriod: (java.time.LocalDate?, java.time.LocalDate?) -> Unit,
+    onAmountRange: (Long?, Long?) -> Unit,
+    onClear: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val sheetState = rememberModalBottomSheetState()
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
+        Column(
+            Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Text(stringResource(R.string.txn_filters), style = MaterialTheme.typography.titleMedium)
+
+            FilterDropdown(
+                label = state.categories.firstOrNull { it.id == state.filter.categoryId }?.name
+                    ?: stringResource(R.string.txn_filter_all_categories),
+                allLabel = stringResource(R.string.txn_filter_all_categories),
+                options = state.categories.map { it.id to it.name },
+                onSelect = onCategory,
+            )
+
+            var from by remember(state.filter.from) { mutableStateOf(state.filter.from?.toString() ?: "") }
+            var to by remember(state.filter.to) { mutableStateOf(state.filter.to?.toString() ?: "") }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = from, onValueChange = { from = it }, singleLine = true, modifier = Modifier.weight(1f),
+                    label = { Text(stringResource(R.string.txn_filter_from)) }, placeholder = { Text("2026-01-01") },
+                )
+                OutlinedTextField(
+                    value = to, onValueChange = { to = it }, singleLine = true, modifier = Modifier.weight(1f),
+                    label = { Text(stringResource(R.string.txn_filter_to)) }, placeholder = { Text("2026-12-31") },
+                )
+            }
+            TextButton(onClick = {
+                onPeriod(parseDateOrNull(from), parseDateOrNull(to))
+            }) { Text(stringResource(R.string.txn_filter_apply_period)) }
+
+            var min by remember(state.filter.minAmountMinor) {
+                mutableStateOf(state.filter.minAmountMinor?.let { (it / 100).toString() } ?: "")
+            }
+            var max by remember(state.filter.maxAmountMinor) {
+                mutableStateOf(state.filter.maxAmountMinor?.let { (it / 100).toString() } ?: "")
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = min, onValueChange = { min = it.filter(Char::isDigit) }, singleLine = true,
+                    modifier = Modifier.weight(1f), label = { Text(stringResource(R.string.txn_filter_amount_min)) },
+                )
+                OutlinedTextField(
+                    value = max, onValueChange = { max = it.filter(Char::isDigit) }, singleLine = true,
+                    modifier = Modifier.weight(1f), label = { Text(stringResource(R.string.txn_filter_amount_max)) },
+                )
+            }
+            TextButton(onClick = {
+                onAmountRange(
+                    min.toLongOrNull()?.let { it * 100 },
+                    max.toLongOrNull()?.let { it * 100 },
+                )
+            }) { Text(stringResource(R.string.txn_filter_apply_amount)) }
+
+            HorizontalDivider()
+            TextButton(onClick = { onClear(); onDismiss() }) {
+                Text(stringResource(R.string.txn_filter_clear))
+            }
+        }
+    }
+}
+
+private fun parseDateOrNull(text: String): java.time.LocalDate? =
+    runCatching { java.time.LocalDate.parse(text.trim()) }.getOrNull()
 
 @Composable
 private fun FilterBar(

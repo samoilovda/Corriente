@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.corriente.data.model.Account
+import com.corriente.data.model.Category
 import com.corriente.data.model.Txn
 import com.corriente.data.repository.AccountRepository
 import com.corriente.data.repository.CategoryRepository
@@ -23,7 +24,25 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import java.time.LocalDate
 
-data class TxnFilter(val accountId: String? = null, val currencyCode: String? = null)
+/**
+ * Фильтры списка операций (T5.2). [query] ищет по заметке и названию категории без учёта
+ * регистра. [minAmountMinor]/[maxAmountMinor] сравнивают модуль суммы в минорных единицах
+ * (это фильтр, не арифметика — сложения разных валют тут нет, I-8 не нарушается).
+ */
+data class TxnFilter(
+    val accountId: String? = null,
+    val currencyCode: String? = null,
+    val query: String = "",
+    val categoryId: String? = null,
+    val from: LocalDate? = null,
+    val to: LocalDate? = null,
+    val minAmountMinor: Long? = null,
+    val maxAmountMinor: Long? = null,
+) {
+    val isActive: Boolean
+        get() = accountId != null || currencyCode != null || query.isNotBlank() || categoryId != null ||
+            from != null || to != null || minAmountMinor != null || maxAmountMinor != null
+}
 
 data class TxnRow(
     val id: String,
@@ -46,9 +65,12 @@ data class DaySection(
 data class TransactionsUiState(
     val sections: List<DaySection> = emptyList(),
     val accounts: List<Account> = emptyList(),
+    val categories: List<Category> = emptyList(),
     val currencyCodes: List<String> = emptyList(),
     val filter: TxnFilter = TxnFilter(),
     val empty: Boolean = true,
+    /** true — есть операции, но под активный фильтр ничего не подошло. */
+    val noMatch: Boolean = false,
 )
 
 private fun matchesAccount(txn: Txn, accountId: String): Boolean = when (txn) {
@@ -65,6 +87,41 @@ private fun currenciesOf(txn: Txn): List<String> = when (txn) {
 
 private fun matchesCurrency(txn: Txn, code: String): Boolean = code in currenciesOf(txn)
 
+private fun categoryIdOf(txn: Txn): String? = when (txn) {
+    is Txn.Expense -> txn.categoryId
+    is Txn.Income -> txn.categoryId
+    is Txn.Transfer -> null
+}
+
+private fun amountMagnitudesOf(txn: Txn): List<Long> = when (txn) {
+    is Txn.Expense -> listOf(txn.amount.amount.raw)
+    is Txn.Income -> listOf(txn.amount.amount.raw)
+    is Txn.Transfer -> listOf(txn.fromAmount.amount.raw, txn.toAmount.amount.raw)
+}
+
+private fun matchesQuery(txn: Txn, query: String, categoryNames: Map<String, String>): Boolean {
+    val needle = query.trim().lowercase()
+    if (needle.isEmpty()) return true
+    val haystack = buildList {
+        txn.note?.let { add(it) }
+        categoryIdOf(txn)?.let { categoryNames[it] }?.let { add(it) }
+    }
+    return haystack.any { it.lowercase().contains(needle) }
+}
+
+private fun matchesFilter(txn: Txn, filter: TxnFilter, categoryNames: Map<String, String>): Boolean {
+    if (filter.accountId != null && !matchesAccount(txn, filter.accountId)) return false
+    if (filter.currencyCode != null && !matchesCurrency(txn, filter.currencyCode)) return false
+    if (filter.categoryId != null && categoryIdOf(txn) != filter.categoryId) return false
+    if (filter.from != null && txn.date < filter.from) return false
+    if (filter.to != null && txn.date > filter.to) return false
+    if (!matchesQuery(txn, filter.query, categoryNames)) return false
+    val magnitudes = amountMagnitudesOf(txn)
+    if (filter.minAmountMinor != null && magnitudes.none { it >= filter.minAmountMinor }) return false
+    if (filter.maxAmountMinor != null && magnitudes.none { it <= filter.maxAmountMinor }) return false
+    return true
+}
+
 private fun currencyOrFallback(code: CurrencyCode, byCode: Map<String, Currency>): Currency =
     byCode[code.code] ?: Currency(code, minorUnits = 2, displayScale = 2, symbol = code.code)
 
@@ -79,10 +136,7 @@ internal fun buildDaySections(
     categoryNames: Map<String, String>,
     currenciesByCode: Map<String, Currency>,
 ): List<DaySection> {
-    val filtered = txns.asSequence()
-        .filter { filter.accountId == null || matchesAccount(it, filter.accountId) }
-        .filter { filter.currencyCode == null || matchesCurrency(it, filter.currencyCode) }
-        .toList()
+    val filtered = txns.filter { matchesFilter(it, filter, categoryNames) }
 
     return filtered.groupBy { it.date }.entries
         .sortedByDescending { it.key }
@@ -170,25 +224,40 @@ class TransactionsViewModel(
         val sanitizedFilter = currentFilter.copy(
             accountId = currentFilter.accountId?.takeIf { id -> allAccounts.any { it.id == id } },
             currencyCode = currentFilter.currencyCode?.takeIf { code -> byCode.containsKey(code) },
+            categoryId = currentFilter.categoryId?.takeIf { id -> allCategories.any { it.id == id } },
+        )
+        val sections = buildDaySections(
+            txns = allTxns,
+            filter = sanitizedFilter,
+            accountNames = allAccounts.associate { it.id to it.name },
+            categoryNames = allCategories.associate { it.id to it.name },
+            currenciesByCode = byCode,
         )
         TransactionsUiState(
-            sections = buildDaySections(
-                txns = allTxns,
-                filter = sanitizedFilter,
-                accountNames = allAccounts.associate { it.id to it.name },
-                categoryNames = allCategories.associate { it.id to it.name },
-                currenciesByCode = byCode,
-            ),
+            sections = sections,
             accounts = allAccounts.filterNot { it.isArchived },
+            categories = allCategories.filterNot { it.isArchived },
             currencyCodes = allTxns.flatMap { currenciesOf(it) }.distinct().sorted(),
             filter = sanitizedFilter,
             empty = allTxns.isEmpty(),
+            noMatch = allTxns.isNotEmpty() && sections.isEmpty(),
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), TransactionsUiState())
 
     fun setAccountFilter(accountId: String?) = filter.update { it.copy(accountId = accountId) }
 
     fun setCurrencyFilter(code: String?) = filter.update { it.copy(currencyCode = code) }
+
+    fun setQuery(query: String) = filter.update { it.copy(query = query) }
+
+    fun setCategoryFilter(categoryId: String?) = filter.update { it.copy(categoryId = categoryId) }
+
+    fun setPeriod(from: LocalDate?, to: LocalDate?) = filter.update { it.copy(from = from, to = to) }
+
+    fun setAmountRange(minMinor: Long?, maxMinor: Long?) =
+        filter.update { it.copy(minAmountMinor = minMinor, maxAmountMinor = maxMinor) }
+
+    fun clearFilters() = filter.update { TxnFilter() }
 
     companion object {
         fun factory(
