@@ -49,6 +49,9 @@ abstract class AppDatabase : RoomDatabase() {
     companion object {
         const val DB_NAME = "corriente.db"
 
+        /** Держать в синхроне с `version` в аннотации [Database]. */
+        const val SCHEMA_VERSION = 1
+
         /**
          * Сеет полный справочник ISO-4217 при создании файла БД (I-14). Выполняется как сырой
          * SQL внутри `onCreate`, а не через сгенерированный DAO: в момент вызова колбэка Room

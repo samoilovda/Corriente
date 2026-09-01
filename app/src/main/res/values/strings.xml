@@ -23,6 +23,14 @@
     <string name="backup_result_version">Файл создан более новой версией приложения (схема %1$d, приложение понимает до %2$d). Обновите приложение.</string>
     <string name="backup_result_failed">Не удалось прочитать файл бэкапа.</string>
 
+    <string name="autobackup_title">Автобэкап</string>
+    <string name="autobackup_hint">Регулярно сохранять базу в папку</string>
+    <string name="autobackup_folder">Папка для бэкапов</string>
+    <string name="autobackup_folder_none">Не выбрана</string>
+    <string name="autobackup_enabled">Включён</string>
+    <string name="autobackup_enabled_hint">Раз в сутки, хранятся последние %1$d файлов</string>
+    <string name="autobackup_now">Сделать бэкап сейчас</string>
+
     <string name="widget_settings">Виджет</string>
     <string name="widget_settings_hint">Закреплённые валюты и счёт для быстрого ввода</string>
     <string name="widget_pinned_currencies">Валюты в виджете (до 3)</string>

@@ -20,6 +20,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.corriente.app.ui.accounts.AccountsScreen
 import com.corriente.app.ui.categories.CategoriesScreen
+import com.corriente.app.ui.autobackup.AutoBackupScreen
 import com.corriente.app.ui.currencies.CurrenciesScreen
 import com.corriente.app.ui.imports.ImportScreen
 import com.corriente.app.ui.report.ReportScreen
@@ -35,6 +36,7 @@ private const val CURRENCIES_ROUTE = "currencies"
 private const val CATEGORIES_ROUTE = "categories"
 private const val IMPORT_ROUTE = "import_monefy"
 private const val WIDGET_SETTINGS_ROUTE = "widget_settings"
+private const val AUTOBACKUP_ROUTE = "autobackup"
 private const val TXN_ENTRY_ROUTE = "txn_entry"
 private const val TXN_EDIT_ROUTE = "txn_edit"
 private const val TRANSFER_ROUTE = "transfer"
@@ -96,7 +98,11 @@ fun CorrienteNavHost() {
                     onOpenCategories = { navController.navigate(CATEGORIES_ROUTE) },
                     onOpenImport = { navController.navigate(IMPORT_ROUTE) },
                     onOpenWidgetSettings = { navController.navigate(WIDGET_SETTINGS_ROUTE) },
+                    onOpenAutoBackup = { navController.navigate(AUTOBACKUP_ROUTE) },
                 )
+            }
+            composable(AUTOBACKUP_ROUTE) {
+                AutoBackupScreen(onBack = { navController.popBackStack() })
             }
             composable(IMPORT_ROUTE) {
                 ImportScreen(onBack = { navController.popBackStack() })

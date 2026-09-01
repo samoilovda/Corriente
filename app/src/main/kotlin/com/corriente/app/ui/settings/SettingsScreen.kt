@@ -35,6 +35,7 @@ fun SettingsScreen(
     onOpenCategories: () -> Unit,
     onOpenImport: () -> Unit,
     onOpenWidgetSettings: () -> Unit,
+    onOpenAutoBackup: () -> Unit,
     backupViewModel: BackupViewModel = viewModel(
         factory = BackupViewModel.factory(corrienteContainer().backupRepository),
     ),
@@ -84,6 +85,11 @@ fun SettingsScreen(
                 headlineContent = { Text(stringResource(R.string.backup_import)) },
                 supportingContent = { Text(stringResource(R.string.backup_import_hint)) },
                 modifier = Modifier.clickable { importLauncher.launch(arrayOf("application/json")) },
+            )
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.autobackup_title)) },
+                supportingContent = { Text(stringResource(R.string.autobackup_hint)) },
+                modifier = Modifier.clickable(onClick = onOpenAutoBackup),
             )
         }
     }
