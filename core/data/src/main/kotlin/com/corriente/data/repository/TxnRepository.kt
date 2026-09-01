@@ -99,6 +99,41 @@ class TxnRepository(
         return txn
     }
 
+    /**
+     * Правка перевода (T2.1): те же правила, что при создании — счета разные, обе суммы > 0,
+     * валюты равны валютам счетов. Курс сделки по-прежнему нигде не хранится (I-7а/I-12).
+     */
+    suspend fun updateTransfer(
+        id: String,
+        fromAccountId: String,
+        fromAmount: Money,
+        toAccountId: String,
+        toAmount: Money,
+        date: LocalDate,
+        note: String?,
+    ): Txn {
+        val existing = requireNotNull(txnDao.getById(id)) { "Transaction $id not found" }
+        require(existing.kind == TxnKind.TRANSFER) { "$id is not a transfer" }
+        require(fromAccountId != toAccountId) { "Cannot transfer an account to itself" }
+        require(fromAmount.isPositive) { "Transfer fromAmount must be positive" }
+        require(toAmount.isPositive) { "Transfer toAmount must be positive" }
+        requireAmountMatchesAccount(fromAccountId, fromAmount)
+        requireAmountMatchesAccount(toAccountId, toAmount)
+        val updated = existing.copy(
+            accountId = fromAccountId,
+            amountMinor = fromAmount.amount.raw,
+            currencyCode = fromAmount.currency.code,
+            toAccountId = toAccountId,
+            toAmountMinor = toAmount.amount.raw,
+            toCurrencyCode = toAmount.currency.code,
+            date = date.toString(),
+            note = note,
+            updatedAt = System.currentTimeMillis(),
+        )
+        txnDao.update(updated)
+        return updated.toDomain()
+    }
+
     suspend fun getById(id: String): Txn? = txnDao.getById(id)?.toDomain()
 
     /**

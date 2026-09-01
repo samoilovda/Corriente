@@ -81,6 +81,76 @@ class TxnRepositoryTest {
         assertTrue(error is IllegalArgumentException)
     }
 
+    // T2.1 / I-7а: перевод — одна строка с двумя суммами; они и есть источник истины.
+    @Test
+    fun `addTransfer stores both amounts on a single transfer row`() = runTest {
+        val (repo, dao, accounts) = setup()
+        accounts.add("rub", "RUB")
+        accounts.add("usd", "USD")
+
+        val transfer = repo.addTransfer(
+            "rub", Money(Minor(8_695_00), rub), "usd", Money(Minor(100_00), usd), day, "обмен",
+        ) as Txn.Transfer
+
+        assertEquals(1, dao.rows.value.size)
+        val row = dao.rows.value.single()
+        assertEquals("rub", row.accountId)
+        assertEquals(869500L, row.amountMinor)
+        assertEquals("RUB", row.currencyCode)
+        assertEquals("usd", row.toAccountId)
+        assertEquals(10000L, row.toAmountMinor)
+        assertEquals("USD", row.toCurrencyCode)
+        assertNull(row.categoryId) // I-11: у перевода нет категории
+        assertEquals(Money(Minor(8_695_00), rub), transfer.fromAmount)
+        assertEquals(Money(Minor(100_00), usd), transfer.toAmount)
+    }
+
+    @Test
+    fun `addTransfer rejects self-transfer, non-positive amounts and currency mismatch`() = runTest {
+        val (repo, _, accounts) = setup()
+        accounts.add("rub", "RUB")
+        accounts.add("usd", "USD")
+
+        assertTrue(
+            runCatching { repo.addTransfer("rub", Money(Minor(1), rub), "rub", Money(Minor(1), rub), day, null) }
+                .exceptionOrNull() is IllegalArgumentException,
+        )
+        assertTrue(
+            runCatching { repo.addTransfer("rub", Money(Minor(0), rub), "usd", Money(Minor(1), usd), day, null) }
+                .exceptionOrNull() is IllegalArgumentException,
+        )
+        assertTrue(
+            runCatching { repo.addTransfer("rub", Money(Minor(1), usd), "usd", Money(Minor(1), usd), day, null) }
+                .exceptionOrNull() is IllegalArgumentException,
+        )
+    }
+
+    @Test
+    fun `updateTransfer rewrites both legs, updateTransfer refuses a non-transfer`() = runTest {
+        val (repo, dao, accounts) = setup()
+        accounts.add("rub", "RUB")
+        accounts.add("usd", "USD")
+        accounts.add("eur", "EUR")
+        val transfer = repo.addTransfer("rub", Money(Minor(1_000_00), rub), "usd", Money(Minor(10_00), usd), day, null) as Txn.Transfer
+
+        repo.updateTransfer(
+            transfer.id, "rub", Money(Minor(2_000_00), rub), "eur", Money(Minor(20_00), CurrencyCode("EUR")),
+            day.plusDays(1), "правка",
+        )
+        val row = dao.getById(transfer.id)!!
+        assertEquals(200000L, row.amountMinor)
+        assertEquals("eur", row.toAccountId)
+        assertEquals(2000L, row.toAmountMinor)
+        assertEquals("EUR", row.toCurrencyCode)
+
+        val expense = repo.addExpense("rub", Money(Minor(1), rub), null, day, null)
+        assertTrue(
+            runCatching {
+                repo.updateTransfer(expense.id, "rub", Money(Minor(1), rub), "usd", Money(Minor(1), usd), day, null)
+            }.exceptionOrNull() is IllegalArgumentException,
+        )
+    }
+
     @Test
     fun `deleteById removes the transaction`() = runTest {
         val (repo, _, accounts) = setup()
