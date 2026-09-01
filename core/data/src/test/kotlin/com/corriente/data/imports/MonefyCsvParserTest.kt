@@ -4,7 +4,6 @@ import com.corriente.money.Minor
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import java.io.File
 import java.time.LocalDate
 
 /**
@@ -13,14 +12,8 @@ import java.time.LocalDate
  */
 class MonefyCsvParserTest {
 
-    private fun sampleCsv(): String {
-        // рабочая директория теста — каталог модуля (core/data); файл лежит в корне репозитория.
-        val candidates = listOf(
-            File("../../testdata/monefy_sample.csv"),
-            File("testdata/monefy_sample.csv"),
-        )
-        return candidates.first { it.exists() }.readText(Charsets.UTF_8)
-    }
+    private fun sampleCsv(): String =
+        javaClass.classLoader!!.getResourceAsStream("monefy_sample.csv")!!.readBytes().toString(Charsets.UTF_8)
 
     private val result by lazy { MonefyCsvParser.parse(sampleCsv()) }
 

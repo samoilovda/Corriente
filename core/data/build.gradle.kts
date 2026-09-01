@@ -20,6 +20,13 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
+
+    // Единственный источник тест-данных Monefy — testdata/ в корне репозитория (на него
+    // ссылаются docs). Кладём его в ресурсы обоих тест-сорсетов, чтобы читать из classpath.
+    sourceSets {
+        named("test") { resources.srcDir("$rootDir/testdata") }
+        named("androidTest") { resources.srcDir("$rootDir/testdata") }
+    }
 }
 
 room {

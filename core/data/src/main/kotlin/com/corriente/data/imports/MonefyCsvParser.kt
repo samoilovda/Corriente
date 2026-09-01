@@ -19,6 +19,8 @@ data class MonefyRow(
     val date: LocalDate,
     val account: String,
     val rawCategory: String,
+    /** Исходная строка суммы (колонка 3) — часть натурального ключа для идемпотентности импорта. */
+    val amountText: String,
     /** Сумма в [currency], минорные единицы. Знак сохранён: `< 0` — расход, `> 0` — доход. */
     val amount: Minor,
     val currency: CurrencyCode,
@@ -86,6 +88,7 @@ object MonefyCsvParser {
                 date = date,
                 account = fields[1].trim(),
                 rawCategory = fields[2].trim(),
+                amountText = fields[3].trim(),
                 amount = amount.minor,
                 currency = currency,
                 convertedAbs = kotlin.math.abs(converted.minor.raw),

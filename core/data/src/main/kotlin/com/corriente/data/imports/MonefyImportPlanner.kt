@@ -39,6 +39,8 @@ data class PlannedTxn(
     val amountMinor: Long,
     val currency: CurrencyCode,
     val kind: MonefyTxnKind,
+    /** Натуральный ключ строки CSV (без индекса повторения) — для идемпотентности импорта (I-19). */
+    val naturalKey: String,
     val unpairedHalf: Boolean = false,
 )
 
@@ -52,6 +54,7 @@ data class PlannedTransfer(
     val toAccount: String,
     val toAmountMinor: Long,
     val toCurrency: CurrencyCode,
+    val naturalKey: String,
     val review: ReviewReason? = null,
 )
 
@@ -77,6 +80,9 @@ object MonefyImportPlanner {
     private val INITIAL = Regex("""Initial balance '(.+)'""")
     private val TO = Regex("""To '(.+)'""")
     private val FROM = Regex("""From '(.+)'""")
+
+    private fun naturalKey(row: MonefyRow) =
+        "${row.date}|${row.account}|${row.rawCategory}|${row.amountText}|${row.currency.code}"
 
     private data class Half(
         val row: MonefyRow,
@@ -127,6 +133,7 @@ object MonefyImportPlanner {
                         line = row.line, date = row.date, account = row.account, category = row.rawCategory,
                         amountMinor = abs(row.amount.raw), currency = row.currency,
                         kind = if (row.amount.raw < 0) MonefyTxnKind.EXPENSE else MonefyTxnKind.INCOME,
+                        naturalKey = naturalKey(row),
                     )
                 }
             }
@@ -172,6 +179,7 @@ object MonefyImportPlanner {
                 fromLine = toH.row.line, toLine = fromH.row.line, date = toH.row.date,
                 fromAccount = toH.thisAccount, fromAmountMinor = fromMinor, fromCurrency = toH.row.currency,
                 toAccount = fromH.thisAccount, toAmountMinor = toMinor, toCurrency = fromH.row.currency,
+                naturalKey = naturalKey(toH.row) + "->" + naturalKey(fromH.row),
                 review = review,
             )
         }
@@ -224,6 +232,7 @@ object MonefyImportPlanner {
 
     private fun unpairedHalf(h: Half, kind: MonefyTxnKind) = PlannedTxn(
         line = h.row.line, date = h.row.date, account = h.thisAccount, category = UNPAIRED_TRANSFER_CATEGORY,
-        amountMinor = abs(h.row.amount.raw), currency = h.row.currency, kind = kind, unpairedHalf = true,
+        amountMinor = abs(h.row.amount.raw), currency = h.row.currency, kind = kind,
+        naturalKey = naturalKey(h.row), unpairedHalf = true,
     )
 }

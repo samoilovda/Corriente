@@ -3,7 +3,6 @@ package com.corriente.data.imports
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import java.io.File
 import java.time.LocalDate
 
 /**
@@ -13,8 +12,8 @@ import java.time.LocalDate
 class MonefyImportPlannerTest {
 
     private val plan by lazy {
-        val csv = listOf(File("../../testdata/monefy_sample.csv"), File("testdata/monefy_sample.csv"))
-            .first { it.exists() }.readText(Charsets.UTF_8)
+        val csv = javaClass.classLoader!!.getResourceAsStream("monefy_sample.csv")!!
+            .readBytes().toString(Charsets.UTF_8)
         MonefyImportPlanner.plan(MonefyCsvParser.parse(csv))
     }
 
