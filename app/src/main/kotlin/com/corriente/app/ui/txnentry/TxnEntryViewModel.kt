@@ -12,8 +12,11 @@ import com.corriente.data.repository.CategoryRepository
 import com.corriente.data.repository.CurrencyRepository
 import com.corriente.data.repository.TxnRepository
 import com.corriente.money.AmountInput
+import com.corriente.money.CalcOp
 import com.corriente.money.Currency
+import com.corriente.money.Minor
 import com.corriente.money.Money
+import com.corriente.money.applyCalc
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -32,6 +35,8 @@ data class AccountOption(val id: String, val name: String, val currency: Currenc
 data class TxnEntryUiState(
     val kind: EntryKind = EntryKind.EXPENSE,
     val amount: AmountInput = AmountInput.empty(),
+    val calcAcc: Long? = null,
+    val calcOp: CalcOp? = null,
     val accounts: List<AccountOption> = emptyList(),
     val selectedAccountId: String? = null,
     val categories: List<Category> = emptyList(),
@@ -41,14 +46,31 @@ data class TxnEntryUiState(
 ) {
     val selectedAccount: AccountOption? get() = accounts.firstOrNull { it.id == selectedAccountId }
     val currency: Currency? get() = selectedAccount?.currency
-    val amountText: String get() = amount.displayText()
+
+    /** Показ поля суммы: «1250 + 320», пока операция не завершена. */
+    val amountText: String
+        get() {
+            val currency = currency
+            val operand = amount.displayText()
+            if (calcAcc == null || calcOp == null || currency == null) return operand
+            val accMajor = AmountInput.fromMinor(Minor(calcAcc), currency).displayText()
+            return "$accMajor ${calcOp.symbol} $operand"
+        }
+
+    val hasPendingCalc: Boolean get() = calcAcc != null && calcOp != null
+
+    /** Итоговая сумма с учётом незавершённой операции калькулятора. */
+    fun resolvedMinor(): Minor? {
+        val currency = currency ?: return null
+        val operand = amount.toMinorOrNull(currency) ?: if (hasPendingCalc) Minor(0) else return null
+        return if (calcAcc != null && calcOp != null) applyCalc(Minor(calcAcc), calcOp, operand) else operand
+    }
 
     /** I-1: знак не вводится; проверяем лишь, что сумма положительна и счёт выбран. */
     val canSave: Boolean
         get() {
-            val currency = currency ?: return false
-            val minor = amount.toMinorOrNull(currency) ?: return false
-            return minor.raw > 0
+            if (currency == null) return false
+            return (resolvedMinor()?.raw ?: 0) > 0
         }
 }
 
@@ -70,6 +92,8 @@ class TxnEntryViewModel(
     private data class Form(
         val kind: EntryKind,
         val amount: AmountInput = AmountInput.empty(),
+        val calcAcc: Long? = null,
+        val calcOp: CalcOp? = null,
         val selectedAccountId: String? = null,
         val selectedCategoryId: String? = null,
         val date: LocalDate,
@@ -134,6 +158,8 @@ class TxnEntryViewModel(
         TxnEntryUiState(
             kind = f.kind,
             amount = f.amount,
+            calcAcc = f.calcAcc,
+            calcOp = f.calcOp,
             accounts = options,
             selectedAccountId = selectedAccountId,
             categories = kindCategories,
@@ -157,11 +183,36 @@ class TxnEntryViewModel(
 
     fun pressBackspace() = form.update { it.copy(amount = it.amount.backspace()) }
 
+    /** T5.5: калькулятор — «+»/«−». Завершает текущий операнд и начинает новый. */
+    fun pressOp(op: CalcOp) {
+        val currency = uiState.value.currency ?: return
+        form.update { f ->
+            val operand = f.amount.toMinorOrNull(currency) ?: Minor(f.calcAcc ?: 0)
+            val newAcc = if (f.calcAcc != null && f.calcOp != null) {
+                applyCalc(Minor(f.calcAcc), f.calcOp, operand)
+            } else {
+                operand
+            }
+            f.copy(amount = AmountInput.empty(), calcAcc = newAcc.raw, calcOp = op)
+        }
+    }
+
+    fun pressEquals() {
+        val currency = uiState.value.currency ?: return
+        form.update { f ->
+            if (f.calcAcc == null || f.calcOp == null) return@update f
+            val operand = f.amount.toMinorOrNull(currency) ?: Minor(0)
+            val result = applyCalc(Minor(f.calcAcc), f.calcOp, operand)
+            val amount = if (result.raw > 0) AmountInput.fromMinor(result, currency) else AmountInput.empty()
+            f.copy(amount = amount, calcAcc = null, calcOp = null)
+        }
+    }
+
     fun selectAccount(id: String) {
         val newCurrency = uiState.value.accounts.firstOrNull { it.id == id }?.currency
         form.update { f ->
             val amount = if (newCurrency != null) AmountInput.fromText(f.amount.displayText(), newCurrency) else f.amount
-            f.copy(selectedAccountId = id, amount = amount)
+            f.copy(selectedAccountId = id, amount = amount, calcAcc = null, calcOp = null)
         }
     }
 
@@ -177,7 +228,7 @@ class TxnEntryViewModel(
         if (!state.canSave) return false
         val currency = state.currency ?: return false
         val accountId = state.selectedAccountId ?: return false
-        val money = Money(state.amount.toMinorOrNull(currency)!!, currency.code)
+        val money = Money(state.resolvedMinor()!!, currency.code)
         val note = state.note.trim().ifBlank { null }
         viewModelScope.launch {
             if (editingTxnId != null) {

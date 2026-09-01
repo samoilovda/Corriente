@@ -53,6 +53,10 @@ data class TxnRow(
     val editable: Boolean,
     /** true — перевод, открывается в экране перевода. */
     val isTransfer: Boolean = false,
+    /** Эмодзи-иконка категории (T5.5), null у переводов и операций без категории. */
+    val icon: String? = null,
+    /** Цвет категории (ARGB); 0 — нет цвета. */
+    val color: Int = 0,
 )
 
 /** Итог дня считается по каждой валюте отдельно (I-8) — сложение разных валют невозможно. */
@@ -135,6 +139,8 @@ internal fun buildDaySections(
     accountNames: Map<String, String>,
     categoryNames: Map<String, String>,
     currenciesByCode: Map<String, Currency>,
+    categoryIcons: Map<String, String?> = emptyMap(),
+    categoryColors: Map<String, Int> = emptyMap(),
 ): List<DaySection> {
     val filtered = txns.filter { matchesFilter(it, filter, categoryNames) }
 
@@ -144,7 +150,9 @@ internal fun buildDaySections(
             DaySection(
                 date = date,
                 totals = dayTotals(dayTxns, currenciesByCode),
-                rows = dayTxns.map { txn -> row(txn, accountNames, categoryNames, currenciesByCode) },
+                rows = dayTxns.map { txn ->
+                    row(txn, accountNames, categoryNames, currenciesByCode, categoryIcons, categoryColors)
+                },
             )
         }
 }
@@ -169,6 +177,8 @@ private fun row(
     accountNames: Map<String, String>,
     categoryNames: Map<String, String>,
     byCode: Map<String, Currency>,
+    categoryIcons: Map<String, String?>,
+    categoryColors: Map<String, Int>,
 ): TxnRow = when (txn) {
     is Txn.Expense -> {
         val currency = currencyOrFallback(txn.amount.currency, byCode)
@@ -178,6 +188,8 @@ private fun row(
             note = txn.note,
             amountText = MoneyFormatter.format(-txn.amount, currency),
             editable = true,
+            icon = txn.categoryId?.let { categoryIcons[it] },
+            color = txn.categoryId?.let { categoryColors[it] } ?: 0,
         )
     }
     is Txn.Income -> {
@@ -188,6 +200,8 @@ private fun row(
             note = txn.note,
             amountText = "+" + MoneyFormatter.format(txn.amount, currency),
             editable = true,
+            icon = txn.categoryId?.let { categoryIcons[it] },
+            color = txn.categoryId?.let { categoryColors[it] } ?: 0,
         )
     }
     is Txn.Transfer -> {
@@ -232,6 +246,8 @@ class TransactionsViewModel(
             accountNames = allAccounts.associate { it.id to it.name },
             categoryNames = allCategories.associate { it.id to it.name },
             currenciesByCode = byCode,
+            categoryIcons = allCategories.associate { it.id to it.icon },
+            categoryColors = allCategories.associate { it.id to it.color },
         )
         TransactionsUiState(
             sections = sections,

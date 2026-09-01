@@ -125,6 +125,30 @@ class TxnEntryViewModelTest {
     }
 
     @Test
+    fun `calculator adds two amounts before saving`() = runTest(dispatcher) {
+        val fakes = Fakes().apply { seed() }
+        val model = vm(fakes)
+        backgroundScope.observe(model)
+        advanceUntilIdle()
+
+        // 12.50 + 3.20 = 15.70
+        model.pressDigit('1'); model.pressDigit('2'); model.pressDecimalPoint(); model.pressDigit('5')
+        model.pressOp(com.corriente.money.CalcOp.PLUS)
+        model.pressDigit('3'); model.pressDecimalPoint(); model.pressDigit('2')
+        advanceUntilIdle()
+        assertTrue(model.uiState.value.hasPendingCalc)
+        assertTrue(model.uiState.value.canSave) // резолвится 15.70
+
+        model.pressEquals()
+        advanceUntilIdle()
+        assertFalse(model.uiState.value.hasPendingCalc)
+        assertTrue(model.save())
+        advanceUntilIdle()
+
+        assertEquals(1570L, fakes.txnDao.rows.value.single().amountMinor)
+    }
+
+    @Test
     fun `saving an expense writes a positive amount in the account currency with the chosen category`() =
         runTest(dispatcher) {
             val fakes = Fakes().apply { seed() }

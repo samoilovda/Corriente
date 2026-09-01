@@ -164,6 +164,10 @@ fun TxnEntryScreen(
                     onDigit = viewModel::pressDigit,
                     onDecimalPoint = viewModel::pressDecimalPoint,
                     onBackspace = viewModel::pressBackspace,
+                    onPlus = { viewModel.pressOp(com.corriente.money.CalcOp.PLUS) },
+                    onMinus = { viewModel.pressOp(com.corriente.money.CalcOp.MINUS) },
+                    onEquals = viewModel::pressEquals,
+                    equalsEnabled = state.hasPendingCalc,
                 )
                 Button(
                     onClick = { viewModel.save() },
@@ -205,11 +209,20 @@ private fun ChipRow(label: String, content: @Composable () -> Unit) {
 }
 
 @Composable
-private fun Keypad(onDigit: (Char) -> Unit, onDecimalPoint: () -> Unit, onBackspace: () -> Unit) {
+private fun Keypad(
+    onDigit: (Char) -> Unit,
+    onDecimalPoint: () -> Unit,
+    onBackspace: () -> Unit,
+    onPlus: () -> Unit,
+    onMinus: () -> Unit,
+    onEquals: () -> Unit,
+    equalsEnabled: Boolean,
+) {
+    // T5.5: 4-я колонка — калькулятор (сложение/вычитание сумм одной валюты).
     val rows = listOf(
-        listOf("1", "2", "3"),
-        listOf("4", "5", "6"),
-        listOf("7", "8", "9"),
+        listOf("7", "8", "9", "−"),
+        listOf("4", "5", "6", "+"),
+        listOf("1", "2", "3", "="),
         listOf(".", "0", "⌫"),
     )
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -221,9 +234,13 @@ private fun Keypad(onDigit: (Char) -> Unit, onDecimalPoint: () -> Unit, onBacksp
                             when (key) {
                                 "." -> onDecimalPoint()
                                 "⌫" -> onBackspace()
+                                "+" -> onPlus()
+                                "−" -> onMinus()
+                                "=" -> onEquals()
                                 else -> onDigit(key[0])
                             }
                         },
+                        enabled = key != "=" || equalsEnabled,
                         modifier = Modifier.weight(1f).height(56.dp),
                     ) {
                         if (key == "⌫") {
@@ -233,6 +250,7 @@ private fun Keypad(onDigit: (Char) -> Unit, onDecimalPoint: () -> Unit, onBacksp
                         }
                     }
                 }
+                if (row.size < 4) Spacer(Modifier.weight(1f))
             }
         }
     }

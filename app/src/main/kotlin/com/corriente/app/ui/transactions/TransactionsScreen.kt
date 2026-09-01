@@ -1,7 +1,9 @@
 package com.corriente.app.ui.transactions
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -299,6 +301,21 @@ private fun TxnRowItem(row: TxnRow, onClick: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
+        if (!row.isTransfer) {
+            val dotColor = if (row.color != 0) {
+                androidx.compose.ui.graphics.Color(row.color)
+            } else {
+                MaterialTheme.colorScheme.surfaceVariant
+            }
+            androidx.compose.foundation.layout.Box(
+                Modifier
+                    .size(28.dp)
+                    .background(dotColor, androidx.compose.foundation.shape.CircleShape),
+                contentAlignment = Alignment.Center,
+            ) {
+                row.icon?.takeIf { it.isNotBlank() }?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
+            }
+        }
         Column(Modifier.weight(1f)) {
             Text(row.title)
             row.note?.takeIf { it.isNotBlank() }?.let {
