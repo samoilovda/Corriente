@@ -81,4 +81,26 @@ class MonefyAmountParserTest {
     fun `trailing zero extra digits beyond scale are tolerated`() {
         assertEquals(Minor(150), MonefyAmountParser.parse("1.500", rub))
     }
+
+    // --- parseLenient: для импорта, где строку с избыточной точностью нельзя потерять ---
+
+    @Test
+    fun `parseLenient rounds excess fractional digits HALF_UP and flags it`() {
+        val a = MonefyAmountParser.parseLenient("100.001", usd) // третий знак .001 -> 100.00
+        assertEquals(Minor(100_00), a.minor)
+        assertEquals(true, a.roundedFromExcessPrecision)
+
+        val b = MonefyAmountParser.parseLenient("799.976", usd) // .976 -> 799.98
+        assertEquals(Minor(799_98), b.minor)
+        assertEquals(true, b.roundedFromExcessPrecision)
+    }
+
+    @Test
+    fun `parseLenient does not flag amounts that fit the currency scale`() {
+        assertEquals(
+            MonefyAmountParser.Lenient(Minor(-125_075), false),
+            MonefyAmountParser.parseLenient("-1,250.75", rub),
+        )
+        assertEquals(false, MonefyAmountParser.parseLenient("1.500", rub).roundedFromExcessPrecision)
+    }
 }
