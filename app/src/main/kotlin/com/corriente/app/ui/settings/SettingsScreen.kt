@@ -33,6 +33,7 @@ import com.corriente.app.corrienteContainer
 fun SettingsScreen(
     onOpenCurrencies: () -> Unit,
     onOpenCategories: () -> Unit,
+    onOpenImport: () -> Unit,
     backupViewModel: BackupViewModel = viewModel(
         factory = BackupViewModel.factory(corrienteContainer().backupRepository),
     ),
@@ -61,6 +62,11 @@ fun SettingsScreen(
             ListItem(
                 headlineContent = { Text(stringResource(R.string.categories_title)) },
                 modifier = Modifier.clickable(onClick = onOpenCategories),
+            )
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.import_monefy)) },
+                supportingContent = { Text(stringResource(R.string.import_monefy_hint)) },
+                modifier = Modifier.clickable(onClick = onOpenImport),
             )
             HorizontalDivider()
             ListItem(

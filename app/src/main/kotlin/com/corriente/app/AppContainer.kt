@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.Room
 import com.corriente.data.backup.BackupRepository
 import com.corriente.data.db.AppDatabase
+import com.corriente.data.imports.MonefyImportRepository
 import com.corriente.data.repository.AccountRepository
 import com.corriente.data.repository.CategoryRepository
 import com.corriente.data.repository.CurrencyRepository
@@ -35,6 +36,7 @@ class AppContainer(context: Context) {
     val categoryRepository: CategoryRepository by lazy { CategoryRepository(database.categoryDao()) }
     val txnRepository: TxnRepository by lazy { TxnRepository(database.txnDao(), database.accountDao()) }
     val backupRepository: BackupRepository by lazy { BackupRepository(database) }
+    val monefyImportRepository: MonefyImportRepository by lazy { MonefyImportRepository(database) }
 
     val accountBalanceUseCase: AccountBalanceUseCase by lazy {
         AccountBalanceUseCase(accountRepository, txnRepository)

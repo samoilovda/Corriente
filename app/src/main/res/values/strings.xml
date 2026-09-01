@@ -23,6 +23,25 @@
     <string name="backup_result_version">Файл создан более новой версией приложения (схема %1$d, приложение понимает до %2$d). Обновите приложение.</string>
     <string name="backup_result_failed">Не удалось прочитать файл бэкапа.</string>
 
+    <string name="import_monefy">Импорт из Monefy</string>
+    <string name="import_monefy_hint">Загрузить CSV-экспорт из Monefy</string>
+    <string name="import_title">Импорт из Monefy</string>
+    <string name="import_pick_file">Выбрать CSV-файл</string>
+    <string name="import_working">Обработка…</string>
+    <string name="import_preview_title">Что будет создано</string>
+    <string name="import_summary_accounts">Счетов: %1$d (из них с начальным остатком: %2$d)</string>
+    <string name="import_summary_categories">Категорий: %1$d</string>
+    <string name="import_summary_operations">Обычных операций: %1$d</string>
+    <string name="import_summary_transfers">Переводов: %1$d</string>
+    <string name="import_summary_unpaired">Непарных половинок переводов: %1$d</string>
+    <string name="import_reviews_title">Требуют проверки (%1$d)</string>
+    <string name="import_errors_title">Не удалось разобрать строк: %1$d</string>
+    <string name="import_confirm">Импортировать</string>
+    <string name="import_confirm_hint">Запись в базу произойдёт только после нажатия. Повторный импорт того же файла ничего не добавит.</string>
+    <string name="import_done">Добавлено операций: %1$d, пропущено (уже есть): %2$d.</string>
+    <string name="import_failed">Не удалось: %1$s</string>
+    <string name="import_restart">Импортировать другой файл</string>
+
     <string name="currencies_title">Валюты</string>
     <string name="currencies_search_hint">Поиск по коду или названию</string>
     <string name="currencies_symbol">Символ</string>

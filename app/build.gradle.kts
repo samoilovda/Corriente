@@ -26,6 +26,12 @@ android {
     buildFeatures {
         compose = true
     }
+
+    // Тест-данные Monefy лежат в testdata/ в корне репозитория (на них ссылаются docs);
+    // приёмочный тест импорта читает их из classpath (см. Stage3AcceptanceTest).
+    sourceSets {
+        named("test") { resources.srcDir("$rootDir/testdata") }
+    }
 }
 
 kotlin {
