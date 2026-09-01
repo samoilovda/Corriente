@@ -22,6 +22,7 @@ import com.corriente.app.ui.accounts.AccountsScreen
 import com.corriente.app.ui.categories.CategoriesScreen
 import com.corriente.app.ui.autobackup.AutoBackupScreen
 import com.corriente.app.ui.currencies.CurrenciesScreen
+import com.corriente.app.ui.fxreport.FxReportScreen
 import com.corriente.app.ui.imports.ImportScreen
 import com.corriente.app.ui.report.ReportScreen
 import com.corriente.app.ui.settings.SettingsScreen
@@ -37,6 +38,7 @@ private const val CATEGORIES_ROUTE = "categories"
 private const val IMPORT_ROUTE = "import_monefy"
 private const val WIDGET_SETTINGS_ROUTE = "widget_settings"
 private const val AUTOBACKUP_ROUTE = "autobackup"
+private const val FX_REPORT_ROUTE = "fx_report"
 private const val TXN_ENTRY_ROUTE = "txn_entry"
 private const val TXN_EDIT_ROUTE = "txn_edit"
 private const val TRANSFER_ROUTE = "transfer"
@@ -90,7 +92,13 @@ fun CorrienteNavHost() {
             }
             composable(CorrienteDestination.ACCOUNTS.route) { AccountsScreen() }
             composable(CorrienteDestination.REPORT.route) {
-                ReportScreen(onEditTransaction = { id -> navController.navigate("$TXN_EDIT_ROUTE/$id") })
+                ReportScreen(
+                    onEditTransaction = { id -> navController.navigate("$TXN_EDIT_ROUTE/$id") },
+                    onOpenFxReport = { navController.navigate(FX_REPORT_ROUTE) },
+                )
+            }
+            composable(FX_REPORT_ROUTE) {
+                FxReportScreen(onBack = { navController.popBackStack() })
             }
             composable(CorrienteDestination.SETTINGS.route) {
                 SettingsScreen(

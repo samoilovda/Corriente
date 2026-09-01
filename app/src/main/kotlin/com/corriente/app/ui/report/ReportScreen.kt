@@ -50,6 +50,7 @@ import java.time.ZoneOffset
 @Composable
 fun ReportScreen(
     onEditTransaction: (String) -> Unit,
+    onOpenFxReport: () -> Unit,
     viewModel: ReportViewModel = viewModel(
         factory = with(corrienteContainer()) {
             ReportViewModel.factory(txnRepository, categoryRepository, currencyRepository)
@@ -59,7 +60,16 @@ fun ReportScreen(
     val state by viewModel.uiState.collectAsState()
     var rangePickerOpen by remember { mutableStateOf(false) }
 
-    Scaffold(topBar = { TopAppBar(title = { Text(stringResource(R.string.nav_report)) }) }) { padding ->
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text(stringResource(R.string.nav_report)) },
+                actions = {
+                    TextButton(onClick = onOpenFxReport) { Text(stringResource(R.string.report_open_fx)) }
+                },
+            )
+        },
+    ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
             ScrollableChips {
                 FilterChip(

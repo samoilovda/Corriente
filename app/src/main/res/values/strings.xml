@@ -149,4 +149,7 @@
     <string name="report_empty">За этот период операций с категориями нет.</string>
     <string name="report_chart_monthly">По месяцам</string>
     <string name="report_chart_structure">Структура категорий</string>
+    <string name="report_open_fx">Курсы обмена</string>
+    <string name="fx_report_title">Мои курсы обмена</string>
+    <string name="fx_report_empty">Межвалютных переводов пока не было. Курс появляется из ваших собственных обменов.</string>
 </resources>
