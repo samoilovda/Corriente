@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="widget_description">Балансы и быстрый ввод расхода</string>
+    <string name="widget_month_expenses">Расходы за месяц</string>
+    <string name="widget_locked">Разблокируйте телефон, чтобы увидеть балансы</string>
+    <string name="widget_empty">Пока нет данных</string>
+</resources>

@@ -43,6 +43,7 @@ kotlin {
 dependencies {
     implementation(project(":core:money"))
     implementation(project(":core:data"))
+    implementation(project(":widget"))
 
     implementation(platform(libs.compose.bom))
     implementation("androidx.compose.material3:material3")

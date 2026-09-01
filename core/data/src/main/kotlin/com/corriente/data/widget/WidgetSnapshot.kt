@@ -47,6 +47,42 @@ const val MAX_QUICK_CATEGORIES = 6
 /** Окно, по которому считаются «самые частые» категории для быстрого ввода. */
 const val QUICK_CATEGORY_WINDOW_DAYS = 60L
 
+/** Сколько валют максимум показывать в виджете (ARCHITECTURE.md §4.4 п.6а). */
+const val MAX_PINNED_CURRENCIES = 3
+
+/** Окно «недавних» счетов для валют виджета по умолчанию (ARCHITECTURE.md §4.4 п.6а). */
+const val RECENT_ACCOUNT_WINDOW_DAYS = 30L
+
+/**
+ * Валюты виджета по умолчанию, пока пользователь не закрепил свои (T4.4): валюты счетов,
+ * по которым были операции за последние 30 дней; если таких нет — валюты всех активных
+ * счетов. Не более [MAX_PINNED_CURRENCIES], порядок — по убыванию числа операций.
+ */
+fun defaultPinnedCurrencies(
+    accounts: List<Account>,
+    transactions: List<Txn>,
+    today: LocalDate,
+): List<CurrencyCode> {
+    val currencyByAccount = accounts.associate { it.id to it.currency }
+    val since = today.minusDays(RECENT_ACCOUNT_WINDOW_DAYS)
+    val touchedAccounts = transactions
+        .filter { it.date >= since && it.date <= today }
+        .flatMap { txn ->
+            when (txn) {
+                is Txn.Expense -> listOf(txn.accountId)
+                is Txn.Income -> listOf(txn.accountId)
+                is Txn.Transfer -> listOf(txn.fromAccountId, txn.toAccountId)
+            }
+        }
+    val ranked = touchedAccounts
+        .mapNotNull { currencyByAccount[it] }
+        .groupingBy { it }.eachCount()
+        .entries.sortedWith(compareByDescending<Map.Entry<CurrencyCode, Int>> { it.value }.thenBy { it.key.code })
+        .map { it.key }
+    if (ranked.isNotEmpty()) return ranked.take(MAX_PINNED_CURRENCIES)
+    return accounts.filterNot { it.isArchived }.map { it.currency }.distinct().take(MAX_PINNED_CURRENCIES)
+}
+
 /**
  * Чистая функция: те же входы → тот же снимок. Никаких обращений к БД, времени, локали.
  *

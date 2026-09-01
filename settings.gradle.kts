@@ -23,4 +23,4 @@ include(":core:money")
 // (dl.google.com) для Android Gradle Plugin и androidx.*.
 include(":core:data")
 include(":app")
-// include(":widget") // добавляется на этапе 4 (BUILD_PLAN.md §6)
+include(":widget")

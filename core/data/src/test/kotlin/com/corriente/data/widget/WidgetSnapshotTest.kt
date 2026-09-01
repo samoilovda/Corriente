@@ -103,6 +103,30 @@ class WidgetSnapshotTest {
     }
 
     @Test
+    fun `default pinned currencies are the recently used ones, capped at three`() {
+        val accounts = listOf(
+            account("rub", rub, 0), account("usd", usd, 0),
+            account("eur", CurrencyCode("EUR"), 0), account("gbp", CurrencyCode("GBP"), 0),
+        )
+        val txns = listOf(
+            expense("usd", 100, null, today.minusDays(1)),
+            expense("usd", 100, null, today.minusDays(2)),
+            expense("rub", 100, null, today.minusDays(3)),
+            expense("eur", 100, null, today.minusDays(40)), // вне окна
+        )
+        assertEquals(
+            listOf(usd, rub),
+            defaultPinnedCurrencies(accounts, txns, today),
+        )
+    }
+
+    @Test
+    fun `default pinned currencies fall back to active account currencies when nothing recent`() {
+        val accounts = listOf(account("rub", rub, 0), account("usd", usd, 0))
+        assertEquals(listOf(rub, usd), defaultPinnedCurrencies(accounts, emptyList(), today))
+    }
+
+    @Test
     fun `quick categories are the most frequent within the window, capped and filtered`() {
         val cats = (1..8).map { category("c$it") } + category("old", archived = true)
         val txns = buildList {
