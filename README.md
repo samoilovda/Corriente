@@ -29,11 +29,13 @@
 ./gradlew check assembleDebug     # юнит-тесты всех модулей, lint, verifyInvariantGuards, debug APK
 ```
 
-`verifyInvariantGuards` (корневой `build.gradle.kts`) — файловый скан **всего репозитория**
-на запрещённые конструкции (деньги через `Double`/`Float`, locale-зависимый разбор,
-`fallbackToDestructiveMigration`, `uses-permission` в манифестах). Сделан отдельной
-файловой задачей, а не Detekt-правилом, специально: читает `.kt` и `AndroidManifest.xml`
-с диска, поэтому не зависит от того, конфигурируется ли модуль. Подключён к `check`.
+`verifyInvariantGuards` (корневой `build.gradle.kts` поверх `InvariantGuards` из `buildSrc`) —
+файловый скан **всего репозитория** на запрещённые конструкции (деньги через `Double`/`Float`,
+locale-зависимый разбор, `fallbackToDestructiveMigration`, `uses-permission` в манифестах).
+Сделан скан-задачей, а не Detekt-правилом, специально: читает `.kt` и `AndroidManifest.xml`
+с диска, поэтому не зависит от того, конфигурируется ли модуль; плагин Detekt к тому же
+отстаёт от версии Kotlin. Логика скана покрыта `InvariantGuardsTest` (buildSrc гоняет его
+на каждой сборке). Подключён к `check`.
 
 ### Инструментальные тесты
 

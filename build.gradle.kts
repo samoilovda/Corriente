@@ -1,3 +1,5 @@
+import corriente.buildsupport.InvariantGuards
+
 plugins {
     alias(libs.plugins.kotlin.jvm) apply false
     alias(libs.plugins.kotlin.serialization) apply false
@@ -11,12 +13,12 @@ plugins {
 
 /**
  * Защитные проверки из docs/BUILD_PLAN.md §1.5 / §0 (правило 7): статический скан исходников
- * на запрещённые конструкции. Сделан как обычная файловая задача, а не Detekt-правило и не
- * JUnit-тест внутри модуля, специально: она сканирует ВЕСЬ репозиторий по файловой системе,
- * включая Android-модули (:core:data, :app), которые в этой среде разработки не могут быть
- * даже сконфигурированы Gradle'ом (нет доступа к Google Maven — см. README раздел
- * "Известное ограничение окружения"). Так правило действует независимо от того, собирается
- * ли модуль в конкретном окружении.
+ * на запрещённые конструкции. Сделан файловой задачей поверх [InvariantGuards] (buildSrc),
+ * а не Detekt-правилом, сознательно (обоснование — в KDoc [InvariantGuards]). Сама логика
+ * скана покрыта unit-тестом `InvariantGuardsTest`, который buildSrc прогоняет на каждой сборке.
+ *
+ * Задача читает `.kt` и `AndroidManifest.xml` с диска и потому работает независимо от того,
+ * может ли Gradle сконфигурировать Android-модули в конкретном окружении.
  */
 val verifyInvariantGuards by tasks.registering {
     group = "verification"
@@ -24,12 +26,13 @@ val verifyInvariantGuards by tasks.registering {
 
     val kotlinSources = fileTree(rootDir) {
         include("**/src/main/**/*.kt", "**/src/test/**/*.kt")
-        exclude("**/build/**")
+        exclude("**/build/**", "buildSrc/**") // buildSrc — сам скан и его тест-фикстуры
     }
     val manifests = fileTree(rootDir) {
         include("**/AndroidManifest.xml")
-        exclude("**/build/**")
+        exclude("**/build/**", "buildSrc/**")
     }
+    val root = rootDir
 
     inputs.files(kotlinSources)
     inputs.files(manifests)
@@ -37,55 +40,24 @@ val verifyInvariantGuards by tasks.registering {
     doLast {
         val violations = mutableListOf<String>()
 
-        // I-1 / I-25: деньги — не Double/Float; денежные строки — не через NumberFormat/DecimalFormat.
-        val forbiddenTokenPatterns = mapOf(
-            Regex("""\bDouble\b""") to "тип Double запрещён в денежном коде (I-1)",
-            Regex("""\bFloat\b""") to "тип Float запрещён в денежном коде (I-1)",
-            Regex("""NumberFormat\s*\.\s*getInstance""") to "NumberFormat.getInstance — locale-зависимый разбор денег запрещён (I-25)",
-            Regex("""\bDecimalFormat\s*\(""") to "DecimalFormat — locale-зависимое форматирование денег запрещено (I-25)",
-            Regex("""fallbackToDestructiveMigration""") to "fallbackToDestructiveMigration запрещён в любом виде (I-20)",
-        )
-        // Модули, где допустим Float (координаты Compose Canvas и т.п. — ARCHITECTURE.md §5.3):
-        // деньги там уже посчитаны и переданы как готовые числа, но сам модуль не денежный.
-        val floatAllowedPathFragments = listOf("/ui/chart/", "/ui/canvas/")
-
         kotlinSources.forEach { file ->
-            val relativePath = file.relativeTo(rootDir).path
-            val withoutComments = file.readText()
-                .replace(Regex("""/\*.*?\*/""", RegexOption.DOT_MATCHES_ALL), "")
-                .replace(Regex("""//.*"""), "")
-            withoutComments.lineSequence().forEachIndexed { index, line ->
-                forbiddenTokenPatterns.forEach { (pattern, reason) ->
-                    val isFloatException = pattern.pattern.contains("Float") &&
-                        floatAllowedPathFragments.any { relativePath.contains(it) }
-                    if (!isFloatException && pattern.containsMatchIn(line)) {
-                        violations += "$relativePath:${index + 1}: $reason\n    ${line.trim()}"
-                    }
-                }
-            }
+            val rel = file.relativeTo(root).path.replace(java.io.File.separatorChar, '/')
+            violations += InvariantGuards.scanKotlin(rel, file.readText())
         }
-
-        // I-24: в приложении нет сети — ни одного uses-permission в манифесте.
-        // XML-комментарии (в т.ч. этот самый, который объясняет правило) вырезаются заранее,
-        // иначе скан находит слово "uses-permission" в тексте собственного предупреждения.
         manifests.forEach { file ->
-            val relativePath = file.relativeTo(rootDir).path
-            val withoutComments = file.readText()
-                .replace(Regex("""<!--.*?-->""", RegexOption.DOT_MATCHES_ALL), "")
-            withoutComments.lineSequence().forEachIndexed { index, line ->
-                if (line.contains("uses-permission")) {
-                    violations += "$relativePath:${index + 1}: uses-permission запрещён (I-24, нет сети)\n    ${line.trim()}"
-                }
-            }
+            val rel = file.relativeTo(root).path.replace(java.io.File.separatorChar, '/')
+            violations += InvariantGuards.scanManifest(rel, file.readText())
         }
 
         if (violations.isNotEmpty()) {
             throw GradleException(
                 "Найдены запрещённые конструкции (docs/BUILD_PLAN.md §1.5):\n\n" +
-                    violations.joinToString("\n\n")
+                    violations.joinToString("\n\n"),
             )
         }
-        logger.lifecycle("verifyInvariantGuards: OK, просканировано ${kotlinSources.files.size} .kt и ${manifests.files.size} AndroidManifest.xml")
+        logger.lifecycle(
+            "verifyInvariantGuards: OK, просканировано ${kotlinSources.files.size} .kt и ${manifests.files.size} AndroidManifest.xml",
+        )
     }
 }
 
