@@ -130,6 +130,31 @@ class TransferEntryViewModelTest {
     }
 
     @Test
+    fun `a negative or zero manual rate is ignored instead of crashing the received amount`() = runTest(dispatcher) {
+        val fakes = Fakes().apply { seed() }
+        val model = vm(fakes)
+        backgroundScope.observe(model)
+        advanceUntilIdle()
+        model.selectTo("usd1")
+        advanceUntilIdle()
+        model.setFromAmount("8695")
+        model.setToAmount("100")
+        advanceUntilIdle()
+
+        model.setRate("-0.5")   // KeyboardType.Decimal на части IME пропускает «−»
+        advanceUntilIdle()
+        assertEquals("100", model.uiState.value.toAmountText)  // не тронут, не упал
+
+        model.setRate("0")
+        advanceUntilIdle()
+        assertEquals("100", model.uiState.value.toAmountText)
+
+        model.setRate("0.011501")   // валидный курс всё ещё пересчитывает
+        advanceUntilIdle()
+        assertEquals("100", model.uiState.value.toAmountText)
+    }
+
+    @Test
     fun `cannot transfer an account into itself`() = runTest(dispatcher) {
         val fakes = Fakes().apply { seed() }
         val model = vm(fakes)

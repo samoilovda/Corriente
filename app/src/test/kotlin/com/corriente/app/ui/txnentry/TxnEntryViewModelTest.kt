@@ -149,6 +149,37 @@ class TxnEntryViewModelTest {
     }
 
     @Test
+    fun `chained subtraction driving the accumulator negative does not crash the amount field`() =
+        runTest(dispatcher) {
+            val fakes = Fakes().apply { seed() }
+            val model = vm(fakes)
+            backgroundScope.observe(model)
+            advanceUntilIdle()
+
+            // 5 − 10 − 3 : после второго «−» накопитель = −5 (AmountInput.fromMinor его не принял бы)
+            model.pressDigit('5')
+            model.pressOp(com.corriente.money.CalcOp.MINUS)
+            model.pressDigit('1'); model.pressDigit('0')
+            model.pressOp(com.corriente.money.CalcOp.MINUS)
+            model.pressDigit('3')
+            advanceUntilIdle()
+
+            assertEquals("−5 − 3", model.uiState.value.amountText) // не бросает, знак вынесен в строку
+            assertFalse(model.uiState.value.canSave)                // итог −8, сохранять нечего
+
+            // добить до плюса: −8 + 20 = 12
+            model.pressOp(com.corriente.money.CalcOp.PLUS)
+            model.pressDigit('2'); model.pressDigit('0')
+            model.pressEquals()
+            advanceUntilIdle()
+            assertFalse(model.uiState.value.hasPendingCalc)
+            assertTrue(model.uiState.value.canSave)
+            assertTrue(model.save())
+            advanceUntilIdle()
+            assertEquals(1200L, fakes.txnDao.rows.value.single().amountMinor)
+        }
+
+    @Test
     fun `saving an expense writes a positive amount in the account currency with the chosen category`() =
         runTest(dispatcher) {
             val fakes = Fakes().apply { seed() }

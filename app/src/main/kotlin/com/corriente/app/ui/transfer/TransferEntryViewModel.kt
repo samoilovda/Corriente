@@ -147,7 +147,7 @@ class TransferEntryViewModel(
     fun setNote(note: String) = form.update { it.copy(note = note) }
 
     fun setFromAmount(text: String) = form.update { f ->
-        val rate = f.rateText.toBigDecimalOrNull()
+        val rate = f.rateText.toPositiveRateOrNull()
         val recomputedTo = if (rate != null) recomputeTo(text, rate) else f.toAmountText
         f.copy(fromAmountText = text, toAmountText = recomputedTo)
     }
@@ -156,10 +156,17 @@ class TransferEntryViewModel(
 
     /** Курс — вспомогательный ввод: меняет сумму-приёмник, но сам не хранится (I-7а). */
     fun setRate(text: String) = form.update { f ->
-        val rate = text.toBigDecimalOrNull()
+        val rate = text.toPositiveRateOrNull()
         val recomputedTo = if (rate != null) recomputeTo(f.fromAmountText, rate) else f.toAmountText
         f.copy(rateText = text, toAmountText = recomputedTo)
     }
+
+    /**
+     * Курс имеет смысл только строго положительный. Клавиатура `Decimal` на части IME
+     * пропускает «−» (и вставку), а отрицательная сумма-приёмник уронила бы [AmountInput.fromMinor].
+     */
+    private fun String.toPositiveRateOrNull(): BigDecimal? =
+        toBigDecimalOrNull()?.takeIf { it.signum() > 0 }
 
     private fun recomputeTo(fromText: String, rate: BigDecimal): String {
         val state = uiState.value

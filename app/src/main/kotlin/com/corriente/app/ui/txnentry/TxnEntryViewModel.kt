@@ -53,9 +53,18 @@ data class TxnEntryUiState(
             val currency = currency
             val operand = amount.displayText()
             if (calcAcc == null || calcOp == null || currency == null) return operand
-            val accMajor = AmountInput.fromMinor(Minor(calcAcc), currency).displayText()
-            return "$accMajor ${calcOp.symbol} $operand"
+            return "${majorText(calcAcc, currency)} ${calcOp.symbol} $operand"
         }
+
+    /**
+     * Отображение накопителя калькулятора. Он может быть отрицательным (напр. «5 − 10» и ещё «− 3»),
+     * а [AmountInput.fromMinor] принимает только неотрицательное (знак — в типе операции, I-1),
+     * поэтому знак выносим в строку сами.
+     */
+    private fun majorText(minor: Long, currency: Currency): String {
+        val magnitude = AmountInput.fromMinor(Minor(kotlin.math.abs(minor)), currency).displayText()
+        return if (minor < 0) "−$magnitude" else magnitude
+    }
 
     val hasPendingCalc: Boolean get() = calcAcc != null && calcOp != null
 
