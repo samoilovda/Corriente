@@ -12,6 +12,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Remove
+import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -19,6 +20,7 @@ import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -44,7 +46,9 @@ import com.corriente.app.corrienteContainer
 fun TransactionsScreen(
     onAddExpense: () -> Unit,
     onAddIncome: () -> Unit,
+    onAddTransfer: () -> Unit,
     onEditTransaction: (String) -> Unit,
+    onEditTransfer: (String) -> Unit,
     viewModel: TransactionsViewModel = viewModel(
         factory = with(corrienteContainer()) {
             TransactionsViewModel.factory(txnRepository, accountRepository, categoryRepository, currencyRepository)
@@ -54,7 +58,16 @@ fun TransactionsScreen(
     val state by viewModel.uiState.collectAsState()
 
     Scaffold(
-        topBar = { TopAppBar(title = { Text(stringResource(R.string.nav_transactions)) }) },
+        topBar = {
+            TopAppBar(
+                title = { Text(stringResource(R.string.nav_transactions)) },
+                actions = {
+                    IconButton(onClick = onAddTransfer) {
+                        Icon(Icons.Filled.SwapHoriz, contentDescription = stringResource(R.string.transfer_title))
+                    }
+                },
+            )
+        },
         floatingActionButton = {
             // «+» доход слева, «−» расход справа (у thumb-зоны): расход — самый частый сценарий,
             // основная кнопка; «+» вторичного цвета.
@@ -95,7 +108,15 @@ fun TransactionsScreen(
                     state.sections.forEach { section ->
                         item(key = "h-${section.date}") { DayHeader(section) }
                         items(section.rows, key = { it.id }) { row ->
-                            TxnRowItem(row, onClick = { if (row.editable) onEditTransaction(row.id) })
+                            TxnRowItem(
+                                row,
+                                onClick = {
+                                    when {
+                                        row.isTransfer -> onEditTransfer(row.id)
+                                        row.editable -> onEditTransaction(row.id)
+                                    }
+                                },
+                            )
                             HorizontalDivider()
                         }
                     }

@@ -73,6 +73,14 @@
     <string name="txn_entry_title">Новая операция</string>
     <string name="txn_add_expense">Добавить расход</string>
     <string name="txn_add_income">Добавить доход</string>
+
+    <string name="transfer_title">Перевод</string>
+    <string name="transfer_from">Со счёта</string>
+    <string name="transfer_to">На счёт</string>
+    <string name="transfer_amount">Сумма</string>
+    <string name="transfer_received">Зачислено</string>
+    <string name="transfer_rate_manual">Курс (необязательно)</string>
+    <string name="transfer_need_two_accounts">Для перевода нужно минимум два счёта.</string>
     <string name="txn_entry_account">Счёт</string>
     <string name="txn_entry_category">Категория</string>
     <string name="txn_entry_no_category">Без категории</string>

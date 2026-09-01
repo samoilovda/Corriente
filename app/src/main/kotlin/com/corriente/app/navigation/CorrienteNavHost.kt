@@ -24,6 +24,7 @@ import com.corriente.app.ui.currencies.CurrenciesScreen
 import com.corriente.app.ui.report.ReportScreen
 import com.corriente.app.ui.settings.SettingsScreen
 import com.corriente.app.ui.transactions.TransactionsScreen
+import com.corriente.app.ui.transfer.TransferEntryScreen
 import com.corriente.app.ui.txnentry.EntryKind
 import com.corriente.app.ui.txnentry.TxnEntryScreen
 
@@ -32,6 +33,8 @@ private const val CURRENCIES_ROUTE = "currencies"
 private const val CATEGORIES_ROUTE = "categories"
 private const val TXN_ENTRY_ROUTE = "txn_entry"
 private const val TXN_EDIT_ROUTE = "txn_edit"
+private const val TRANSFER_ROUTE = "transfer"
+private const val TRANSFER_EDIT_ROUTE = "transfer_edit"
 
 /**
  * Каркас навигации (T1.1): нижняя панель с четырьмя разделами. Содержимое разделов
@@ -74,7 +77,9 @@ fun CorrienteNavHost() {
                 TransactionsScreen(
                     onAddExpense = { navController.navigate("$TXN_ENTRY_ROUTE?kind=${EntryKind.EXPENSE.name}") },
                     onAddIncome = { navController.navigate("$TXN_ENTRY_ROUTE?kind=${EntryKind.INCOME.name}") },
+                    onAddTransfer = { navController.navigate(TRANSFER_ROUTE) },
                     onEditTransaction = { id -> navController.navigate("$TXN_EDIT_ROUTE/$id") },
+                    onEditTransfer = { id -> navController.navigate("$TRANSFER_EDIT_ROUTE/$id") },
                 )
             }
             composable(CorrienteDestination.ACCOUNTS.route) { AccountsScreen() }
@@ -111,6 +116,18 @@ fun CorrienteNavHost() {
                 arguments = listOf(navArgument("txnId") { type = NavType.StringType }),
             ) { entry ->
                 TxnEntryScreen(
+                    onDone = { navController.popBackStack() },
+                    editingTxnId = entry.arguments?.getString("txnId"),
+                )
+            }
+            composable(TRANSFER_ROUTE) {
+                TransferEntryScreen(onDone = { navController.popBackStack() })
+            }
+            composable(
+                "$TRANSFER_EDIT_ROUTE/{txnId}",
+                arguments = listOf(navArgument("txnId") { type = NavType.StringType }),
+            ) { entry ->
+                TransferEntryScreen(
                     onDone = { navController.popBackStack() },
                     editingTxnId = entry.arguments?.getString("txnId"),
                 )

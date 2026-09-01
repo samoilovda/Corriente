@@ -30,7 +30,10 @@ data class TxnRow(
     val title: String,
     val note: String?,
     val amountText: String,
+    /** true — расход/доход, открывается в экране ввода. */
     val editable: Boolean,
+    /** true — перевод, открывается в экране перевода. */
+    val isTransfer: Boolean = false,
 )
 
 /** Итог дня считается по каждой валюте отдельно (I-8) — сложение разных валют невозможно. */
@@ -142,6 +145,7 @@ private fun row(
             note = txn.note,
             amountText = "${MoneyFormatter.format(txn.fromAmount, from)} → ${MoneyFormatter.format(txn.toAmount, to)}",
             editable = false,
+            isTransfer = true,
         )
     }
 }
