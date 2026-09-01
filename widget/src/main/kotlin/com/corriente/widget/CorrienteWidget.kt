@@ -60,6 +60,14 @@ class CorrienteWidget : GlanceAppWidget() {
 
 private const val APP_PACKAGE = "com.corriente.app"
 
+private fun quickExpenseIntent(categoryId: String, categoryName: String) =
+    Intent().apply {
+        component = ComponentName(APP_PACKAGE, "$APP_PACKAGE.quick.QuickExpenseActivity")
+        putExtra("category_id", categoryId)
+        putExtra("category_name", categoryName)
+        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    }
+
 private fun changeActiveAccountIntent() =
     Intent().apply {
         component = ComponentName(APP_PACKAGE, "$APP_PACKAGE.quick.ChangeActiveAccountActivity")
@@ -106,7 +114,11 @@ private fun WidgetBody(snapshot: WidgetSnapshot, locked: Boolean) {
                             Text(
                                 text = category.icon?.takeIf { it.isNotBlank() } ?: category.name.take(3),
                                 style = captionStyle(),
-                                modifier = GlanceModifier.padding(horizontal = 6.dp, vertical = 4.dp),
+                                modifier = GlanceModifier
+                                    .padding(horizontal = 6.dp, vertical = 4.dp)
+                                    .clickable(
+                                        actionStartActivity(quickExpenseIntent(category.id, category.name)),
+                                    ),
                             )
                             Spacer(GlanceModifier.width(4.dp))
                         }
