@@ -62,6 +62,19 @@ fun FxReportScreen(
             return@Scaffold
         }
         LazyColumn(Modifier.fillMaxSize().padding(padding)) {
+            if (state.conversionCosts.isNotEmpty()) {
+                item(key = "conversion-cost-header") {
+                    Text(
+                        stringResource(R.string.fx_conversion_cost_title),
+                        Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                }
+                items(state.conversionCosts, key = { "cost-${it.title}" }) { cost ->
+                    ConversionCostRow(cost)
+                    HorizontalDivider()
+                }
+            }
             state.pairs.forEach { pair ->
                 item(key = "h-${pair.title}") {
                     Text(
@@ -90,6 +103,33 @@ fun FxReportScreen(
                 }
             }
         }
+    }
+}
+
+/**
+ * R3.4: строка «во что обошлись конвертации в этом году» по одной паре валют. Меньше трёх
+ * сделок по паре — сравнивать курс не с чем (ADR-013), показываем текст «недостаточно
+ * данных», а не 0 — ноль читался бы как «конвертации ничего не стоили».
+ */
+@Composable
+private fun ConversionCostRow(cost: ConversionCostUi) {
+    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp)) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text(cost.title, style = MaterialTheme.typography.bodyMedium)
+            Text(
+                if (cost.insufficientData) {
+                    stringResource(R.string.fx_conversion_cost_insufficient_data)
+                } else {
+                    stringResource(R.string.fx_conversion_cost_amount, cost.amountText.orEmpty())
+                },
+                style = MaterialTheme.typography.bodyMedium,
+            )
+        }
+        Text(
+            stringResource(R.string.fx_conversion_cost_deal_count, cost.dealCount),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 

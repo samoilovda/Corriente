@@ -207,6 +207,10 @@
     <string name="account_balance_chart">График остатка</string>
     <string name="fx_report_title">Мои курсы обмена</string>
     <string name="fx_report_empty">Межвалютных переводов пока не было. Курс появляется из ваших собственных обменов.</string>
+    <string name="fx_conversion_cost_title">Сколько стоили конвертации в этом году</string>
+    <string name="fx_conversion_cost_amount">≈ %1$s</string>
+    <string name="fx_conversion_cost_insufficient_data">недостаточно данных</string>
+    <string name="fx_conversion_cost_deal_count">Сделок за год: %1$d</string>
 
     <string name="budgets_title">Бюджеты</string>
     <string name="budgets_hint">Сколько потрачено из запланированного на месяц</string>
