@@ -278,6 +278,37 @@ class TxnEntryViewModelTest {
         assertNull(row.categoryId)
     }
 
+    // F0.3 — правка операции на архивном счёте раньше уводила её на первый активный счёт.
+    @Test
+    fun `editing a txn on an archived account keeps it on that account`() = runTest(dispatcher) {
+        val fakes = Fakes().apply { seed() }
+        val creator = vm(fakes)
+        backgroundScope.observe(creator)
+        advanceUntilIdle()
+        creator.pressDigit('5'); creator.pressDigit('0'); creator.pressDigit('0')
+        advanceUntilIdle()
+        creator.save()
+        advanceUntilIdle()
+        val id = fakes.txnDao.rows.value.single().id
+
+        val rub = fakes.accountDao.getById("acc-rub")!!
+        fakes.accountDao.update(rub.copy(isArchived = true)) // счёт RUB ушёл в архив, активен только CLP
+
+        val editor = vm(fakes, editingTxnId = id)
+        backgroundScope.observe(editor)
+        advanceUntilIdle()
+        assertEquals("acc-rub", editor.uiState.value.selectedAccountId)
+        assertTrue(editor.uiState.value.accounts.single { it.id == "acc-rub" }.isArchived)
+
+        editor.setNote("правка")
+        advanceUntilIdle()
+        assertTrue(editor.save())
+        advanceUntilIdle()
+        val row = fakes.txnDao.rows.value.single()
+        assertEquals("acc-rub", row.accountId)
+        assertEquals("RUB", row.currencyCode)
+    }
+
     // F0.2 — раньше исключение репозитория в viewModelScope убивало процесс.
     @Test
     fun `a repository failure on save surfaces a message and keeps the form`() = runTest(dispatcher) {

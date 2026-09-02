@@ -5,6 +5,7 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.corriente.app.ui.common.WritingViewModel
 import com.corriente.data.db.entity.CategoryKind
+import com.corriente.data.model.Account
 import com.corriente.data.model.Category
 import com.corriente.data.model.Txn
 import com.corriente.data.repository.AccountRepository
@@ -30,7 +31,7 @@ import java.time.LocalDate
 enum class EntryKind { EXPENSE, INCOME }
 
 /** Счёт как вариант выбора в форме — с уже разрешённой [Currency] для клавиатуры и показа. */
-data class AccountOption(val id: String, val name: String, val currency: Currency)
+data class AccountOption(val id: String, val name: String, val currency: Currency, val isArchived: Boolean = false)
 
 data class TxnEntryUiState(
     val kind: EntryKind = EntryKind.EXPENSE,
@@ -148,21 +149,30 @@ class TxnEntryViewModel(
 
     val uiState: StateFlow<TxnEntryUiState> = combine(
         form,
-        accounts.observeActive(),
+        accounts.observeAll(),
         currencies.observeAll(),
         categories.observeActive(),
-    ) { f, activeAccounts, allCurrencies, activeCategories ->
+    ) { f, allAccounts, allCurrencies, activeCategories ->
         val byCode = allCurrencies.associateBy { it.code.code }
-        val options = activeAccounts.map { account ->
-            AccountOption(
-                id = account.id,
-                name = account.name,
-                currency = byCode[account.currency.code]
-                    ?: Currency(account.currency, minorUnits = 2, displayScale = 2, symbol = account.currency.code),
-            )
+        fun option(account: Account) = AccountOption(
+            id = account.id,
+            name = account.name,
+            currency = byCode[account.currency.code]
+                ?: Currency(account.currency, minorUnits = 2, displayScale = 2, symbol = account.currency.code),
+            isArchived = account.isArchived,
+        )
+        // F0.3: варианты — активные счета плюс архивный счёт редактируемой операции, чтобы
+        // правка заметки/суммы не переносила операцию на чужой счёт.
+        val editingAccountId = if (editingTxnId != null) f.selectedAccountId else null
+        val options = (
+            allAccounts.filterNot { it.isArchived } +
+                allAccounts.filter { it.isArchived && it.id == editingAccountId }
+            ).map(::option)
+        val selectedAccountId = when {
+            f.selectedAccountId != null && options.any { it.id == f.selectedAccountId } -> f.selectedAccountId
+            editingTxnId == null -> options.firstOrNull()?.id
+            else -> null // редактируем, а счёт операции удалён совсем — сохранение заблокировано
         }
-        val selectedAccountId = f.selectedAccountId?.takeIf { id -> options.any { it.id == id } }
-            ?: options.firstOrNull()?.id
         val kindCategories = activeCategories.filter { it.kind == entryKindToCategoryKind(f.kind) }
         TxnEntryUiState(
             kind = f.kind,

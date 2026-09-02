@@ -184,9 +184,14 @@ private fun AccountDropdown(
     onSelect: (String) -> Unit,
 ) {
     var expanded by remember { mutableStateOf(false) }
+    val archivedFmt = stringResource(R.string.entry_archived_suffix, "%s")
+    fun optionLabel(a: TransferAccount): String {
+        val base = "${a.name} · ${a.currency.code.code}"
+        return if (a.isArchived) archivedFmt.format(base) else base
+    }
     ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }) {
         OutlinedTextField(
-            value = selected?.let { "${it.name} · ${it.currency.code.code}" } ?: "",
+            value = selected?.let(::optionLabel) ?: "",
             onValueChange = {},
             readOnly = true,
             label = { Text(label) },
@@ -196,7 +201,7 @@ private fun AccountDropdown(
         ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             options.forEach { option ->
                 DropdownMenuItem(
-                    text = { Text("${option.name} · ${option.currency.code.code}") },
+                    text = { Text(optionLabel(option)) },
                     onClick = { onSelect(option.id); expanded = false },
                 )
             }

@@ -125,6 +125,7 @@
     <string name="txn_entry_account">Счёт</string>
     <string name="txn_entry_category">Категория</string>
     <string name="txn_entry_no_category">Без категории</string>
+    <string name="entry_archived_suffix">%1$s (архив)</string>
     <string name="txn_entry_date">Дата</string>
     <string name="txn_entry_note">Заметка</string>
     <string name="txn_entry_backspace">Стереть</string>

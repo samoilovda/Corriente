@@ -24,7 +24,12 @@ import kotlinx.coroutines.launch
 import java.math.BigDecimal
 import java.time.LocalDate
 
-data class TransferAccount(val id: String, val name: String, val currency: Currency)
+data class TransferAccount(
+    val id: String,
+    val name: String,
+    val currency: Currency,
+    val isArchived: Boolean = false,
+)
 
 data class TransferUiState(
     val accounts: List<TransferAccount> = emptyList(),
@@ -117,18 +122,31 @@ class TransferEntryViewModel(
 
     val uiState: StateFlow<TransferUiState> = combine(
         form,
-        accounts.observeActive(),
+        accounts.observeAll(),
         currencies.observeAll(),
-    ) { f, activeAccounts, allCurrencies ->
+    ) { f, allAccounts, allCurrencies ->
         val byCode = allCurrencies.associateBy { it.code.code }
-        val options = activeAccounts.map { a ->
-            TransferAccount(a.id, a.name, byCode[a.currency.code] ?: fallback(a.currency))
+        // F0.3: активные счета плюс архивные стороны редактируемого перевода — иначе правка
+        // заметки уводила бы обе стороны на первые активные счета.
+        val editingIds = if (editingTxnId != null) listOfNotNull(f.fromAccountId, f.toAccountId) else emptyList()
+        val options = (
+            allAccounts.filterNot { it.isArchived } +
+                allAccounts.filter { it.isArchived && it.id in editingIds }
+            ).map { a ->
+                TransferAccount(a.id, a.name, byCode[a.currency.code] ?: fallback(a.currency), a.isArchived)
+            }
+        val fromId = when {
+            f.fromAccountId != null && options.any { it.id == f.fromAccountId } -> f.fromAccountId
+            editingTxnId == null -> options.getOrNull(0)?.id
+            else -> null
         }
-        val fromId = f.fromAccountId?.takeIf { id -> options.any { it.id == id } } ?: options.getOrNull(0)?.id
         // Явный выбор пользователя не трогаем (в т.ч. «тот же счёт» — это ловит canSave);
-        // авто-подставляем только когда to ещё не задан.
-        val toId = f.toAccountId?.takeIf { id -> options.any { it.id == id } }
-            ?: options.firstOrNull { it.id != fromId }?.id
+        // авто-подставляем только когда to ещё не задан и это создание.
+        val toId = when {
+            f.toAccountId != null && options.any { it.id == f.toAccountId } -> f.toAccountId
+            editingTxnId == null -> options.firstOrNull { it.id != fromId }?.id
+            else -> null
+        }
         TransferUiState(
             accounts = options,
             fromAccountId = fromId,

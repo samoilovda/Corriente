@@ -125,10 +125,15 @@ fun TxnEntryScreen(
 
                     ChipRow(stringResource(R.string.txn_entry_account)) {
                         state.accounts.forEach { option ->
+                            val label = if (option.isArchived) {
+                                stringResource(R.string.entry_archived_suffix, option.name)
+                            } else {
+                                option.name
+                            }
                             FilterChip(
                                 selected = state.selectedAccountId == option.id,
                                 onClick = { viewModel.selectAccount(option.id) },
-                                label = { Text(option.name) },
+                                label = { Text(label) },
                             )
                         }
                     }

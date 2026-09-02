@@ -167,6 +167,40 @@ class TransferEntryViewModelTest {
         assertFalse(model.save())
     }
 
+    // F0.3 — правка перевода с архивными сторонами раньше уводила обе стороны на активные счета.
+    @Test
+    fun `editing a transfer keeps both archived sides on their accounts`() = runTest(dispatcher) {
+        val fakes = Fakes().apply { seed() }
+        val repo = TxnRepository(fakes.txnDao, fakes.accountDao)
+        val transfer = repo.addTransfer(
+            "rub1", com.corriente.money.Money(com.corriente.money.Minor(500_00), com.corriente.money.CurrencyCode("RUB")),
+            "usd1", com.corriente.money.Money(com.corriente.money.Minor(5_00), com.corriente.money.CurrencyCode("USD")),
+            today, null,
+        )
+        // обе стороны перевода архивируем; активным остаётся только rub2
+        for (accId in listOf("rub1", "usd1")) {
+            val e = fakes.accountDao.getById(accId)!!
+            fakes.accountDao.update(e.copy(isArchived = true))
+        }
+
+        val model = vm(fakes, editingTxnId = transfer.id)
+        backgroundScope.observe(model)
+        advanceUntilIdle()
+        assertEquals("rub1", model.uiState.value.fromAccountId)
+        assertEquals("usd1", model.uiState.value.toAccountId)
+        assertTrue(model.uiState.value.accounts.single { it.id == "rub1" }.isArchived)
+
+        model.setNote("правка")
+        advanceUntilIdle()
+        assertTrue(model.save())
+        advanceUntilIdle()
+        val row = fakes.txnDao.rows.value.single()
+        assertEquals("rub1", row.accountId)
+        assertEquals("usd1", row.toAccountId)
+        assertEquals("RUB", row.currencyCode)
+        assertEquals("USD", row.toCurrencyCode)
+    }
+
     @Test
     fun `edit mode loads an existing transfer`() = runTest(dispatcher) {
         val fakes = Fakes().apply { seed() }
