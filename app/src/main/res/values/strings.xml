@@ -30,6 +30,11 @@
     <string name="autobackup_enabled">Включён</string>
     <string name="autobackup_enabled_hint">Раз в сутки, хранятся последние %1$d файлов</string>
     <string name="autobackup_now">Сделать бэкап сейчас</string>
+    <string name="autobackup_last_run">Последний бэкап: %1$s</string>
+    <string name="autobackup_last_run_never">Бэкап ещё не выполнялся</string>
+    <string name="autobackup_last_ok">успешно</string>
+    <string name="autobackup_last_error">Ошибка последнего бэкапа: %1$s</string>
+    <string name="autobackup_retention">Сколько файлов хранить</string>
 
     <string name="widget_settings">Виджет</string>
     <string name="widget_settings_hint">Закреплённые валюты и счёт для быстрого ввода</string>

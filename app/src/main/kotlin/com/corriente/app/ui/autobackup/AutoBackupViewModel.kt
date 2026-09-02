@@ -22,6 +22,9 @@ data class AutoBackupUiState(
     val enabled: Boolean = false,
     val folderLabel: String? = null,
     val retention: Int = 7,
+    val lastRunAt: Long? = null,
+    /** `"ok"` или текст ошибки; null — ещё не выполнялся. */
+    val lastResult: String? = null,
 )
 
 /** T5.1: экран автобэкапа. Хранит папку (SAF-дерево) и включатель, запускает бэкап вручную. */
@@ -34,7 +37,12 @@ class AutoBackupViewModel(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), AutoBackupUiState())
 
     fun setEnabled(enabled: Boolean) {
-        viewModelScope.launch { settings.setEnabled(enabled) }
+        viewModelScope.launch {
+            settings.setEnabled(enabled)
+            // F1.3: первый бэкап после включения — отдельным one-time запросом, а не задержкой
+            // в периодическом.
+            if (enabled) AutoBackupScheduler.runNow(app)
+        }
     }
 
     fun setFolder(uri: Uri) {
@@ -43,7 +51,12 @@ class AutoBackupViewModel(
         viewModelScope.launch {
             settings.setTreeUri(uri.toString())
             settings.setEnabled(true)
+            AutoBackupScheduler.runNow(app)
         }
+    }
+
+    fun setRetention(n: Int) {
+        viewModelScope.launch { settings.setRetention(n) }
     }
 
     fun backupNow() {
@@ -54,6 +67,8 @@ class AutoBackupViewModel(
         enabled = enabled,
         folderLabel = treeUri?.let { Uri.parse(it).lastPathSegment },
         retention = retention,
+        lastRunAt = lastRunAt,
+        lastResult = lastResult,
     )
 
     companion object {

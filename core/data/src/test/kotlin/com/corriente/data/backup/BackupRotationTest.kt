@@ -34,4 +34,19 @@ class BackupRotationTest {
     fun `keep must be positive`() {
         namesToPrune(files, keep = 0)
     }
+
+    // F1.3 — при уменьшении retention лишние старые файлы уходят в подрезку.
+    @Test
+    fun `lowering retention prunes more of the oldest files`() {
+        assertEquals(1, namesToPrune(files, keep = 3).size)
+        assertEquals(2, namesToPrune(files, keep = 2).size)
+        assertEquals(
+            listOf(
+                "corriente-backup-20260101-000000.json",
+                "corriente-backup-20260102-090000.json",
+                "corriente-backup-20260103-120000.json",
+            ),
+            namesToPrune(files, keep = 1),
+        )
+    }
 }

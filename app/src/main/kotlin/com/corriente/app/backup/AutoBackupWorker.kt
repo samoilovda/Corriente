@@ -22,22 +22,31 @@ class AutoBackupWorker(
         if (!config.enabled) return Result.success()
         val treeUri = config.treeUri?.let(Uri::parse) ?: return Result.success()
 
+        val settings = container.autoBackupSettings
         return try {
             val folder = SafBackupFolder(applicationContext, treeUri)
             folder.writeNewBackup(Date()) { output -> container.backupRepository.export(output) }
             folder.prune(config.retention)
+            settings.recordRun(System.currentTimeMillis(), RESULT_OK)
             Result.success()
         } catch (e: SecurityException) {
             // потеряли доступ к папке (пользователь отозвал разрешение) — не долбимся повторно
-            container.autoBackupSettings.setEnabled(false)
+            settings.setEnabled(false)
+            settings.recordRun(System.currentTimeMillis(), "Нет доступа к папке — автобэкап выключен")
             Result.failure()
         } catch (e: Exception) {
-            if (runAttemptCount < MAX_ATTEMPTS) Result.retry() else Result.failure()
+            if (runAttemptCount < MAX_ATTEMPTS) {
+                Result.retry()
+            } else {
+                settings.recordRun(System.currentTimeMillis(), e.message ?: "Не удалось сделать бэкап")
+                Result.failure()
+            }
         }
     }
 
     companion object {
         const val UNIQUE_NAME = "auto_backup"
+        const val RESULT_OK = "ok"
         private const val MAX_ATTEMPTS = 3
     }
 }

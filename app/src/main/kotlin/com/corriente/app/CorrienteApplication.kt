@@ -6,7 +6,9 @@ import com.corriente.app.widget.WidgetUpdater
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
 
 class CorrienteApplication : Application() {
@@ -20,9 +22,13 @@ class CorrienteApplication : Application() {
         container = AppContainer(this)
         WidgetUpdater(this, container).start()
 
-        // T5.1: держим расписание автобэкапа в соответствии с настройками.
+        // T5.1: держим расписание автобэкапа в соответствии с настройками. F1.3: только по
+        // изменению полей, влияющих на расписание — иначе запись статуса последнего запуска
+        // (Room переизлучает весь app_setting) пересобирала бы воркер на каждом бэкапе.
         container.autoBackupSettings.config
-            .onEach { AutoBackupScheduler.apply(this, it) }
+            .map { it.enabled to it.treeUri }
+            .distinctUntilChanged()
+            .onEach { AutoBackupScheduler.apply(this, container.autoBackupSettings.current()) }
             .launchIn(appScope)
     }
 }
