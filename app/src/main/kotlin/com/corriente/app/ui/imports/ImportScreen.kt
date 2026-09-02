@@ -166,7 +166,10 @@ private fun ReadyBody(
 
     HorizontalDivider()
     Text(stringResource(R.string.import_confirm_hint), style = MaterialTheme.typography.bodySmall)
-    Button(onClick = onConfirm) { Text(stringResource(R.string.import_confirm)) }
+    val blocked = ready.reviews.any {
+        it.reason == ReviewReason.EXISTING_ACCOUNT_CURRENCY_MISMATCH && it.decision == null
+    }
+    Button(onClick = onConfirm, enabled = !blocked) { Text(stringResource(R.string.import_confirm)) }
 }
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -182,8 +185,13 @@ private fun ReviewCardView(card: ReviewCard, onDecision: (ReviewRef, ReviewDecis
         Text("• ${card.message}", style = MaterialTheme.typography.bodyMedium)
 
         if (card.decision == null) {
+            val hint = if (card.reason == ReviewReason.EXISTING_ACCOUNT_CURRENCY_MISMATCH) {
+                R.string.import_review_blocked
+            } else {
+                R.string.import_review_hint_unresolved
+            }
             Text(
-                stringResource(R.string.import_review_hint_unresolved),
+                stringResource(hint),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -221,6 +229,16 @@ private fun ReviewCardView(card: ReviewCard, onDecision: (ReviewRef, ReviewDecis
                         DecisionChip(code, chosen) {
                             onDecision(card.ref, ReviewDecision.AccountCurrency(CurrencyCode(code)))
                         }
+                    }
+                }
+
+                ReviewReason.EXISTING_ACCOUNT_CURRENCY_MISMATCH -> {
+                    val label = stringResource(
+                        R.string.import_review_separate_account,
+                        card.currencyChoices.firstOrNull().orEmpty(),
+                    )
+                    DecisionChip(label, card.decision is ReviewDecision.SeparateAccount) {
+                        onDecision(card.ref, ReviewDecision.SeparateAccount)
                     }
                 }
             }

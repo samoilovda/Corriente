@@ -26,10 +26,25 @@ class MonefyImportRepository(private val db: AppDatabase) {
 
     data class ImportResult(val batchId: String, val inserted: Int, val skipped: Int)
 
+    /** Счета приложения (имя → валюта) — для [MonefyImportPlanner.plan] на шаге dry-run (F0.5). */
+    suspend fun existingAccountCurrencies(): List<Pair<String, com.corriente.money.CurrencyCode>> =
+        db.accountDao().observeAll().first().map { it.name to com.corriente.money.CurrencyCode(it.currencyCode) }
+
     suspend fun import(plan: MonefyImportPlan, fileName: String, reportJson: String = "{}"): ImportResult {
         val batchId = UUID.randomUUID().toString()
         var inserted = 0
         var skipped = 0
+
+        // F0.5: до любой записи — счёт-тёзка в другой валюте абортит импорт целиком.
+        val existingByName = db.accountDao().observeAll().first().associateBy { it.name }
+        plan.accounts.firstOrNull { p -> existingByName[p.name]?.let { it.currencyCode != p.currency.code } == true }
+            ?.let { conflict ->
+                val have = existingByName.getValue(conflict.name).currencyCode
+                throw IllegalStateException(
+                    "Счёт «${conflict.name}» уже ведётся в валюте $have, а в файле — ${conflict.currency.code}. " +
+                        "Выберите вариант в предпросмотре импорта.",
+                )
+            }
 
         db.withTransaction {
             db.importBatchDao().insert(
@@ -55,7 +70,8 @@ class MonefyImportRepository(private val db: AppDatabase) {
             val accountIdByName = HashMap<String, String>()
             val existingAccounts = db.accountDao().observeAll().first().associateBy { it.name }
             plan.accounts.forEach { planned ->
-                val existing = existingAccounts[planned.name]
+                // F0.5: переиспользуем существующий счёт только при совпадении имени И валюты.
+                val existing = existingAccounts[planned.name]?.takeIf { it.currencyCode == planned.currency.code }
                 accountIdByName[planned.name] = existing?.id ?: run {
                     val id = UUID.randomUUID().toString()
                     db.accountDao().insert(

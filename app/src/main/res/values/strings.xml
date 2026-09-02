@@ -57,6 +57,8 @@
     <string name="import_review_exact_from">Списано</string>
     <string name="import_review_exact_to">Зачислено</string>
     <string name="import_review_exact_apply">Применить</string>
+    <string name="import_review_separate_account">Отдельный счёт (%1$s)</string>
+    <string name="import_review_blocked">Импорт заблокирован, пока не выбран вариант</string>
     <string name="import_errors_title">Не удалось разобрать строк: %1$d</string>
     <string name="import_confirm">Импортировать</string>
     <string name="import_confirm_hint">Запись в базу произойдёт только после нажатия. Повторный импорт того же файла ничего не добавит.</string>

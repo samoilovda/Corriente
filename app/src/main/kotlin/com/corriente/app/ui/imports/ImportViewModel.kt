@@ -79,7 +79,10 @@ class ImportViewModel(private val importer: MonefyImportRepository) : ViewModel(
         viewModelScope.launch(Dispatchers.IO) {
             _state.value = runCatching {
                 val csv = input.use { it.reader(Charsets.UTF_8).readText() }
-                plan = MonefyImportPlanner.plan(MonefyCsvParser.parse(csv))
+                plan = MonefyImportPlanner.plan(
+                    MonefyCsvParser.parse(csv),
+                    existingAccounts = importer.existingAccountCurrencies(),
+                )
                 this@ImportViewModel.fileName = fileName
                 decisions.clear()
                 readyState()

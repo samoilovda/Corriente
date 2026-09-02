@@ -39,7 +39,16 @@ sealed interface ReviewDecision {
 
     /** [ReviewReason.ACCOUNT_CURRENCY_CONFLICT]: валюта счёта, выбранная вручную. */
     data class AccountCurrency(val code: CurrencyCode) : ReviewDecision
+
+    /**
+     * [ReviewReason.EXISTING_ACCOUNT_CURRENCY_MISMATCH]: не трогать существующий счёт, а завести
+     * отдельный «<имя> (<валюта из файла>)» и класть операции импорта в него.
+     */
+    data object SeparateAccount : ReviewDecision
 }
+
+/** Имя отдельного счёта для [ReviewDecision.SeparateAccount] — «Cash (USD)». */
+fun separateAccountName(name: String, currency: CurrencyCode): String = "$name ($currency)"
 
 /** Решения, допустимые для каждой причины (для построения экрана). */
 fun allowedDecisions(reason: ReviewReason): List<String> = when (reason) {
@@ -47,6 +56,7 @@ fun allowedDecisions(reason: ReviewReason): List<String> = when (reason) {
     ReviewReason.ANOMALOUS_CURRENCY -> listOf("accept", "same_currency")
     ReviewReason.EXCESS_PRECISION -> listOf("accept", "exact_amounts")
     ReviewReason.ACCOUNT_CURRENCY_CONFLICT -> listOf("account_currency")
+    ReviewReason.EXISTING_ACCOUNT_CURRENCY_MISMATCH -> listOf("separate_account")
 }
 
 /**
@@ -96,6 +106,20 @@ fun MonefyImportPlan.applyReviewDecisions(decisions: Map<ReviewRef, ReviewDecisi
             is ReviewDecision.AccountCurrency -> {
                 val name = review.account ?: continue
                 accounts = accounts.map { if (it.name == name) it.copy(currency = decision.code) else it }
+            }
+
+            ReviewDecision.SeparateAccount -> {
+                val name = review.account ?: continue
+                val planned = accounts.firstOrNull { it.name == name } ?: continue
+                val newName = separateAccountName(name, planned.currency)
+                accounts = accounts.map { if (it.name == name) it.copy(name = newName) else it }
+                plainTxns = plainTxns.map { if (it.account == name) it.copy(account = newName) else it }
+                transfers = transfers.map {
+                    it.copy(
+                        fromAccount = if (it.fromAccount == name) newName else it.fromAccount,
+                        toAccount = if (it.toAccount == name) newName else it.toAccount,
+                    )
+                }
             }
         }
         resolved += review.ref()

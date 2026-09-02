@@ -73,6 +73,25 @@ class MonefyReviewResolutionTest {
         assertNull(tx.review)
     }
 
+    // F0.5 — «отдельный счёт» переименовывает плановый счёт и все ссылки на него.
+    @Test
+    fun `SeparateAccount renames the account and its transactions`() {
+        val csv = javaClass.classLoader!!.getResourceAsStream("monefy_sample.csv")!!
+            .readBytes().toString(Charsets.UTF_8)
+        val p = MonefyImportPlanner.plan(
+            MonefyCsvParser.parse(csv),
+            existingAccounts = listOf("Cash" to com.corriente.money.CurrencyCode("USD")),
+        )
+        val ref = p.reviews.single { it.reason == ReviewReason.EXISTING_ACCOUNT_CURRENCY_MISMATCH }.ref()
+        val out = p.applyReviewDecisions(mapOf(ref to ReviewDecision.SeparateAccount))
+
+        assertTrue(out.accounts.none { it.name == "Cash" })
+        assertTrue(out.accounts.any { it.name == "Cash (RUB)" })
+        assertTrue(out.plainTxns.none { it.account == "Cash" })
+        assertTrue(out.transfers.none { it.fromAccount == "Cash" || it.toAccount == "Cash" })
+        assertTrue(out.reviews.none { it.reason == ReviewReason.EXISTING_ACCOUNT_CURRENCY_MISMATCH })
+    }
+
     @Test
     fun `decisions do not touch unrelated transfers`() {
         val ref = refFor(ReviewReason.EXCESS_PRECISION)

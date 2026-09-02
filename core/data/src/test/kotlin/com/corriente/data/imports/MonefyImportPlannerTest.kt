@@ -86,4 +86,24 @@ class MonefyImportPlannerTest {
     fun `no parse errors on the sample`() {
         assertEquals(emptyList<MonefyRowError>(), plan.errors)
     }
+
+    // F0.5 — счёт-тёзка в другой валюте, уже заведённый в приложении.
+    @Test
+    fun `NEEDS_REVIEW - existing account currency mismatch`() {
+        val csv = javaClass.classLoader!!.getResourceAsStream("monefy_sample.csv")!!
+            .readBytes().toString(Charsets.UTF_8)
+        val mismatch = MonefyImportPlanner.plan(
+            MonefyCsvParser.parse(csv),
+            existingAccounts = listOf("Cash" to com.corriente.money.CurrencyCode("USD")),
+        )
+        val item = mismatch.reviews.single { it.reason == ReviewReason.EXISTING_ACCOUNT_CURRENCY_MISMATCH }
+        assertEquals("Cash", item.account)
+        assertEquals(listOf(com.corriente.money.CurrencyCode("RUB")), item.currencyChoices)
+
+        val match = MonefyImportPlanner.plan(
+            MonefyCsvParser.parse(csv),
+            existingAccounts = listOf("Cash" to com.corriente.money.CurrencyCode("RUB")),
+        )
+        assertTrue(match.reviews.none { it.reason == ReviewReason.EXISTING_ACCOUNT_CURRENCY_MISMATCH })
+    }
 }

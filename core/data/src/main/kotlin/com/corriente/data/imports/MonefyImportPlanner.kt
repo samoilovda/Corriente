@@ -21,6 +21,12 @@ enum class ReviewReason {
 
     /** Один счёт встречается в файле с разными валютами. */
     ACCOUNT_CURRENCY_CONFLICT,
+
+    /**
+     * В приложении уже есть счёт с тем же именем, но в другой валюте (F0.5). Пока не выбран
+     * вариант — импорт заблокирован: молча смешивать валюты в одном счёте нельзя.
+     */
+    EXISTING_ACCOUNT_CURRENCY_MISMATCH,
 }
 
 data class PlannedAccount(
@@ -104,9 +110,19 @@ object MonefyImportPlanner {
         val isTo: Boolean,
     )
 
-    fun plan(csv: MonefyCsvResult): MonefyImportPlan {
+    /**
+     * @param existingAccounts счета, уже заведённые в приложении (имя → валюта). Планировщик БД не
+     *   знает, поэтому список подаёт вызывающий на шаге dry-run — по нему строится
+     *   [ReviewReason.EXISTING_ACCOUNT_CURRENCY_MISMATCH].
+     */
+    fun plan(
+        csv: MonefyCsvResult,
+        existingAccounts: List<Pair<String, CurrencyCode>> = emptyList(),
+    ): MonefyImportPlan {
         val rows = csv.rows
         val reviews = mutableListOf<ReviewItem>()
+        val firstLineByAccount = rows.groupBy { it.account }.mapValues { it.value.minOf { r -> r.line } }
+        val existingCurrencyByName = existingAccounts.toMap()
 
         // --- счета и валюты ---
         val accountCurrencies = LinkedHashMap<String, CurrencyCode>()
@@ -235,6 +251,20 @@ object MonefyImportPlanner {
 
         val accounts = accountCurrencies.map { (name, currency) ->
             PlannedAccount(name, currency, openingByAccount[name] ?: 0L)
+        }
+
+        // F0.5: счёт-тёзка в другой валюте уже существует в приложении → выбор пользователя.
+        accounts.forEach { planned ->
+            val existing = existingCurrencyByName[planned.name]
+            if (existing != null && existing != planned.currency) {
+                reviews += ReviewItem(
+                    ReviewReason.EXISTING_ACCOUNT_CURRENCY_MISMATCH,
+                    listOf(firstLineByAccount[planned.name] ?: 0),
+                    "счёт «${planned.name}» уже ведётся в валюте $existing, а в файле — ${planned.currency}",
+                    account = planned.name,
+                    currencyChoices = listOf(planned.currency),
+                )
+            }
         }
 
         return MonefyImportPlan(

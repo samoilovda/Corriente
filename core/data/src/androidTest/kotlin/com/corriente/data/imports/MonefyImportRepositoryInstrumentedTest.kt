@@ -4,6 +4,8 @@ import androidx.room.Room
 import androidx.test.platform.app.InstrumentationRegistry
 import com.corriente.data.db.AppDatabase
 import com.corriente.data.db.entity.CategoryOrigin
+import com.corriente.data.db.entity.AccountEntity
+import com.corriente.data.db.entity.AccountKind
 import com.corriente.data.db.entity.CurrencyEntity
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -72,5 +74,35 @@ class MonefyImportRepositoryInstrumentedTest {
             db.categoryDao().observeAll().first().none { it.origin == CategoryOrigin.IMPORT },
         ) // осиротевшие IMPORT-категории удалены
         assertTrue(db.importBatchDao().getAll().none { it.id == first.batchId })
+    }
+
+    // F0.5 — счёт-тёзка в другой валюте: без решения импорт отклонён, с «отдельным счётом» — новый счёт.
+    @Test
+    fun existingAccountCurrencyMismatchBlocksImportUntilResolved() = runBlocking {
+        // В приложении есть Cash/USD; в файле Cash/RUB.
+        db.accountDao().insert(
+            AccountEntity(id = "cash-usd", name = "Cash", currencyCode = "USD", kind = AccountKind.CASH, color = 0),
+        )
+        val csv = javaClass.classLoader!!.getResourceAsStream("monefy_sample.csv")!!
+            .readBytes().toString(Charsets.UTF_8)
+        val plan = MonefyImportPlanner.plan(
+            MonefyCsvParser.parse(csv),
+            existingAccounts = repo.existingAccountCurrencies(),
+        )
+        val ref = plan.reviews.single { it.reason == ReviewReason.EXISTING_ACCOUNT_CURRENCY_MISMATCH }.ref()
+
+        // без решения — отказ, ни одной строки
+        val failure = runCatching { repo.import(plan, "monefy_sample.csv") }.exceptionOrNull()
+        assertTrue(failure is IllegalStateException)
+        assertTrue(db.txnDao().observeAll().first().isEmpty())
+
+        // решение «отдельный счёт» — импорт проходит, появляется отдельный RUB-счёт
+        repo.import(plan.applyReviewDecisions(mapOf(ref to ReviewDecision.SeparateAccount)), "monefy_sample.csv")
+        val accounts = db.accountDao().observeAll().first()
+        assertTrue(accounts.any { it.name == "Cash" && it.currencyCode == "USD" })
+        assertTrue(accounts.any { it.name == "Cash (RUB)" && it.currencyCode == "RUB" })
+        // у каждой операции валюта совпадает с валютой её счёта
+        val curByAcc = accounts.associate { it.id to it.currencyCode }
+        assertTrue(db.txnDao().observeAll().first().all { it.currencyCode == curByAcc[it.accountId] })
     }
 }
