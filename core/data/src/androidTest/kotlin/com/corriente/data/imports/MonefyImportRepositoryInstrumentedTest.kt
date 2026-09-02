@@ -105,4 +105,30 @@ class MonefyImportRepositoryInstrumentedTest {
         val curByAcc = accounts.associate { it.id to it.currencyCode }
         assertTrue(db.txnDao().observeAll().first().all { it.currencyCode == curByAcc[it.accountId] })
     }
+
+    // F1.2 — импорт проходит через requireValidTxn; битая строка откатывает весь батч.
+    @Test
+    fun invalidRowRollsBackTheWholeBatch() = runBlocking {
+        val bad = MonefyImportPlan(
+            accounts = listOf(
+                com.corriente.data.imports.PlannedAccount("Cash", com.corriente.money.CurrencyCode("RUB"), 0L),
+            ),
+            categories = listOf("Food"),
+            plainTxns = listOf(
+                com.corriente.data.imports.PlannedTxn(
+                    line = 1, date = java.time.LocalDate.of(2026, 1, 1), account = "Cash", category = "Food",
+                    amountMinor = 0L, // нарушает I-1
+                    currency = com.corriente.money.CurrencyCode("RUB"),
+                    kind = MonefyTxnKind.EXPENSE, naturalKey = "k1",
+                ),
+            ),
+            transfers = emptyList(),
+            reviews = emptyList(),
+            errors = emptyList(),
+        )
+        val failure = runCatching { repo.import(bad, "bad.csv") }.exceptionOrNull()
+        assertTrue(failure is IllegalArgumentException)
+        assertTrue(db.txnDao().observeAll().first().isEmpty())
+        assertTrue(db.importBatchDao().getAll().isEmpty())
+    }
 }

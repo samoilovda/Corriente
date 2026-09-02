@@ -84,6 +84,9 @@ class MonefyImportRepository(private val db: AppDatabase) {
                 }
             }
 
+            // F1.2: те же правила записи операции, что и в TxnRepository — единая функция.
+            val currencyByAccountId = db.accountDao().observeAll().first().associate { it.id to it.currencyCode }
+
             // категории: alias → существующая (name, kind) → создать origin=IMPORT
             val aliasByValue = db.importAliasDao()
                 .getForApp(SOURCE, com.corriente.data.db.entity.ImportAliasKind.CATEGORY)
@@ -111,6 +114,7 @@ class MonefyImportRepository(private val db: AppDatabase) {
                 return sha256("$SOURCE|$naturalKey|$occ")
             }
             suspend fun insertTxn(entity: TxnEntity, naturalKey: String) {
+                com.corriente.data.repository.requireValidTxn(entity) { currencyByAccountId[it] }
                 val hash = hashOf(naturalKey)
                 if (db.txnDao().countByImportHash(hash) > 0) {
                     skipped++

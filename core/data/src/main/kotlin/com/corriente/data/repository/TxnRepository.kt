@@ -2,6 +2,7 @@ package com.corriente.data.repository
 
 import com.corriente.data.db.dao.AccountDao
 import com.corriente.data.db.dao.TxnDao
+import com.corriente.data.db.entity.TxnEntity
 import com.corriente.data.db.entity.TxnKind
 import com.corriente.data.model.Txn
 import com.corriente.data.model.toDomain
@@ -32,7 +33,6 @@ class TxnRepository(
         txnDao.observeForAccount(accountId).map { list -> list.map { it.toDomain() } }
 
     suspend fun addExpense(accountId: String, amount: Money, categoryId: String?, date: LocalDate, note: String? = null): Txn {
-        requireAmountMatchesAccount(accountId, amount)
         val now = System.currentTimeMillis()
         val txn = Txn.Expense(
             id = UUID.randomUUID().toString(),
@@ -44,12 +44,13 @@ class TxnRepository(
             categoryId = categoryId,
             note = note,
         )
-        txnDao.insert(txn.toEntity())
+        val entity = txn.toEntity()
+        validate(entity)
+        txnDao.insert(entity)
         return txn
     }
 
     suspend fun addIncome(accountId: String, amount: Money, categoryId: String?, date: LocalDate, note: String? = null): Txn {
-        requireAmountMatchesAccount(accountId, amount)
         val now = System.currentTimeMillis()
         val txn = Txn.Income(
             id = UUID.randomUUID().toString(),
@@ -61,7 +62,9 @@ class TxnRepository(
             categoryId = categoryId,
             note = note,
         )
-        txnDao.insert(txn.toEntity())
+        val entity = txn.toEntity()
+        validate(entity)
+        txnDao.insert(entity)
         return txn
     }
 
@@ -78,11 +81,6 @@ class TxnRepository(
         date: LocalDate,
         note: String? = null,
     ): Txn {
-        require(fromAccountId != toAccountId) { "Cannot transfer an account to itself" }
-        require(fromAmount.isPositive) { "Transfer fromAmount must be positive" }
-        require(toAmount.isPositive) { "Transfer toAmount must be positive" }
-        requireAmountMatchesAccount(fromAccountId, fromAmount)
-        requireAmountMatchesAccount(toAccountId, toAmount)
         val now = System.currentTimeMillis()
         val txn = Txn.Transfer(
             id = UUID.randomUUID().toString(),
@@ -95,7 +93,9 @@ class TxnRepository(
             toAmount = toAmount,
             note = note,
         )
-        txnDao.insert(txn.toEntity())
+        val entity = txn.toEntity()
+        validate(entity)
+        txnDao.insert(entity)
         return txn
     }
 
@@ -114,11 +114,6 @@ class TxnRepository(
     ): Txn {
         val existing = requireNotNull(txnDao.getById(id)) { "Transaction $id not found" }
         require(existing.kind == TxnKind.TRANSFER) { "$id is not a transfer" }
-        require(fromAccountId != toAccountId) { "Cannot transfer an account to itself" }
-        require(fromAmount.isPositive) { "Transfer fromAmount must be positive" }
-        require(toAmount.isPositive) { "Transfer toAmount must be positive" }
-        requireAmountMatchesAccount(fromAccountId, fromAmount)
-        requireAmountMatchesAccount(toAccountId, toAmount)
         val updated = existing.copy(
             accountId = fromAccountId,
             amountMinor = fromAmount.amount.raw,
@@ -130,6 +125,7 @@ class TxnRepository(
             note = note,
             updatedAt = System.currentTimeMillis(),
         )
+        validate(updated)
         txnDao.update(updated)
         return updated.toDomain()
     }
@@ -151,7 +147,6 @@ class TxnRepository(
     ): Txn {
         val existing = requireNotNull(txnDao.getById(id)) { "Transaction $id not found" }
         require(existing.kind != TxnKind.TRANSFER) { "Transfers are not editable here" }
-        requireAmountMatchesAccount(accountId, amount)
         val updated = existing.copy(
             accountId = accountId,
             amountMinor = amount.amount.raw,
@@ -161,6 +156,7 @@ class TxnRepository(
             note = note,
             updatedAt = System.currentTimeMillis(),
         )
+        validate(updated)
         txnDao.update(updated)
         return updated.toDomain()
     }
@@ -173,11 +169,13 @@ class TxnRepository(
         txnDao.getById(id)?.let { txnDao.delete(it) }
     }
 
-    private suspend fun requireAmountMatchesAccount(accountId: String, amount: Money) {
-        require(amount.isPositive) { "Transaction amount must be positive (sign comes from kind, I-1)" }
-        val account = requireNotNull(accountDao.getById(accountId)) { "Account $accountId not found" }
-        require(amount.currency.code == account.currencyCode) {
-            "Amount currency ${amount.currency} does not match account currency ${account.currencyCode} (I-15)"
-        }
+    /**
+     * Единственная проверка правил записи (I-1/I-11/I-15) — та же [requireValidTxn], что и в
+     * импорте Monefy (F1.2). Валюты счетов подтягиваются из БД непосредственно перед записью.
+     */
+    private suspend fun validate(entity: TxnEntity) {
+        val currencyByAccount = listOfNotNull(entity.accountId, entity.toAccountId).distinct()
+            .associateWith { accountDao.getById(it)?.currencyCode }
+        requireValidTxn(entity) { currencyByAccount[it] }
     }
 }
