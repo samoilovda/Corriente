@@ -24,6 +24,7 @@ import androidx.navigation.navArgument
 import androidx.navigation.navDeepLink
 import com.corriente.app.ui.accountbalance.AccountBalanceScreen
 import com.corriente.app.ui.accounts.AccountsScreen
+import com.corriente.app.ui.applock.AppLockSettingsScreen
 import com.corriente.app.ui.budgets.BudgetsScreen
 import com.corriente.app.ui.categories.CategoriesScreen
 import com.corriente.app.ui.autobackup.AutoBackupScreen
@@ -47,6 +48,7 @@ private const val IMPORT_ROUTE = "import_monefy"
 private const val IMPORT_HISTORY_ROUTE = "import_history"
 private const val WIDGET_SETTINGS_ROUTE = "widget_settings"
 private const val AUTOBACKUP_ROUTE = "autobackup"
+private const val APP_LOCK_ROUTE = "app_lock"
 private const val BUDGETS_ROUTE = "budgets"
 private const val RECURRING_ROUTE = "recurring"
 private const val FX_REPORT_ROUTE = "fx_report"
@@ -155,10 +157,14 @@ fun CorrienteNavHost(deepLinkIntent: Intent? = null, onDeepLinkConsumed: () -> U
                     onOpenAutoBackup = { navController.navigate(AUTOBACKUP_ROUTE) },
                     onOpenBudgets = { navController.navigate(BUDGETS_ROUTE) },
                     onOpenRecurring = { navController.navigate(RECURRING_ROUTE) },
+                    onOpenAppLock = { navController.navigate(APP_LOCK_ROUTE) },
                 )
             }
             composable(AUTOBACKUP_ROUTE) {
                 AutoBackupScreen(onBack = { navController.popBackStack() })
+            }
+            composable(APP_LOCK_ROUTE) {
+                AppLockSettingsScreen(onBack = { navController.popBackStack() })
             }
             composable(BUDGETS_ROUTE) {
                 BudgetsScreen(onBack = { navController.popBackStack() })

@@ -63,6 +63,8 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
     // с этапа 5, только автобэкап по расписанию (BUILD_PLAN §1.3).
     implementation(libs.work.runtime.ktx)
+    // R5.2 (ROADMAP.md §9.2) — блокировка приложения по биометрии/PIN устройства.
+    implementation(libs.androidx.biometric)
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)

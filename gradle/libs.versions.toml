@@ -16,6 +16,10 @@ glance = "1.2.0-rc01"
 work = "2.10.1"
 androidxTestJunit = "1.2.1"
 androidxTestRunner = "1.6.2"
+# R5.2 (ROADMAP.md §9.2). 1.1.0 — последняя версия, дошедшая до stable (1.2.0 не выходил из
+# alpha на момент, отражённый в обучающих данных модели; sandbox не имеет доступа к Google
+# Maven, чтобы свериться с фактическим latest stable — см. итоговое сообщение сессии).
+biometric = "1.1.0"
 
 [libraries]
 junit = { module = "junit:junit", version.ref = "junit" }
@@ -48,6 +52,10 @@ compose-ui-test-manifest = { module = "androidx.compose.ui:ui-test-manifest" }
 glance-appwidget = { module = "androidx.glance:glance-appwidget", version.ref = "glance" }
 glance-material3 = { module = "androidx.glance:glance-material3", version.ref = "glance" }
 work-runtime-ktx = { module = "androidx.work:work-runtime-ktx", version.ref = "work" }
+# R5.2: единственный новый некод-зависимый артефакт этапа (ROADMAP.md §9.2, ~150 КБ).
+# Тянет androidx.fragment транзитивно — им и объясняется переход экранов-Activity на
+# FragmentActivity (BiometricPrompt его требует).
+androidx-biometric = { module = "androidx.biometric:biometric", version.ref = "biometric" }
 
 [plugins]
 # :core:money — чистый Kotlin/JVM. Android-модули с AGP 9+ используют встроенный

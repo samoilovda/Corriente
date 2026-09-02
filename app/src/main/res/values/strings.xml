@@ -247,4 +247,17 @@
     <string name="recurring_next_run">Следующая операция: %1$s</string>
     <string name="recurring_auto_created_note">Создано автоматически по повторяющемуся правилу</string>
     <string name="recurring_delete_confirm_title">Удалить это правило?</string>
+
+    <!-- R5.2: блокировка приложения. -->
+    <string name="app_lock_title">Блокировка приложения</string>
+    <string name="app_lock_hint">Замок при возврате в приложение</string>
+    <string name="app_lock_disclaimer">Замок защищает от случайного просмотра, если телефон окажется в чужих руках — не более того. Данные приложения при этом НЕ шифруются: тот, кто получит прямой доступ к файлам устройства (например, при физическом изъятии или root), сможет прочитать их в обход этого экрана. Это не защита от кражи устройства.</string>
+    <string name="app_lock_mode_off">Отключена</string>
+    <string name="app_lock_mode_every_open">Запрашивать при каждом открытии</string>
+    <string name="app_lock_mode_after_5_minutes">Запрашивать после 5 минут в фоне</string>
+    <string name="app_lock_no_authenticator">На устройстве не настроены ни биометрия, ни PIN/графический ключ — включить замок нечем. Настройте экран блокировки устройства и повторите.</string>
+    <string name="app_lock_prompt_title">Corriente заблокирован</string>
+    <string name="app_lock_prompt_subtitle">Подтвердите личность биометрией или PIN устройства</string>
+    <string name="app_lock_locked_title">Приложение заблокировано</string>
+    <string name="app_lock_unlock_button">Разблокировать</string>
 </resources>

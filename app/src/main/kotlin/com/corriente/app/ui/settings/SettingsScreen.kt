@@ -46,6 +46,7 @@ fun SettingsScreen(
     onOpenAutoBackup: () -> Unit,
     onOpenBudgets: () -> Unit,
     onOpenRecurring: () -> Unit,
+    onOpenAppLock: () -> Unit,
     backupViewModel: BackupViewModel = viewModel(
         factory = BackupViewModel.factory(
             corrienteContainer().backupRepository,
@@ -105,6 +106,11 @@ fun SettingsScreen(
                 headlineContent = { Text(stringResource(R.string.recurring_title)) },
                 supportingContent = { Text(stringResource(R.string.recurring_hint)) },
                 modifier = Modifier.clickable(onClick = onOpenRecurring),
+            )
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.app_lock_title)) },
+                supportingContent = { Text(stringResource(R.string.app_lock_hint)) },
+                modifier = Modifier.clickable(onClick = onOpenAppLock),
             )
             HorizontalDivider()
             ListItem(

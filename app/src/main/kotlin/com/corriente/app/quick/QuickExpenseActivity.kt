@@ -1,7 +1,6 @@
 package com.corriente.app.quick
 
 import android.os.Bundle
-import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -31,9 +30,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.corriente.app.CorrienteApplication
 import com.corriente.app.R
+import com.corriente.app.applock.AppLockGate
 import com.corriente.app.corrienteContainer
 import com.corriente.app.ui.theme.CorrienteTheme
 import com.corriente.app.ui.txnentry.EntryKind
@@ -47,8 +48,13 @@ import kotlinx.coroutines.flow.first
  * Счёт, выбранный здесь, применяется только к этой операции — активный счёт виджета не меняется
  * (см. [QuickEntryViewModel]). Держит ссылку на контейнер через applicationContext — если процесс
  * был убит, его пересоздаст [CorrienteApplication.onCreate] при старте процесса под эту Activity.
+ *
+ * R5.2: наследуется от [FragmentActivity] (нужно [androidx.biometric.BiometricPrompt] внутри
+ * [AppLockGate]) и оборачивает содержимое им же — быстрый ввод открывается отдельной Activity
+ * поверх убитого процесса и обязан подчиняться тому же замку, что и [com.corriente.app.MainActivity]
+ * (критерий приёмки R5.2: «быстрый ввод — тоже под замком»).
  */
-class QuickExpenseActivity : ComponentActivity() {
+class QuickExpenseActivity : FragmentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -58,29 +64,31 @@ class QuickExpenseActivity : ComponentActivity() {
 
         setContent {
             CorrienteTheme {
-                // Активный счёт виджета читаем один раз как стартовое значение — дальше выбор
-                // счёта в этом окне живёт только в ViewModel и не пишется обратно в конфиг.
-                var loading by remember { mutableStateOf(true) }
-                var initialAccountId by remember { mutableStateOf<String?>(null) }
-                LaunchedEffect(Unit) {
-                    val config = container.widgetConfigStore.config.first()
-                    val accounts = container.accountRepository.observeActive().first()
-                    val resolved = accounts.firstOrNull { it.id == config.activeAccountId } ?: accounts.firstOrNull()
-                    if (resolved == null) {
-                        finish()
-                        return@LaunchedEffect
+                AppLockGate {
+                    // Активный счёт виджета читаем один раз как стартовое значение — дальше выбор
+                    // счёта в этом окне живёт только в ViewModel и не пишется обратно в конфиг.
+                    var loading by remember { mutableStateOf(true) }
+                    var initialAccountId by remember { mutableStateOf<String?>(null) }
+                    LaunchedEffect(Unit) {
+                        val config = container.widgetConfigStore.config.first()
+                        val accounts = container.accountRepository.observeActive().first()
+                        val resolved = accounts.firstOrNull { it.id == config.activeAccountId } ?: accounts.firstOrNull()
+                        if (resolved == null) {
+                            finish()
+                            return@LaunchedEffect
+                        }
+                        initialAccountId = resolved.id
+                        loading = false
                     }
-                    initialAccountId = resolved.id
-                    loading = false
-                }
 
-                if (!loading) {
-                    QuickEntryContent(
-                        categoryId = categoryId,
-                        categoryName = categoryName,
-                        initialAccountId = initialAccountId,
-                        onDone = ::finish,
-                    )
+                    if (!loading) {
+                        QuickEntryContent(
+                            categoryId = categoryId,
+                            categoryName = categoryName,
+                            initialAccountId = initialAccountId,
+                            onDone = ::finish,
+                        )
+                    }
                 }
             }
         }

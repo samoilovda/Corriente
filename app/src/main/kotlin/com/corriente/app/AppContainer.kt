@@ -2,6 +2,7 @@ package com.corriente.app
 
 import android.content.Context
 import androidx.room.Room
+import com.corriente.data.applock.AppLockSettings
 import com.corriente.data.backup.AutoBackupSettings
 import com.corriente.data.backup.BackupRepository
 import com.corriente.data.db.AppDatabase
@@ -45,6 +46,8 @@ class AppContainer(context: Context) {
     val txnRepository: TxnRepository by lazy { TxnRepository(database.txnDao(), database.accountDao()) }
     val backupRepository: BackupRepository by lazy { BackupRepository(database) }
     val autoBackupSettings: AutoBackupSettings by lazy { AutoBackupSettings(database.appSettingDao()) }
+    /** R5.2: настройка блокировки приложения (не шифрование — см. AppLockScreen.kt). */
+    val appLockSettings: AppLockSettings by lazy { AppLockSettings(database.appSettingDao()) }
     val monefyImportRepository: MonefyImportRepository by lazy { MonefyImportRepository(database) }
     val budgetRepository: BudgetRepository by lazy { BudgetRepository(database.budgetDao()) }
     val recurrenceRepository: RecurrenceRepository by lazy { RecurrenceRepository(database.recurrenceDao()) }

@@ -2,7 +2,6 @@ package com.corriente.app
 
 import android.content.Intent
 import android.os.Bundle
-import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
@@ -11,10 +10,17 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.fragment.app.FragmentActivity
+import com.corriente.app.applock.AppLockGate
 import com.corriente.app.navigation.CorrienteNavHost
 import com.corriente.app.ui.theme.CorrienteTheme
 
-class MainActivity : ComponentActivity() {
+/**
+ * R5.2: наследуется от [FragmentActivity], а не `ComponentActivity` — этого требует
+ * `androidx.biometric.BiometricPrompt` (см. [AppLockGate]). `FragmentActivity` расширяет
+ * `ComponentActivity`, так что `setContent`/edge-to-edge не меняются.
+ */
+class MainActivity : FragmentActivity() {
 
     /**
      * R4.4: intent ярлыка приложения, ждущий обработки [CorrienteNavHost]'ом — с холодного
@@ -30,10 +36,14 @@ class MainActivity : ComponentActivity() {
         setContent {
             CorrienteTheme {
                 Surface(modifier = Modifier.fillMaxSize()) {
-                    CorrienteNavHost(
-                        deepLinkIntent = pendingDeepLinkIntent,
-                        onDeepLinkConsumed = { pendingDeepLinkIntent = null },
-                    )
+                    // R5.2: быстрый ввод из виджета — тоже под замком, но списки операций/отчёты
+                    // за ним тем более.
+                    AppLockGate {
+                        CorrienteNavHost(
+                            deepLinkIntent = pendingDeepLinkIntent,
+                            onDeepLinkConsumed = { pendingDeepLinkIntent = null },
+                        )
+                    }
                 }
             }
         }
