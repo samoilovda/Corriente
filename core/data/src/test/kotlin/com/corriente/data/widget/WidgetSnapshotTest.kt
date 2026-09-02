@@ -102,6 +102,27 @@ class WidgetSnapshotTest {
         assertEquals(listOf(CurrencyLine("RUB", "420.00 ₽")), snapshot.monthExpenses)
     }
 
+    // F2.2 — тот же набор операций, разный `today`: месячный итог должен меняться на смене месяца.
+    @Test
+    fun `month expenses depend on today, not only on the transaction set`() {
+        val txns = listOf(
+            expense("cash", 30_000, null, LocalDate.of(2026, 8, 3)),
+            expense("cash", 12_000, null, LocalDate.of(2026, 9, 1)),
+        )
+        fun snap(day: LocalDate) = buildWidgetSnapshot(
+            accounts = listOf(account("cash", rub, 0)),
+            transactions = txns,
+            currencies = listOf(rubMeta),
+            categories = emptyList(),
+            pinnedCurrencies = listOf(rub),
+            activeAccountId = "cash",
+            today = day,
+            computedAt = 0L,
+        )
+        assertEquals(listOf(CurrencyLine("RUB", "300.00 ₽")), snap(LocalDate.of(2026, 8, 31)).monthExpenses)
+        assertEquals(listOf(CurrencyLine("RUB", "120.00 ₽")), snap(LocalDate.of(2026, 9, 1)).monthExpenses)
+    }
+
     @Test
     fun `default pinned currencies are the recently used ones, capped at three`() {
         val accounts = listOf(

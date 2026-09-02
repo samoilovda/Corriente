@@ -22,10 +22,13 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
+import com.corriente.data.widget.WidgetConfig
+import com.corriente.data.widget.WidgetSnapshot
 import java.time.LocalDate
 
 /**
@@ -70,33 +73,57 @@ class WidgetUpdater(
                     ) { accounts, recentTxns, deltas, currencies, categories ->
                         DbInputs(accounts, recentTxns, deltas, currencies, categories)
                     }
-                    combine(dbInputs, configStore.config) { d, config ->
-                        val pinned = config.pinnedCurrencyCodes
-                            .mapNotNull { runCatching { CurrencyCode(it) }.getOrNull() }
-                            .ifEmpty { defaultPinnedCurrencies(d.accounts, d.recentTxns, now) }
-                        val activeAccountId = config.activeAccountId?.takeIf { id -> d.accounts.any { it.id == id } }
-                            ?: d.accounts.firstOrNull()?.id
-                            ?: ""
-                        buildWidgetSnapshot(
-                            accounts = d.accounts,
-                            transactions = d.recentTxns,
-                            currencies = d.currencies,
-                            categories = d.categories,
-                            pinnedCurrencies = pinned,
-                            activeAccountId = activeAccountId,
-                            today = now,
-                            computedAt = System.currentTimeMillis(),
-                            accountDeltas = d.deltas,
-                        )
-                    }
+                    combine(dbInputs, configStore.config) { d, config -> assemble(d, config, now) }
                 }
             }
             .conflate()
-            .onEach { snapshot ->
-                store.save(snapshot)
-                CorrienteWidget().updateAll(appContext)
-            }
+            .onEach { push(it) }
             .launchIn(scope)
+
+        WidgetMidnightWorker.schedule(appContext) // F2.2: пересчёт на смене суток
+    }
+
+    /**
+     * Разовый пересчёт снимка (F2.2): вызывается воркером на полночь, когда записи в БД не было,
+     * а месячный итог/«сегодня» уже устарели. No-op, если виджет не размещён.
+     */
+    suspend fun refreshNow() {
+        if (!widgetPlaced()) return
+        val now = today()
+        val windowStart = now.minusDays(RECENT_WINDOW_DAYS)
+        val d = DbInputs(
+            accounts = container.accountRepository.observeActive().first(),
+            recentTxns = container.txnRepository.observeRange(windowStart, now).first(),
+            deltas = container.txnRepository.observeAccountDeltas().first(),
+            currencies = container.currencyRepository.observeAll().first(),
+            categories = container.categoryRepository.observeActive().first(),
+        )
+        push(assemble(d, configStore.config.first(), now))
+    }
+
+    private suspend fun push(snapshot: WidgetSnapshot) {
+        store.save(snapshot)
+        CorrienteWidget().updateAll(appContext)
+    }
+
+    private fun assemble(d: DbInputs, config: WidgetConfig, now: LocalDate): WidgetSnapshot {
+        val pinned = config.pinnedCurrencyCodes
+            .mapNotNull { runCatching { CurrencyCode(it) }.getOrNull() }
+            .ifEmpty { defaultPinnedCurrencies(d.accounts, d.recentTxns, now) }
+        val activeAccountId = config.activeAccountId?.takeIf { id -> d.accounts.any { it.id == id } }
+            ?: d.accounts.firstOrNull()?.id
+            ?: ""
+        return buildWidgetSnapshot(
+            accounts = d.accounts,
+            transactions = d.recentTxns,
+            currencies = d.currencies,
+            categories = d.categories,
+            pinnedCurrencies = pinned,
+            activeAccountId = activeAccountId,
+            today = now,
+            computedAt = System.currentTimeMillis(),
+            accountDeltas = d.deltas,
+        )
     }
 
     private data class DbInputs(
