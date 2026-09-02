@@ -18,6 +18,10 @@ data class AmountInput(
 ) {
     fun appendDigit(digit: Char, currency: Currency): AmountInput {
         require(digit in '0'..'9') { "Not a digit: '$digit'" }
+        // Ограничение длины целой части: Long.MAX_VALUE — 19 знаков, один оставляем на перенос
+        // при сложении в калькуляторе. Цифра сверх лимита молча игнорируется — иначе склеенная
+        // строка не влезает в Long и toMinorOrNull роняет кадр композиции (F0.1).
+        if (integerDigits.length + currency.minorUnits >= MAX_TOTAL_DIGITS) return this
         if (!hasDecimalPoint) {
             if (integerDigits == "0") return copy(integerDigits = digit.toString())
             return copy(integerDigits = integerDigits + digit)
@@ -55,11 +59,17 @@ data class AmountInput(
     fun toMinorOrNull(currency: Currency): Minor? {
         if (isEmpty) return null
         val paddedFraction = fractionDigits.padEnd(currency.minorUnits, '0')
-        val value = (integerDigits.ifEmpty { "0" } + paddedFraction).toLong()
+        val value = (integerDigits.ifEmpty { "0" } + paddedFraction).toLongOrNull() ?: return null
         return Minor(value)
     }
 
     companion object {
+        /**
+         * Максимум значащих цифр во введённой сумме (целая + минорная часть вместе).
+         * `Long.MAX_VALUE` — 19 знаков; один запас на перенос при сложении в калькуляторе.
+         */
+        private const val MAX_TOTAL_DIGITS = 18
+
         fun empty(): AmountInput = AmountInput()
 
         /**

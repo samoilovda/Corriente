@@ -118,6 +118,36 @@ class AmountInputTest {
         assertEquals("42", AmountInput.fromMinor(Minor(42), clp).displayText())
     }
 
+    // F0.1 — переполнение при вводе суммы роняло кадр композиции через canSave.
+    @Test
+    fun `digit beyond the length limit is ignored and does not throw`() {
+        var input = AmountInput.empty()
+        repeat(25) { input = input.appendDigit('9', rub) }
+        assertEquals("9999999999999999", input.displayText()) // 16 цифр = 18 минус 2 минорных
+        assertEquals(Minor(999_999_999_999_999_900L), input.toMinorOrNull(rub))
+    }
+
+    @Test
+    fun `digit limit counts minor units even before the decimal point`() {
+        var clpInput = AmountInput.empty()
+        repeat(25) { clpInput = clpInput.appendDigit('9', clp) }
+        assertEquals(18, clpInput.displayText().length)
+        assertEquals(Minor(999_999_999_999_999_999L), clpInput.toMinorOrNull(clp))
+    }
+
+    @Test
+    fun `fromText with a very long number is capped, not crashed`() {
+        val huge = AmountInput.fromText("9".repeat(40), rub)
+        assertEquals("9999999999999999", huge.displayText())
+        assertEquals(Minor(999_999_999_999_999_900L), huge.toMinorOrNull(rub))
+    }
+
+    @Test
+    fun `fromMinor round-trips at the Long boundary`() {
+        val boundary = Minor(Long.MAX_VALUE / 100)
+        assertEquals(boundary, AmountInput.fromMinor(boundary, rub).toMinorOrNull(rub))
+    }
+
     @Test
     fun `fromText does not depend on the default locale`() {
         val original = java.util.Locale.getDefault()
