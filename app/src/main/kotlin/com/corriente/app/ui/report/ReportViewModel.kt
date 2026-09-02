@@ -311,6 +311,23 @@ class ReportViewModel(
 
     fun closeDrilldown() = form.update { it.copy(drilldownActive = false) }
 
+    /**
+     * R3.3: CSV текущего отчёта — ровно то, что видно на экране сейчас (те же строки, суммы,
+     * доли, сравнение с прошлым периодом из R3.1), суммы уже отформатированы [MoneyFormatter]
+     * (I-25 — то же самое число, что на экране, независимо от локали устройства).
+     */
+    fun exportCsv(): String {
+        val rows = uiState.value.rows.map { row ->
+            com.corriente.data.export.ReportCsvRow(
+                category = row.name,
+                amountText = row.amountText,
+                sharePercent = row.sharePercent,
+                changeText = row.changeText ?: "",
+            )
+        }
+        return com.corriente.data.export.CsvExport.reportCsv(rows)
+    }
+
     companion object {
         fun factory(
             txns: TxnRepository,

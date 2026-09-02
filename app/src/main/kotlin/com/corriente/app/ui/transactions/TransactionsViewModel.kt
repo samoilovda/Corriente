@@ -64,6 +64,8 @@ data class TxnRow(
     val color: Int = 0,
     /** R3.0: цвет счёта (ARGB), с которого/на который прошла операция; 0 — нет цвета. */
     val accountColor: Int = 0,
+    /** R3.3: название счёта — для CSV-выгрузки списка операций (у перевода — «откуда → куда»). */
+    val accountName: String = "",
 )
 
 /** Итог дня считается по каждой валюте отдельно (I-8) — сложение разных валют невозможно. */
@@ -233,6 +235,7 @@ private fun row(
             icon = txn.categoryId?.let { categoryIcons[it] },
             color = txn.categoryId?.let { categoryColors[it] } ?: 0,
             accountColor = accountColors[txn.accountId] ?: 0,
+            accountName = accountNames[txn.accountId] ?: "",
         )
     }
     is Txn.Income -> {
@@ -246,20 +249,24 @@ private fun row(
             icon = txn.categoryId?.let { categoryIcons[it] },
             color = txn.categoryId?.let { categoryColors[it] } ?: 0,
             accountColor = accountColors[txn.accountId] ?: 0,
+            accountName = accountNames[txn.accountId] ?: "",
         )
     }
     is Txn.Transfer -> {
         val from = currencyOrFallback(txn.fromAmount.currency, byCode)
         val to = currencyOrFallback(txn.toAmount.currency, byCode)
+        val fromName = accountNames[txn.fromAccountId] ?: "?"
+        val toName = accountNames[txn.toAccountId] ?: "?"
         TxnRow(
             id = txn.id,
-            title = "${accountNames[txn.fromAccountId] ?: "?"} → ${accountNames[txn.toAccountId] ?: "?"}",
+            title = "$fromName → $toName",
             note = txn.note,
             amountText = "${MoneyFormatter.format(txn.fromAmount, from)} → ${MoneyFormatter.format(txn.toAmount, to)}",
             editable = false,
             isTransfer = true,
             // R3.0: у перевода два счёта — маркер красим цветом счёта-источника.
             accountColor = accountColors[txn.fromAccountId] ?: 0,
+            accountName = "$fromName → $toName",
         )
     }
 }
@@ -361,6 +368,26 @@ class TransactionsViewModel(
         filter.update { it.copy(minAmountMinor = minMinor, maxAmountMinor = maxMinor) }
 
     fun clearFilters() = filter.update { TxnFilter() }
+
+    /**
+     * R3.3: CSV списка операций с уже применёнными на экране фильтрами — ровно то, что видно
+     * в [uiState] сейчас (те же секции по дням, тот же порядок), суммы уже отформатированы
+     * [com.corriente.money.MoneyFormatter] (I-25).
+     */
+    fun exportCsv(): String {
+        val rows = uiState.value.sections.flatMap { section ->
+            section.rows.map { row ->
+                com.corriente.data.export.TxnCsvRow(
+                    date = section.date.toString(),
+                    account = row.accountName,
+                    category = row.title,
+                    note = row.note ?: "",
+                    amountText = row.amountText,
+                )
+            }
+        }
+        return com.corriente.data.export.CsvExport.txnCsv(rows)
+    }
 
     companion object {
         fun factory(

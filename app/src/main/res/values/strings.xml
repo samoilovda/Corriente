@@ -186,6 +186,7 @@
     <string name="txn_filter_amount_max">Сумма до</string>
     <string name="txn_filter_apply_amount">Применить сумму</string>
     <string name="txn_filter_clear">Сбросить фильтры</string>
+    <string name="txn_export_csv">Экспорт в CSV</string>
 
     <string name="report_period_month">Месяц</string>
     <string name="report_period_quarter">Квартал</string>
@@ -198,6 +199,7 @@
     <string name="report_chart_monthly">По месяцам</string>
     <string name="report_chart_structure">Структура категорий</string>
     <string name="report_open_fx">Курсы обмена</string>
+    <string name="report_export_csv">CSV</string>
 
     <string name="account_balance_title">Динамика по счёту</string>
     <string name="account_balance_current">Остаток на конец периода</string>

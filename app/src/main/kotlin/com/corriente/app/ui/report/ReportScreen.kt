@@ -1,5 +1,7 @@
 package com.corriente.app.ui.report
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -37,6 +39,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -60,12 +63,28 @@ fun ReportScreen(
 ) {
     val state by viewModel.uiState.collectAsState()
     var rangePickerOpen by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+
+    // R3.3: экспорт текущего отчёта в CSV через SAF — тот же паттерн, что и экспорт бэкапа
+    // на «Настройках» (ActivityResultContracts.CreateDocument), суммы — MoneyFormatter (I-25).
+    val exportCsvLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("text/csv"),
+    ) { uri ->
+        if (uri != null) {
+            context.contentResolver.openOutputStream(uri)?.use {
+                it.write(viewModel.exportCsv().toByteArray(Charsets.UTF_8))
+            }
+        }
+    }
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.nav_report)) },
                 actions = {
+                    TextButton(onClick = { exportCsvLauncher.launch("corriente-report.csv") }) {
+                        Text(stringResource(R.string.report_export_csv))
+                    }
                     TextButton(onClick = onOpenFxReport) { Text(stringResource(R.string.report_open_fx)) }
                 },
             )
