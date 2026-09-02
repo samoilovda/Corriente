@@ -1,5 +1,6 @@
 package com.corriente.app.navigation
 
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
@@ -83,7 +84,9 @@ fun CorrienteNavHost() {
         NavHost(
             navController = navController,
             startDestination = CorrienteDestination.TRANSACTIONS.route,
-            modifier = Modifier.padding(padding),
+            // F2.4: корневой Scaffold отвечает за нижнюю панель; вложенные Scaffold'ы экранов
+            // применяют оставшиеся вставки к своим TopAppBar — consumeWindowInsets убирает двойной учёт.
+            modifier = Modifier.padding(padding).consumeWindowInsets(padding),
         ) {
             composable(CorrienteDestination.TRANSACTIONS.route) {
                 TransactionsScreen(
