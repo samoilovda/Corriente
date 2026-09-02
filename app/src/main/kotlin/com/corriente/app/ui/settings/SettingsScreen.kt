@@ -150,29 +150,5 @@ fun SettingsScreen(
         )
     }
 
-    result?.let { current ->
-        AlertDialog(
-            onDismissRequest = backupViewModel::consumeResult,
-            confirmButton = {
-                TextButton(onClick = backupViewModel::consumeResult) { Text(stringResource(R.string.ok)) }
-            },
-            text = {
-                Text(
-                    when (current) {
-                        BackupResult.Exported -> stringResource(R.string.backup_result_exported)
-                        BackupResult.Imported -> stringResource(R.string.backup_result_imported)
-                        is BackupResult.VersionMismatch ->
-                            stringResource(R.string.backup_result_version, current.fileVersion, current.appVersion)
-                        is BackupResult.Invalid -> {
-                            val shown = current.problems.take(3).joinToString("\n") { "• $it" }
-                            val rest = current.problems.size - 3
-                            stringResource(R.string.backup_result_invalid) + "\n" + shown +
-                                if (rest > 0) "\n" + stringResource(R.string.backup_result_invalid_more, rest) else ""
-                        }
-                        BackupResult.Failed -> stringResource(R.string.backup_result_failed)
-                    },
-                )
-            },
-        )
-    }
+    result?.let { current -> BackupResultDialog(current, onDismiss = backupViewModel::consumeResult) }
 }

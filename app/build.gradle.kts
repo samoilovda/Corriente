@@ -16,6 +16,9 @@ android {
         targetSdk = 37
         versionCode = 1
         versionName = "0.1"
+        // R1.3: SafBackupFolderInstrumentedTest — перечисление/чтение файлов из SAF-дерева
+        // живёт в :app (SafBackupFolder тоже здесь), поэтому нужен androidTest раннер.
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     compileOptions {
@@ -63,4 +66,9 @@ dependencies {
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
+
+    // R1.3: SafBackupFolderInstrumentedTest требует подключённого устройства/эмулятора.
+    androidTestImplementation(libs.androidx.test.junit)
+    androidTestImplementation(libs.androidx.test.runner)
+    androidTestImplementation(libs.kotlinx.coroutines.test)
 }
