@@ -5,11 +5,12 @@
     <application
         android:name=".CorrienteApplication"
         android:allowBackup="false"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
         android:label="@string/app_name"
         android:theme="@style/Theme.Corriente"
         android:supportsRtl="true">
-        <!-- android:icon намеренно не задан - иконка приложения не часть T1.1 (см. итоговое
-             сообщение сессии), Android подставит системную по умолчанию до этапа полировки. -->
+        <!-- Адаптивная иконка (F3.1): mipmap-anydpi-v26 — minSdk 26, растровые фолбэки не нужны. -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
