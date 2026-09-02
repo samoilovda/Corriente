@@ -24,7 +24,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -62,10 +64,20 @@ fun TransferEntryScreen(
     val state by viewModel.uiState.collectAsState()
     val finished by viewModel.finished.collectAsState()
     val message by viewModel.messages.collectAsState()
+    val pendingUndo by viewModel.pendingUndo.collectAsState()
     val snackbarState = rememberMessageSnackbarState(message, viewModel::consumeMessage)
     var datePickerOpen by remember { mutableStateOf(false) }
 
     LaunchedEffect(finished) { if (finished) onDone() }
+
+    // R5.3: см. TxnEntryScreen — снекбар «Операция удалена — Отменить».
+    val undoMessage = stringResource(R.string.txn_deleted_undo_message)
+    val undoLabel = stringResource(R.string.undo)
+    LaunchedEffect(pendingUndo != null) {
+        if (pendingUndo == null) return@LaunchedEffect
+        val result = snackbarState.showSnackbar(undoMessage, undoLabel, duration = SnackbarDuration.Indefinite)
+        if (result == SnackbarResult.ActionPerformed) viewModel.undoDelete()
+    }
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarState) },
@@ -79,7 +91,9 @@ fun TransferEntryScreen(
                 },
                 actions = {
                     if (viewModel.isEditing) {
-                        TextButton(onClick = viewModel::deleteEditing) { Text(stringResource(R.string.txn_entry_delete)) }
+                        TextButton(onClick = viewModel::deleteEditing, enabled = pendingUndo == null) {
+                            Text(stringResource(R.string.txn_entry_delete))
+                        }
                     }
                 },
             )
@@ -155,7 +169,7 @@ fun TransferEntryScreen(
 
             Button(
                 onClick = { viewModel.save() },
-                enabled = state.canSave,
+                enabled = state.canSave && pendingUndo == null,
                 modifier = Modifier.fillMaxWidth(),
             ) { Text(stringResource(R.string.save)) }
         }

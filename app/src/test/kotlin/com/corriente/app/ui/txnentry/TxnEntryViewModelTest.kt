@@ -19,8 +19,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
@@ -474,5 +476,77 @@ class TxnEntryViewModelTest {
         advanceUntilIdle()
 
         assertTrue(model.uiState.value.frequentOptions.isEmpty())
+    }
+
+    // R5.3: удаление физическое и немедленное (I-22), но снекбар держит копию 5 секунд.
+    @Test
+    fun `delete then undo restores the transaction with the same id, createdAt and import_hash`() =
+        runTest(dispatcher) {
+            val fakes = Fakes().apply {
+                seed()
+                txnDao.insert(
+                    TxnEntity(
+                        "txn-1", TxnKind.EXPENSE, today.toString(), createdAt = 111L, updatedAt = 111L,
+                        accountId = "acc-rub", amountMinor = 500_00, currencyCode = "RUB",
+                        categoryId = "cat-food", note = "такси", importHash = "hash-1",
+                    ),
+                )
+            }
+            val editor = vm(fakes, editingTxnId = "txn-1")
+            backgroundScope.observe(editor)
+            advanceUntilIdle()
+
+            // ВАЖНО: не advanceUntilIdle() здесь — он проматал бы виртуальное время сквозь
+            // delay(UNDO_WINDOW_MS) внутри deleteEditing и сразу подтвердил бы удаление.
+            editor.deleteEditing()
+            runCurrent()
+            assertTrue("удаление немедленное — строки в БД уже нет", fakes.txnDao.rows.value.isEmpty())
+            assertNotNull(editor.pendingUndo.value)
+            assertFalse(editor.finished.value)
+
+            editor.undoDelete()
+            runCurrent()
+
+            val restored = fakes.txnDao.rows.value.single()
+            assertEquals("txn-1", restored.id)
+            assertEquals(111L, restored.createdAt)
+            assertEquals("hash-1", restored.importHash)
+            assertEquals("такси", restored.note)
+            assertNull(editor.pendingUndo.value)
+            assertTrue(editor.finished.value)
+        }
+
+    @Test
+    fun `leaving before the undo window expires commits the deletion`() = runTest(dispatcher) {
+        val fakes = Fakes().apply {
+            seed()
+            txnDao.insert(
+                TxnEntity(
+                    "txn-2", TxnKind.EXPENSE, today.toString(), 0, 0,
+                    "acc-rub", 500_00, "RUB", categoryId = "cat-food",
+                ),
+            )
+        }
+        val editor = vm(fakes, editingTxnId = "txn-2")
+        backgroundScope.observe(editor)
+        advanceUntilIdle()
+
+        editor.deleteEditing()
+        runCurrent()
+        assertNotNull(editor.pendingUndo.value)
+
+        // Таймер снекбара ещё не истёк — отмена всё ещё возможна, строки в БД по-прежнему нет.
+        advanceTimeBy(TxnEntryViewModel.UNDO_WINDOW_MS - 1_000L)
+        runCurrent()
+        assertNotNull(editor.pendingUndo.value)
+        assertTrue(fakes.txnDao.rows.value.isEmpty())
+        assertFalse(editor.finished.value)
+
+        // Таймер истёк — снекбар закрылся сам, экран может закрываться, отмена больше недоступна.
+        advanceTimeBy(2_000L)
+        runCurrent()
+        assertNull(editor.pendingUndo.value)
+        assertTrue(editor.finished.value)
+        assertTrue(fakes.txnDao.rows.value.isEmpty())
     }
 }

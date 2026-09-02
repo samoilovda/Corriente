@@ -14,6 +14,8 @@ import com.corriente.money.CurrencyCode
 import com.corriente.money.DealRate
 import com.corriente.money.Minor
 import com.corriente.money.Money
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -103,6 +105,11 @@ class TransferEntryViewModel(
     private val _finished = MutableStateFlow(false)
     val finished: StateFlow<Boolean> = _finished
     val isEditing: Boolean get() = editingTxnId != null
+
+    /** R5.3: как в TxnEntryViewModel — копия удалённого перевода на время снекбара «Отменить». */
+    private val _pendingUndo = MutableStateFlow<Txn?>(null)
+    val pendingUndo: StateFlow<Txn?> = _pendingUndo
+    private var undoJob: Job? = null
 
     init {
         if (editingTxnId != null) {
@@ -219,17 +226,37 @@ class TransferEntryViewModel(
         return true
     }
 
+    /** R5.3: см. TxnEntryViewModel.deleteEditing — тот же снекбар-таймер, тот же I-22. */
     fun deleteEditing() {
         val id = editingTxnId ?: return
+        launchWrite(onError = { "Не удалось удалить перевод" }) {
+            val existing = txns.getById(id) ?: return@launchWrite
+            txns.deleteById(id)
+            _pendingUndo.value = existing
+            undoJob?.cancel()
+            undoJob = viewModelScope.launch {
+                delay(UNDO_WINDOW_MS)
+                _pendingUndo.value = null
+                _finished.value = true
+            }
+        }
+    }
+
+    fun undoDelete() {
+        val txn = _pendingUndo.value ?: return
+        undoJob?.cancel()
+        _pendingUndo.value = null
         launchWrite(
-            onError = { "Не удалось удалить перевод" },
+            onError = { "Не удалось восстановить перевод" },
             onSuccess = { _finished.value = true },
         ) {
-            txns.deleteById(id)
+            txns.restore(txn)
         }
     }
 
     companion object {
+        const val UNDO_WINDOW_MS = 5_000L
+
         private fun fallback(code: CurrencyCode) = Currency(code, minorUnits = 2, displayScale = 2, symbol = code.code)
 
         fun factory(

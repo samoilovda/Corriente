@@ -24,6 +24,8 @@ import com.corriente.money.Minor
 import com.corriente.money.Money
 import com.corriente.money.MoneyFormatter
 import com.corriente.money.applyCalc
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -142,6 +144,17 @@ class TxnEntryViewModel(
 
     private val _finished = MutableStateFlow(false)
     val finished: StateFlow<Boolean> = _finished
+
+    /**
+     * R5.3: операция, только что удалённая с этого экрана и ещё не подтверждённая
+     * бесповоротно — снекбар держит её в памяти на [UNDO_WINDOW_MS], пока не истечёт таймер
+     * или пользователь не нажмёт «Отменить». Удаление из БД уже произошло (I-22: физическое,
+     * без флагов) — это только копия для возможной отмены.
+     */
+    private val _pendingUndo = MutableStateFlow<Txn?>(null)
+    val pendingUndo: StateFlow<Txn?> = _pendingUndo
+
+    private var undoJob: Job? = null
 
     val isEditing: Boolean get() = editingTxnId != null
 
@@ -348,17 +361,44 @@ class TxnEntryViewModel(
         return true
     }
 
+    /**
+     * R5.3: удаление физическое и немедленное (I-22), но экран не закрывается сразу — снекбар
+     * «Операция удалена — Отменить» держит копию [UNDO_WINDOW_MS] на случай отмены. Уход с
+     * экрана раньше (назад/системная кнопка) отменяет корутину вместе с ViewModel — отмена
+     * тогда уже невозможна, удаление подтверждено.
+     */
     fun deleteEditing() {
         val id = editingTxnId ?: return
+        launchWrite(onError = { "Не удалось удалить операцию" }) {
+            val existing = txns.getById(id) ?: return@launchWrite
+            txns.deleteById(id)
+            _pendingUndo.value = existing
+            undoJob?.cancel()
+            undoJob = viewModelScope.launch {
+                delay(UNDO_WINDOW_MS)
+                _pendingUndo.value = null
+                _finished.value = true
+            }
+        }
+    }
+
+    /** Отмена удаления — та же операция, тот же `id`/`createdAt`/`import_hash` (критерий приёмки). */
+    fun undoDelete() {
+        val txn = _pendingUndo.value ?: return
+        undoJob?.cancel()
+        _pendingUndo.value = null
         launchWrite(
-            onError = { "Не удалось удалить операцию" },
+            onError = { "Не удалось восстановить операцию" },
             onSuccess = { _finished.value = true },
         ) {
-            txns.deleteById(id)
+            txns.restore(txn)
         }
     }
 
     companion object {
+        /** R5.3: 5 секунд на «Отменить» (ROADMAP.md §7, R5.3). */
+        const val UNDO_WINDOW_MS = 5_000L
+
         fun factory(
             txns: TxnRepository,
             accounts: AccountRepository,
