@@ -68,6 +68,32 @@ class InvariantGuardsTest {
         )
     }
 
+    // F1.1 — арифметика денег в обход Money.
+    @Test
+    fun `flags Long function references used for money arithmetic`() {
+        val bad = """
+            val nets = mutableMapOf<String, Long>()
+            nets.merge(code, -txn.amount.amount.raw, Long::plus)
+        """.trimIndent()
+        assertEquals(1, InvariantGuards.scanKotlin("app/src/main/kotlin/com/corriente/app/ui/T.kt", bad).size)
+    }
+
+    @Test
+    fun `does not flag Long plus reference in a file with no money content`() {
+        val ok = "val n = counts.fold(0L, Long::plus)"
+        assertEquals(emptyList<String>(), InvariantGuards.scanKotlin("app/src/main/kotlin/com/corriente/app/ui/Counter.kt", ok))
+    }
+
+    @Test
+    fun `does not flag Money-based accumulation`() {
+        val ok = """
+            val nets = mutableMapOf<CurrencyCode, Money>()
+            nets.merge(txn.amount.currency, -txn.amount, Money::plus)
+            val x = Minor(0)
+        """.trimIndent()
+        assertEquals(emptyList<String>(), InvariantGuards.scanKotlin("app/src/main/kotlin/com/corriente/app/ui/T2.kt", ok))
+    }
+
     @Test
     fun `flags uses-permission in a manifest`() {
         val xml = """

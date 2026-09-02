@@ -36,7 +36,8 @@
 
 `verifyInvariantGuards` (корневой `build.gradle.kts` поверх `InvariantGuards` из `buildSrc`) —
 файловый скан **всего репозитория** на запрещённые конструкции (деньги через `Double`/`Float`,
-locale-зависимый разбор, `fallbackToDestructiveMigration`, `uses-permission` в манифестах).
+locale-зависимый разбор, `fallbackToDestructiveMigration`, `uses-permission` в манифестах,
+арифметика сумм в обход `Money` — ссылка на `Long::plus/minus/times` рядом с минорными единицами, I-3).
 Сделан скан-задачей, а не Detekt-правилом, специально: читает `.kt` и `AndroidManifest.xml`
 с диска, поэтому не зависит от того, конфигурируется ли модуль; плагин Detekt к тому же
 отстаёт от версии Kotlin. Логика скана покрыта `InvariantGuardsTest` (buildSrc гоняет его

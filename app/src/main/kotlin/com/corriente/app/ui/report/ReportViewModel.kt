@@ -78,7 +78,8 @@ internal fun withShares(
             categoryId = total.categoryId,
             name = total.categoryId?.let { names[it] } ?: "Без категории",
             amountText = MoneyFormatter.format(total.total, currency),
-            sharePercent = if (grand == 0L) 0 else ((total.total.amount.raw * 100) / grand).toInt(),
+            // I-3: умножение через Math.multiplyExact — переполнение падает, а не молчит (F1.1).
+            sharePercent = if (grand == 0L) 0 else (Math.multiplyExact(total.total.amount.raw, 100L) / grand).toInt(),
             color = total.categoryId?.let { colors[it] } ?: 0,
         )
     }

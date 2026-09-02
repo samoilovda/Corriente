@@ -86,6 +86,39 @@ class TransactionsViewModelTest {
         assertEquals(false, d2Rows.getValue("t").editable)
     }
 
+    // F1.1 — итог дня накапливается через Money (Math.*Exact), не через голый Long.
+    @Test
+    fun `day total nets expense and income of one currency`() {
+        val sections = buildDaySections(
+            txns = listOf(income("i", d1, 3_000_00, rub), expense("e", d1, 1_250_00, rub, null)),
+            filter = TxnFilter(), accountNames = emptyMap(), categoryNames = emptyMap(),
+            currenciesByCode = currenciesByCode,
+        )
+        assertEquals(listOf("1 750.00 ₽"), sections.single().totals)
+    }
+
+    @Test
+    fun `day total keeps currencies apart`() {
+        val sections = buildDaySections(
+            txns = listOf(expense("e1", d1, 100_00, rub, null), expense("e2", d1, 5_00, usd, null)),
+            filter = TxnFilter(), accountNames = emptyMap(), categoryNames = emptyMap(),
+            currenciesByCode = currenciesByCode,
+        )
+        assertEquals(listOf("-100.00 ₽", "-5.00 $"), sections.single().totals)
+    }
+
+    @Test(expected = ArithmeticException::class)
+    fun `day total overflow throws instead of silently wrapping`() {
+        buildDaySections(
+            txns = listOf(
+                income("i1", d1, Long.MAX_VALUE, rub),
+                income("i2", d1, 1L, rub),
+            ),
+            filter = TxnFilter(), accountNames = emptyMap(), categoryNames = emptyMap(),
+            currenciesByCode = currenciesByCode,
+        )
+    }
+
     @Test
     fun `filter by account and by currency narrows the list`() {
         val txns = listOf(

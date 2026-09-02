@@ -47,6 +47,21 @@ object InvariantGuards {
         Rule(Regex("""\bFloat\b"""), "тип Float запрещён в денежном коде (I-1)"),
     )
 
+    /**
+     * I-3 / F1.1: арифметика над суммами обязана идти через [com.corriente.money.Money]
+     * (там `Math.*Exact`). Ссылка на `Long::plus`/`Long::minus`/`Long::times` в файле, где
+     * фигурируют минорные единицы, — обход этой проверки. Узкое правило вместо широкого
+     * «любая арифметика над amountMinor вне Money», чтобы не ловить счётчики и индексы.
+     */
+    private val moneyArithmeticRules = listOf(
+        Rule(
+            Regex("""\bLong::(plus|minus|times|div)\b"""),
+            "Long::plus/minus/times как ссылка на функцию рядом с суммами — арифметика денег в обход Money/Math.*Exact (I-3)",
+        ),
+    )
+
+    private val moneyContentMarker = Regex("""\b(Minor|amountMinor|toAmountMinor|amount\.raw|amount\.amount\.raw)\b""")
+
     private fun stripKotlinComments(source: String): String = source
         .replace(Regex("""/\*.*?\*/""", RegexOption.DOT_MATCHES_ALL), "")
         .replace(Regex("""//.*"""), "")
@@ -58,15 +73,20 @@ object InvariantGuards {
      */
     fun scanKotlin(relativePath: String, source: String): List<String> {
         val inMoneyModule = relativePath.startsWith("core/money/") || relativePath.startsWith("core/data/")
+        val strippedForContent = stripKotlinComments(source)
         val rules = buildList {
             addAll(globalKotlinRules)
             when {
                 inMoneyModule -> addAll(moneyModuleRules)
                 relativePath !in floatAllowlist -> addAll(uiTypeRules)
             }
+            // core/money — единственное место, где сумма и есть Long, там правило неуместно.
+            if (!relativePath.startsWith("core/money/") && moneyContentMarker.containsMatchIn(strippedForContent)) {
+                addAll(moneyArithmeticRules)
+            }
         }
         val violations = mutableListOf<String>()
-        stripKotlinComments(source).lineSequence().forEachIndexed { index, line ->
+        strippedForContent.lineSequence().forEachIndexed { index, line ->
             rules.forEach { rule ->
                 if (rule.regex.containsMatchIn(line)) {
                     violations += "$relativePath:${index + 1}: ${rule.reason}\n    ${line.trim()}"

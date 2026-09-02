@@ -13,7 +13,6 @@ import com.corriente.data.repository.CurrencyRepository
 import com.corriente.data.repository.TxnRepository
 import com.corriente.money.Currency
 import com.corriente.money.CurrencyCode
-import com.corriente.money.Minor
 import com.corriente.money.Money
 import com.corriente.money.MoneyFormatter
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -158,17 +157,18 @@ internal fun buildDaySections(
 }
 
 private fun dayTotals(dayTxns: List<Txn>, byCode: Map<String, Currency>): List<String> {
-    val nets = mutableMapOf<String, Long>()
+    // I-3: накапливаем через Money.plus/minus (Math.*Exact) — унарный минус и сложение над
+    // голым Long обходили бы проверку переполнения (F1.1).
+    val nets = mutableMapOf<CurrencyCode, Money>()
     dayTxns.forEach { txn ->
         when (txn) {
-            is Txn.Expense -> nets.merge(txn.amount.currency.code, -txn.amount.amount.raw, Long::plus)
-            is Txn.Income -> nets.merge(txn.amount.currency.code, txn.amount.amount.raw, Long::plus)
+            is Txn.Expense -> nets.merge(txn.amount.currency, -txn.amount, Money::plus)
+            is Txn.Income -> nets.merge(txn.amount.currency, txn.amount, Money::plus)
             is Txn.Transfer -> Unit
         }
     }
-    return nets.entries.sortedBy { it.key }.map { (code, raw) ->
-        val currency = currencyOrFallback(CurrencyCode(code), byCode)
-        MoneyFormatter.format(Money(Minor(raw), currency.code), currency)
+    return nets.entries.sortedBy { it.key.code }.map { (code, net) ->
+        MoneyFormatter.format(net, currencyOrFallback(code, byCode))
     }
 }
 
