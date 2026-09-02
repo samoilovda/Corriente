@@ -145,10 +145,15 @@ fun TxnEntryScreen(
                             label = { Text(stringResource(R.string.txn_entry_no_category)) },
                         )
                         state.categories.forEach { category ->
+                            val catLabel = if (category.isArchived) {
+                                stringResource(R.string.entry_archived_suffix, category.name)
+                            } else {
+                                category.name
+                            }
                             FilterChip(
                                 selected = state.selectedCategoryId == category.id,
                                 onClick = { viewModel.selectCategory(category.id) },
-                                label = { Text(category.name) },
+                                label = { Text(catLabel) },
                             )
                         }
                     }

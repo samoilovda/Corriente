@@ -151,8 +151,8 @@ class TxnEntryViewModel(
         form,
         accounts.observeAll(),
         currencies.observeAll(),
-        categories.observeActive(),
-    ) { f, allAccounts, allCurrencies, activeCategories ->
+        categories.observeAllForLookup(),
+    ) { f, allAccounts, allCurrencies, allCategories ->
         val byCode = allCurrencies.associateBy { it.code.code }
         fun option(account: Account) = AccountOption(
             id = account.id,
@@ -173,7 +173,12 @@ class TxnEntryViewModel(
             editingTxnId == null -> options.firstOrNull()?.id
             else -> null // редактируем, а счёт операции удалён совсем — сохранение заблокировано
         }
-        val kindCategories = activeCategories.filter { it.kind == entryKindToCategoryKind(f.kind) }
+        // F0.4: активные категории того же вида плюс архивная категория редактируемой операции,
+        // чтобы правка суммы не обнуляла категорию.
+        val editingCategoryId = if (editingTxnId != null) f.selectedCategoryId else null
+        val kindCategories = allCategories.filter {
+            it.kind == entryKindToCategoryKind(f.kind) && (!it.isArchived || it.id == editingCategoryId)
+        }
         TxnEntryUiState(
             kind = f.kind,
             amount = f.amount,

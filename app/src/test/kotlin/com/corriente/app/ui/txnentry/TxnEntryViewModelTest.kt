@@ -309,6 +309,36 @@ class TxnEntryViewModelTest {
         assertEquals("RUB", row.currencyCode)
     }
 
+    // F0.4 — правка операции с архивной категорией раньше обнуляла категорию.
+    @Test
+    fun `editing a txn with an archived category keeps the category`() = runTest(dispatcher) {
+        val fakes = Fakes().apply { seed() }
+        val creator = vm(fakes)
+        backgroundScope.observe(creator)
+        advanceUntilIdle()
+        creator.selectCategory("cat-food")
+        creator.pressDigit('1'); creator.pressDigit('0'); creator.pressDigit('0')
+        advanceUntilIdle()
+        creator.save()
+        advanceUntilIdle()
+        val id = fakes.txnDao.rows.value.single().id
+
+        val food = fakes.categoryDao.getById("cat-food")!!
+        fakes.categoryDao.update(food.copy(isArchived = true))
+
+        val editor = vm(fakes, editingTxnId = id)
+        backgroundScope.observe(editor)
+        advanceUntilIdle()
+        assertEquals("cat-food", editor.uiState.value.selectedCategoryId)
+        assertTrue(editor.uiState.value.categories.any { it.id == "cat-food" && it.isArchived })
+
+        editor.pressDigit('0') // сумма меняется
+        advanceUntilIdle()
+        assertTrue(editor.save())
+        advanceUntilIdle()
+        assertEquals("cat-food", fakes.txnDao.rows.value.single().categoryId)
+    }
+
     // F0.2 — раньше исключение репозитория в viewModelScope убивало процесс.
     @Test
     fun `a repository failure on save surfaces a message and keeps the form`() = runTest(dispatcher) {
