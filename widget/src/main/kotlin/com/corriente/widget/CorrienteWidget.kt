@@ -7,10 +7,12 @@ import android.os.UserManager
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.DpSize
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
 import androidx.glance.GlanceTheme
 import androidx.glance.LocalContext
+import androidx.glance.LocalSize
 import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.SizeMode
@@ -21,11 +23,11 @@ import androidx.glance.background
 import androidx.glance.layout.Column
 import androidx.glance.layout.Row
 import androidx.glance.layout.Spacer
+import androidx.glance.layout.defaultWeight
 import androidx.glance.layout.fillMaxSize
 import androidx.glance.layout.fillMaxWidth
 import androidx.glance.layout.height
 import androidx.glance.layout.padding
-import androidx.glance.layout.width
 import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
@@ -33,14 +35,23 @@ import com.corriente.data.widget.WidgetSnapshot
 import com.corriente.data.widget.WidgetSnapshotStore
 import kotlinx.coroutines.flow.first
 
+/** R4.1: три раскладки под [SizeMode.Responsive] — компактная/средняя/крупная. */
+private val SIZE_COMPACT = DpSize(180.dp, 110.dp)
+private val SIZE_MEDIUM = DpSize(250.dp, 180.dp)
+private val SIZE_LARGE = DpSize(250.dp, 280.dp)
+
 /**
  * T4.2: виджет на Glance. Рисуется в процессе лаунчера — читает только готовый
  * [WidgetSnapshot] из DataStore (ARCHITECTURE.md §4.2). До первой разблокировки телефона
  * (Direct Boot) хранилище недоступно — тогда показываем заглушку, а не падаем (§4.4 п.3).
+ *
+ * R4.1: `SizeMode.Exact` с единственной вёрсткой обрезал строку из четырёх категорий на узком
+ * виджете. `SizeMode.Responsive` с тремя фиксированными размерами — Glance сам подбирает
+ * ближайший подходящий и рисует именно ту раскладку, под которую он посчитан.
  */
 class CorrienteWidget : GlanceAppWidget() {
 
-    override val sizeMode = SizeMode.Exact
+    override val sizeMode = SizeMode.Responsive(setOf(SIZE_COMPACT, SIZE_MEDIUM, SIZE_LARGE))
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val unlocked = context.getSystemService(UserManager::class.java)?.isUserUnlocked ?: true
@@ -89,46 +100,77 @@ private fun WidgetBody(snapshot: WidgetSnapshot, locked: Boolean) {
             snapshot.balances.isEmpty() && snapshot.monthExpenses.isEmpty() ->
                 Text(context.getString(R.string.widget_empty), style = captionStyle())
 
-            else -> {
-                if (snapshot.activeAccountName.isNotEmpty()) {
-                    Text(
-                        text = snapshot.activeAccountName,
-                        style = captionStyle(),
-                        modifier = GlanceModifier.clickable(
-                            actionStartActivity(changeActiveAccountIntent(context.packageName)),
-                        ),
-                    )
-                    Spacer(GlanceModifier.height(4.dp))
-                }
-                snapshot.balances.forEach { line -> Text(line.formatted, style = balanceStyle()) }
-
-                if (snapshot.monthExpenses.isNotEmpty()) {
-                    Spacer(GlanceModifier.height(8.dp))
-                    Text(context.getString(R.string.widget_month_expenses), style = captionStyle())
-                    snapshot.monthExpenses.forEach { line -> Text(line.formatted, style = captionStyle()) }
-                }
-
-                if (snapshot.quickCategories.isNotEmpty()) {
-                    Spacer(GlanceModifier.height(8.dp))
-                    Row(modifier = GlanceModifier.fillMaxWidth()) {
-                        snapshot.quickCategories.take(4).forEach { category ->
-                            Text(
-                                text = category.icon?.takeIf { it.isNotBlank() } ?: category.name.take(3),
-                                style = captionStyle(),
-                                modifier = GlanceModifier
-                                    .padding(horizontal = 6.dp, vertical = 4.dp)
-                                    .clickable(
-                                        actionStartActivity(
-                                            quickExpenseIntent(context.packageName, category.id, category.name),
-                                        ),
-                                    ),
-                            )
-                            Spacer(GlanceModifier.width(4.dp))
-                        }
-                    }
-                }
+            // R4.1: раскладка зависит от размера, который Glance подобрал из SizeMode.Responsive —
+            // LocalSize.current гарантированно равен одному из объявленных SIZE_* (не произвольному).
+            else -> when (LocalSize.current) {
+                SIZE_LARGE -> LargeBody(snapshot, context)
+                SIZE_MEDIUM -> MediumBody(snapshot, context)
+                else -> CompactBody(snapshot, context)
             }
         }
+    }
+}
+
+/** Компактная раскладка (~2×1): только балансы, читаемо на минимальном размере виджета. */
+@Composable
+private fun CompactBody(snapshot: WidgetSnapshot, context: Context) {
+    AccountHeader(snapshot, context)
+    snapshot.balances.forEach { line -> Text(line.formatted, style = balanceStyle()) }
+}
+
+/** Средняя раскладка (~4×2): балансы плюс расходы за месяц. */
+@Composable
+private fun MediumBody(snapshot: WidgetSnapshot, context: Context) {
+    CompactBody(snapshot, context)
+    if (snapshot.monthExpenses.isNotEmpty()) {
+        Spacer(GlanceModifier.height(8.dp))
+        Text(context.getString(R.string.widget_month_expenses), style = captionStyle())
+        snapshot.monthExpenses.forEach { line -> Text(line.formatted, style = captionStyle()) }
+    }
+}
+
+/**
+ * Крупная раскладка (~4×4): плюс сетка частых категорий. По 3 в ряд (а не одним `Row` из 6,
+ * как раньше на `SizeMode.Exact`) — не обрезается даже на этой, самой узкой из широких раскладок.
+ */
+@Composable
+private fun LargeBody(snapshot: WidgetSnapshot, context: Context) {
+    MediumBody(snapshot, context)
+    if (snapshot.quickCategories.isNotEmpty()) {
+        Spacer(GlanceModifier.height(8.dp))
+        snapshot.quickCategories.chunked(3).forEach { row ->
+            Row(modifier = GlanceModifier.fillMaxWidth()) {
+                row.forEach { category ->
+                    Text(
+                        text = category.icon?.takeIf { it.isNotBlank() } ?: category.name.take(3),
+                        style = captionStyle(),
+                        modifier = GlanceModifier
+                            .defaultWeight()
+                            .padding(horizontal = 6.dp, vertical = 4.dp)
+                            .clickable(
+                                actionStartActivity(
+                                    quickExpenseIntent(context.packageName, category.id, category.name),
+                                ),
+                            ),
+                    )
+                }
+            }
+            Spacer(GlanceModifier.height(4.dp))
+        }
+    }
+}
+
+@Composable
+private fun AccountHeader(snapshot: WidgetSnapshot, context: Context) {
+    if (snapshot.activeAccountName.isNotEmpty()) {
+        Text(
+            text = snapshot.activeAccountName,
+            style = captionStyle(),
+            modifier = GlanceModifier.clickable(
+                actionStartActivity(changeActiveAccountIntent(context.packageName)),
+            ),
+        )
+        Spacer(GlanceModifier.height(4.dp))
     }
 }
 
