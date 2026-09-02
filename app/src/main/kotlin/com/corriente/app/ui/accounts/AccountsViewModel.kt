@@ -1,9 +1,9 @@
 package com.corriente.app.ui.accounts
 
-import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import com.corriente.app.ui.common.WritingViewModel
 import com.corriente.data.db.entity.AccountKind
 import com.corriente.data.model.Account
 import com.corriente.data.repository.AccountRepository
@@ -101,7 +101,7 @@ class AccountsViewModel(
     private val accounts: AccountRepository,
     private val currencies: CurrencyRepository,
     balances: AccountBalanceUseCase,
-) : ViewModel() {
+) : WritingViewModel() {
 
     val uiState: StateFlow<AccountsUiState> = combine(
         balances.observeBalances(),
@@ -168,7 +168,10 @@ class AccountsViewModel(
         if (form.name.isBlank()) return false
         val editor = _editor.value
 
-        viewModelScope.launch {
+        launchWrite(
+            onError = { "Не удалось сохранить счёт" },
+            onSuccess = { _editor.value = null },
+        ) {
             val currency = currencies.getByCode(form.currency) ?: fallbackCurrency(form.currency)
             val money = Money(openingBalanceMinor(form.openingBalanceText, currency), form.currency)
             val id = editor?.editingId
@@ -184,24 +187,29 @@ class AccountsViewModel(
             } else {
                 accounts.rename(id, form.name.trim(), color = 0, icon = null, includeInTotal = form.includeInTotal)
                 if (editor.currencyLocked.not()) {
-                    accounts.setCurrencyAndOpeningBalanceBeforeFirstUse(id, form.currency, money)
+                    // Гонка: пока редактор был открыт, по счёту могла появиться операция —
+                    // тогда валюта уже исторический факт (I-23), меняем только имя и флаги.
+                    if (accounts.hasTransactions(id)) {
+                        postMessage("Валюта уже зафиксирована первой операцией")
+                    } else {
+                        accounts.setCurrencyAndOpeningBalanceBeforeFirstUse(id, form.currency, money)
+                    }
                 }
             }
-            _editor.value = null
         }
         return true
     }
 
     fun archive(id: String) {
-        viewModelScope.launch { accounts.archive(id) }
+        launchWrite(onError = { "Не удалось заархивировать счёт" }) { accounts.archive(id) }
     }
 
     fun unarchive(id: String) {
-        viewModelScope.launch { accounts.unarchive(id) }
+        launchWrite(onError = { "Не удалось вернуть счёт из архива" }) { accounts.unarchive(id) }
     }
 
     fun deleteIfUnused(id: String) {
-        viewModelScope.launch { accounts.deleteIfUnused(id) }
+        launchWrite(onError = { "Не удалось удалить счёт" }) { accounts.deleteIfUnused(id) }
     }
 
     companion object {

@@ -22,7 +22,11 @@ class FakeCategoryDao : CategoryDao() {
     fun transactionsOf(categoryId: String): Set<String> =
         txnCategory.filterValues { it == categoryId }.keys
 
+    /** Установить, чтобы insert бросал — для тестов обработки ошибок записи (F0.2). */
+    var failInsertWith: Throwable? = null
+
     override suspend fun insert(category: CategoryEntity): Long {
+        failInsertWith?.let { throw it }
         rows.value = rows.value + category
         return 1L
     }

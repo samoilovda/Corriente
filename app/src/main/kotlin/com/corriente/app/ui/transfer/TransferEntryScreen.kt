@@ -23,6 +23,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -42,6 +43,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.corriente.app.R
 import com.corriente.app.corrienteContainer
+import com.corriente.app.ui.common.rememberMessageSnackbarState
 import java.time.Instant
 import java.time.ZoneOffset
 
@@ -58,11 +60,14 @@ fun TransferEntryScreen(
 ) {
     val state by viewModel.uiState.collectAsState()
     val finished by viewModel.finished.collectAsState()
+    val message by viewModel.messages.collectAsState()
+    val snackbarState = rememberMessageSnackbarState(message, viewModel::consumeMessage)
     var datePickerOpen by remember { mutableStateOf(false) }
 
     LaunchedEffect(finished) { if (finished) onDone() }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarState) },
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.transfer_title)) },

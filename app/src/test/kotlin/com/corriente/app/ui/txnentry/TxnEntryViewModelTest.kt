@@ -25,6 +25,7 @@ import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -275,6 +276,28 @@ class TxnEntryViewModelTest {
         assertEquals(id, row.id)
         assertEquals(500000L, row.amountMinor)
         assertNull(row.categoryId)
+    }
+
+    // F0.2 — раньше исключение репозитория в viewModelScope убивало процесс.
+    @Test
+    fun `a repository failure on save surfaces a message and keeps the form`() = runTest(dispatcher) {
+        val fakes = Fakes().apply { seed() }
+        fakes.txnDao.failWith = IllegalStateException("boom")
+        val model = vm(fakes)
+        backgroundScope.observe(model)
+        backgroundScope.launch { model.messages.collect {} }
+        advanceUntilIdle()
+
+        model.selectCategory("cat-food")
+        model.pressDigit('5'); model.pressDigit('0')
+        advanceUntilIdle()
+        assertTrue(model.save())
+        advanceUntilIdle()
+
+        assertNotNull(model.messages.value)
+        assertFalse(model.finished.value)
+        assertTrue(fakes.txnDao.rows.value.isEmpty())
+        assertTrue(model.uiState.value.canSave) // сумма и категория на месте
     }
 
     @Test

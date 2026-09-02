@@ -170,6 +170,31 @@ class AccountsViewModelTest {
             assertEquals("RUB", activeRows(vm).single().account.currency.code)
         }
 
+    // F0.2 — гонка: редактор открыт без блокировки валюты, но к счёту успела прийти операция.
+    @Test
+    fun `save re-checks hasTransactions and keeps the currency locked with a message`() = runTest(dispatcher) {
+        val (vm, dao, _) = build()
+        backgroundScope.observe(vm)
+        backgroundScope.launch { vm.messages.collect {} }
+        vm.startCreate(); advanceUntilIdle()
+        vm.save(AccountForm("Карта", CurrencyCode("RUB"), AccountKind.CARD, "0", includeInTotal = true))
+        advanceUntilIdle()
+        val account = activeRows(vm).single().account
+
+        vm.startEdit(account)
+        advanceUntilIdle()
+        assertFalse(vm.editor.value!!.currencyLocked) // на момент открытия операций не было
+
+        dao.markHasTransactions(account.id) // ...а теперь появились
+        vm.save(AccountForm("Карта+", CurrencyCode("USD"), AccountKind.CARD, "0", includeInTotal = true))
+        advanceUntilIdle()
+
+        val saved = vm.uiState.value.groups.flatMap { it.rows }.single().account
+        assertEquals("RUB", saved.currency.code)   // валюта не сменилась
+        assertEquals("Карта+", saved.name)          // имя — сменилось
+        assertEquals("Валюта уже зафиксирована первой операцией", vm.messages.value?.text)
+    }
+
     @Test
     fun `accounts are grouped by currency with a per-currency total that skips excluded accounts`() =
         runTest(dispatcher) {

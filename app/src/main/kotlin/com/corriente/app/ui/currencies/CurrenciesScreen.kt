@@ -19,6 +19,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -37,6 +38,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.corriente.app.R
 import com.corriente.app.corrienteContainer
+import com.corriente.app.ui.common.rememberMessageSnackbarState
 import com.corriente.data.model.ManagedCurrency
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -48,9 +50,12 @@ fun CurrenciesScreen(
     ),
 ) {
     val state by viewModel.uiState.collectAsState()
+    val message by viewModel.messages.collectAsState()
+    val snackbarState = rememberMessageSnackbarState(message, viewModel::consumeMessage)
     var editing by remember { mutableStateOf<ManagedCurrency?>(null) }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarState) },
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.currencies_title)) },

@@ -1,9 +1,9 @@
 package com.corriente.app.ui.txnentry
 
-import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import com.corriente.app.ui.common.WritingViewModel
 import com.corriente.data.db.entity.CategoryKind
 import com.corriente.data.model.Category
 import com.corriente.data.model.Txn
@@ -96,7 +96,7 @@ class TxnEntryViewModel(
     private val editingTxnId: String? = null,
     initialKind: EntryKind = EntryKind.EXPENSE,
     private val today: () -> LocalDate = LocalDate::now,
-) : ViewModel() {
+) : WritingViewModel() {
 
     private data class Form(
         val kind: EntryKind,
@@ -239,7 +239,10 @@ class TxnEntryViewModel(
         val accountId = state.selectedAccountId ?: return false
         val money = Money(state.resolvedMinor()!!, currency.code)
         val note = state.note.trim().ifBlank { null }
-        viewModelScope.launch {
+        launchWrite(
+            onError = { "Не удалось сохранить операцию" },
+            onSuccess = { _finished.value = true },
+        ) {
             if (editingTxnId != null) {
                 txns.updateEntry(editingTxnId, accountId, money, state.selectedCategoryId, state.date, note)
             } else {
@@ -248,16 +251,17 @@ class TxnEntryViewModel(
                     EntryKind.INCOME -> txns.addIncome(accountId, money, state.selectedCategoryId, state.date, note)
                 }
             }
-            _finished.value = true
         }
         return true
     }
 
     fun deleteEditing() {
         val id = editingTxnId ?: return
-        viewModelScope.launch {
+        launchWrite(
+            onError = { "Не удалось удалить операцию" },
+            onSuccess = { _finished.value = true },
+        ) {
             txns.deleteById(id)
-            _finished.value = true
         }
     }
 

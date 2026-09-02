@@ -24,6 +24,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -42,6 +43,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.corriente.app.R
 import com.corriente.app.corrienteContainer
+import com.corriente.app.ui.common.rememberMessageSnackbarState
 import com.corriente.data.db.entity.AccountKind
 import com.corriente.money.CurrencyCode
 import com.corriente.money.MoneyFormatter
@@ -57,8 +59,11 @@ fun AccountsScreen(
 ) {
     val state by viewModel.uiState.collectAsState()
     val editor by viewModel.editor.collectAsState()
+    val message by viewModel.messages.collectAsState()
+    val snackbarState = rememberMessageSnackbarState(message, viewModel::consumeMessage)
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarState) },
         topBar = { TopAppBar(title = { Text(stringResource(R.string.nav_accounts)) }) },
         floatingActionButton = {
             FloatingActionButton(onClick = viewModel::startCreate) {

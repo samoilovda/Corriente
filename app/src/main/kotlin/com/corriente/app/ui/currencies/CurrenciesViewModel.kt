@@ -1,9 +1,9 @@
 package com.corriente.app.ui.currencies
 
-import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import com.corriente.app.ui.common.WritingViewModel
 import com.corriente.data.model.ManagedCurrency
 import com.corriente.data.repository.CurrencyRepository
 import com.corriente.money.CurrencyCode
@@ -12,7 +12,6 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.launch
 
 data class CurrenciesUiState(
     val query: String = "",
@@ -39,7 +38,7 @@ internal fun isValidDisplayScale(minorUnits: Int, displayScale: Int): Boolean =
  * T1.2: экран выбора активных валют. Вся логика — здесь и в чистых функциях выше;
  * Composable-слой только рисует состояние и зовёт эти методы (BUILD_PLAN.md §0 правило 2).
  */
-class CurrenciesViewModel(private val repository: CurrencyRepository) : ViewModel() {
+class CurrenciesViewModel(private val repository: CurrencyRepository) : WritingViewModel() {
 
     private val query = MutableStateFlow("")
 
@@ -56,7 +55,7 @@ class CurrenciesViewModel(private val repository: CurrencyRepository) : ViewMode
     }
 
     fun setActive(code: CurrencyCode, active: Boolean) {
-        viewModelScope.launch { repository.setActive(code, active) }
+        launchWrite(onError = { "Не удалось изменить список валют" }) { repository.setActive(code, active) }
     }
 
     /**
@@ -65,7 +64,7 @@ class CurrenciesViewModel(private val repository: CurrencyRepository) : ViewMode
      */
     fun updateDisplay(code: CurrencyCode, symbol: String, displayScale: Int, minorUnits: Int) {
         if (!isValidDisplayScale(minorUnits, displayScale)) return
-        viewModelScope.launch { repository.updateDisplay(code, symbol, displayScale) }
+        launchWrite(onError = { "Не удалось сохранить валюту" }) { repository.updateDisplay(code, symbol, displayScale) }
     }
 
     companion object {

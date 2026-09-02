@@ -14,6 +14,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material.icons.Icons
@@ -28,6 +29,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.corriente.app.R
 import com.corriente.app.corrienteContainer
+import com.corriente.app.ui.common.rememberMessageSnackbarState
 
 /** T4.4: закрепление 1–3 валют и выбор активного счёта для быстрого ввода из виджета. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -44,8 +46,11 @@ fun WidgetSettingsScreen(
     ),
 ) {
     val state by viewModel.uiState.collectAsState()
+    val message by viewModel.messages.collectAsState()
+    val snackbarState = rememberMessageSnackbarState(message, viewModel::consumeMessage)
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarState) },
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.widget_settings)) },

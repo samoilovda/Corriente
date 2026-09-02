@@ -1,9 +1,9 @@
 package com.corriente.app.ui.widgetsettings
 
-import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import com.corriente.app.ui.common.WritingViewModel
 import com.corriente.data.model.Account
 import com.corriente.data.model.Txn
 import com.corriente.data.repository.AccountRepository
@@ -18,7 +18,6 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.launch
 import java.time.LocalDate
 
 data class CurrencyRow(val code: String, val symbol: String, val pinned: Boolean)
@@ -65,7 +64,7 @@ class WidgetSettingsViewModel(
     txnRepository: TxnRepository,
     private val configStore: WidgetConfigStore,
     private val today: () -> LocalDate = LocalDate::now,
-) : ViewModel() {
+) : WritingViewModel() {
 
     val uiState: StateFlow<WidgetSettingsUiState> = combine(
         currencyRepository.observeActive(),
@@ -77,14 +76,14 @@ class WidgetSettingsViewModel(
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), WidgetSettingsUiState())
 
     fun toggleCurrency(code: String) {
-        viewModelScope.launch {
+        launchWrite(onError = { "Не удалось сохранить настройки виджета" }) {
             val current = uiState.value.currencies.filter { it.pinned }.map { it.code }
             configStore.setPinnedCurrencies(nextPinnedCurrencies(current, code))
         }
     }
 
     fun setActiveAccount(id: String) {
-        viewModelScope.launch { configStore.setActiveAccount(id) }
+        launchWrite(onError = { "Не удалось сохранить настройки виджета" }) { configStore.setActiveAccount(id) }
     }
 
     companion object {

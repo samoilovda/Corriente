@@ -30,6 +30,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -49,6 +50,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.corriente.app.R
 import com.corriente.app.corrienteContainer
+import com.corriente.app.ui.common.rememberMessageSnackbarState
 import com.corriente.data.db.entity.CategoryKind
 import com.corriente.data.model.Category
 
@@ -63,6 +65,8 @@ fun CategoriesScreen(
     val state by viewModel.uiState.collectAsState()
     val editor by viewModel.editor.collectAsState()
     val merge by viewModel.merge.collectAsState()
+    val message by viewModel.messages.collectAsState()
+    val snackbarState = rememberMessageSnackbarState(message, viewModel::consumeMessage)
     var addMenuOpen by remember { mutableStateOf(false) }
 
     val expensesTitle = stringResource(R.string.categories_expenses)
@@ -70,6 +74,7 @@ fun CategoriesScreen(
     val archivedTitle = stringResource(R.string.categories_archived)
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarState) },
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.categories_title)) },

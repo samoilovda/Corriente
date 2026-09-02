@@ -11,7 +11,11 @@ class FakeTxnDao : TxnDao {
 
     val rows = MutableStateFlow<List<TxnEntity>>(emptyList())
 
+    /** Установить, чтобы записи бросали — для тестов обработки ошибок записи (F0.2). */
+    var failWith: Throwable? = null
+
     override suspend fun insert(txn: TxnEntity) {
+        failWith?.let { throw it }
         rows.value = rows.value + txn
     }
 
@@ -20,10 +24,12 @@ class FakeTxnDao : TxnDao {
     }
 
     override suspend fun update(txn: TxnEntity) {
+        failWith?.let { throw it }
         rows.value = rows.value.map { if (it.id == txn.id) txn else it }
     }
 
     override suspend fun delete(txn: TxnEntity) {
+        failWith?.let { throw it }
         rows.value = rows.value.filterNot { it.id == txn.id }
     }
 

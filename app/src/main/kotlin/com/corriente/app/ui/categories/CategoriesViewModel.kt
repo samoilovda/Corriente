@@ -1,9 +1,10 @@
 package com.corriente.app.ui.categories
 
-import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import com.corriente.app.ui.common.WritingViewModel
+import com.corriente.app.ui.common.looksLikeConstraintViolation
 import com.corriente.data.db.entity.CategoryKind
 import com.corriente.data.model.Category
 import com.corriente.data.repository.CategoryRepository
@@ -53,7 +54,7 @@ internal fun buildBranches(active: List<Category>, kind: CategoryKind): List<Cat
         .map { top -> CategoryNode(top, childrenByParent[top.id].orEmpty()) }
 }
 
-class CategoriesViewModel(private val repository: CategoryRepository) : ViewModel() {
+class CategoriesViewModel(private val repository: CategoryRepository) : WritingViewModel() {
 
     val uiState: StateFlow<CategoriesUiState> =
         combine(repository.observeActive(), repository.observeArchived()) { active, archived ->
@@ -103,29 +104,34 @@ class CategoriesViewModel(private val repository: CategoryRepository) : ViewMode
     fun save(form: CategoryForm): Boolean {
         if (form.name.isBlank()) return false
         val editor = _editor.value
-        viewModelScope.launch {
+        val name = form.name.trim()
+        launchWrite(
+            onError = { e ->
+                if (e.looksLikeConstraintViolation()) "Категория «$name» уже есть" else "Не удалось сохранить категорию"
+            },
+            onSuccess = { _editor.value = null },
+        ) {
             val icon = form.icon?.trim()?.ifBlank { null }
             val id = editor?.editingId
             if (id == null) {
-                repository.create(form.name.trim(), form.kind, form.parentId, form.color, icon)
+                repository.create(name, form.kind, form.parentId, form.color, icon)
             } else {
-                repository.update(id, form.name.trim(), form.parentId, form.color, icon)
+                repository.update(id, name, form.parentId, form.color, icon)
             }
-            _editor.value = null
         }
         return true
     }
 
     fun archive(id: String) {
-        viewModelScope.launch { repository.archive(id) }
+        launchWrite(onError = { "Не удалось заархивировать категорию" }) { repository.archive(id) }
     }
 
     fun unarchive(id: String) {
-        viewModelScope.launch { repository.unarchive(id) }
+        launchWrite(onError = { "Не удалось вернуть категорию из архива" }) { repository.unarchive(id) }
     }
 
     fun deleteIfUnused(id: String) {
-        viewModelScope.launch { repository.deleteIfUnused(id) }
+        launchWrite(onError = { "Не удалось удалить категорию" }) { repository.deleteIfUnused(id) }
     }
 
     /**
@@ -144,9 +150,11 @@ class CategoriesViewModel(private val repository: CategoryRepository) : ViewMode
 
     fun confirmMerge(intoId: String) {
         val request = _merge.value ?: return
-        viewModelScope.launch {
+        launchWrite(
+            onError = { "Не удалось слить категории" },
+            onSuccess = { _merge.value = null },
+        ) {
             repository.mergeInto(request.from.id, intoId)
-            _merge.value = null
         }
     }
 

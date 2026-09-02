@@ -1,9 +1,9 @@
 package com.corriente.app.ui.transfer
 
-import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import com.corriente.app.ui.common.WritingViewModel
 import com.corriente.data.model.Txn
 import com.corriente.data.repository.AccountRepository
 import com.corriente.data.repository.CurrencyRepository
@@ -80,7 +80,7 @@ class TransferEntryViewModel(
     private val currencies: CurrencyRepository,
     private val editingTxnId: String? = null,
     today: () -> LocalDate = LocalDate::now,
-) : ViewModel() {
+) : WritingViewModel() {
 
     private data class Form(
         val fromAccountId: String? = null,
@@ -185,22 +185,26 @@ class TransferEntryViewModel(
         val fromMoney = Money(s.fromMinor ?: return false, fromCur.code)
         val toMoney = Money(s.toMinor ?: return false, toCur.code)
         val note = s.note.trim().ifBlank { null }
-        viewModelScope.launch {
+        launchWrite(
+            onError = { "Не удалось сохранить перевод" },
+            onSuccess = { _finished.value = true },
+        ) {
             if (editingTxnId != null) {
                 txns.updateTransfer(editingTxnId, s.fromAccountId!!, fromMoney, s.toAccountId!!, toMoney, s.date, note)
             } else {
                 txns.addTransfer(s.fromAccountId!!, fromMoney, s.toAccountId!!, toMoney, s.date, note)
             }
-            _finished.value = true
         }
         return true
     }
 
     fun deleteEditing() {
         val id = editingTxnId ?: return
-        viewModelScope.launch {
+        launchWrite(
+            onError = { "Не удалось удалить перевод" },
+            onSuccess = { _finished.value = true },
+        ) {
             txns.deleteById(id)
-            _finished.value = true
         }
     }
 

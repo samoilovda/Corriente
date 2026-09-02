@@ -16,6 +16,7 @@ import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -73,6 +74,23 @@ class CategoriesViewModelTest {
         advanceUntilIdle()
         assertEquals(listOf("Еда"), vm.uiState.value.expense.map { it.category.name })
         assertNull(vm.editor.value)
+    }
+
+    // F0.2 — дубликат имени раньше ронял приложение SQLiteConstraintException.
+    @Test
+    fun `a constraint failure on save surfaces a friendly message and keeps the editor open`() = runTest(dispatcher) {
+        val (vm, dao) = build()
+        backgroundScope.observe(vm)
+        backgroundScope.launch { vm.messages.collect {} }
+        dao.failInsertWith = RuntimeException("UNIQUE constraint failed: category.name")
+        vm.startCreate(CategoryKind.EXPENSE)
+        advanceUntilIdle()
+        assertTrue(vm.save(CategoryForm("Еда", CategoryKind.EXPENSE, null, 1, null)))
+        advanceUntilIdle()
+
+        assertEquals("Категория «Еда» уже есть", vm.messages.value?.text)
+        assertNotNull(vm.editor.value)
+        assertTrue(vm.uiState.value.expense.isEmpty())
     }
 
     @Test
