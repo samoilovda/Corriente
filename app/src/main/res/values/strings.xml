@@ -37,6 +37,7 @@
     <string name="autobackup_last_ok">успешно</string>
     <string name="autobackup_last_error">Ошибка последнего бэкапа: %1$s</string>
     <string name="autobackup_retention">Сколько файлов хранить</string>
+    <string name="autobackup_drive_note">Если вы выбрали папку внутри «Google Диска» и запись не срабатывает — это известное ограничение: клиент Диска исторически не отдаёт себя как дерево для автобэкапа. Работают локальная папка + сторонний синхронизатор (Autosync, FolderSync, Syncthing) или ручная отправка бэкапа в Диск через «Отправить бэкап» в настройках. Подробности — в README, раздел «Как складывать бэкапы в облако».</string>
 
     <string name="widget_settings">Виджет</string>
     <string name="widget_settings_hint">Закреплённые валюты и счёт для быстрого ввода</string>

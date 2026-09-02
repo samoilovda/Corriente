@@ -70,6 +70,14 @@ fun AutoBackupScreen(
                 },
                 modifier = Modifier.clickable { folderPicker.launch(null) },
             )
+            // R1.1: SAF-дерево Google Диска исторически недоступно как источник для автобэкапа —
+            // явное предупреждение, чтобы не выбирали его "на глаз" и не удивлялись, что запись не идёт.
+            Text(
+                stringResource(R.string.autobackup_drive_note),
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
             ListItem(
                 headlineContent = { Text(stringResource(R.string.autobackup_enabled)) },
                 supportingContent = { Text(stringResource(R.string.autobackup_enabled_hint, state.retention)) },
