@@ -13,23 +13,27 @@ private val Context.widgetConfigDataStore: DataStore<Preferences> by preferences
 
 /**
  * Настройки виджета (T4.4): какие 1–3 валюты закреплены и в какой счёт пишет быстрый ввод.
+ * R4.3: плюс до 6 вручную закреплённых категорий, в порядке показа в виджете.
  * Пустой конфиг = «ещё не настроено», тогда [WidgetUpdater] берёт значения по умолчанию
- * ([defaultPinnedCurrencies], первый счёт).
+ * ([defaultPinnedCurrencies]/[defaultQuickCategories], первый счёт).
  */
 data class WidgetConfig(
     val pinnedCurrencyCodes: List<String> = emptyList(),
     val activeAccountId: String? = null,
+    val pinnedCategoryIds: List<String> = emptyList(),
 )
 
 class WidgetConfigStore(private val context: Context) {
 
     private val pinnedKey = stringPreferencesKey("pinned_currency_codes")
     private val activeKey = stringPreferencesKey("active_account_id")
+    private val pinnedCategoriesKey = stringPreferencesKey("pinned_category_ids")
 
     val config: Flow<WidgetConfig> = context.widgetConfigDataStore.data.map { prefs ->
         WidgetConfig(
             pinnedCurrencyCodes = prefs[pinnedKey]?.split(',')?.filter { it.isNotBlank() } ?: emptyList(),
             activeAccountId = prefs[activeKey]?.takeIf { it.isNotBlank() },
+            pinnedCategoryIds = prefs[pinnedCategoriesKey]?.split(',')?.filter { it.isNotBlank() } ?: emptyList(),
         )
     }
 
@@ -41,8 +45,19 @@ class WidgetConfigStore(private val context: Context) {
         context.widgetConfigDataStore.edit { it[activeKey] = accountId }
     }
 
-    /** Сброс к значениям по умолчанию (F3.4): снять закреплённые валюты и выбор счёта. */
+    /** R4.3: закрепление до 6 категорий в порядке показа — ровно как [setPinnedCurrencies]. */
+    suspend fun setPinnedCategories(categoryIds: List<String>) {
+        context.widgetConfigDataStore.edit {
+            it[pinnedCategoriesKey] = categoryIds.take(MAX_QUICK_CATEGORIES).joinToString(",")
+        }
+    }
+
+    /** Сброс к значениям по умолчанию (F3.4): снять закреплённые валюты/категории и выбор счёта. */
     suspend fun reset() {
-        context.widgetConfigDataStore.edit { it.remove(pinnedKey); it.remove(activeKey) }
+        context.widgetConfigDataStore.edit {
+            it.remove(pinnedKey)
+            it.remove(activeKey)
+            it.remove(pinnedCategoriesKey)
+        }
     }
 }

@@ -177,4 +177,102 @@ class WidgetSnapshotTest {
         assertEquals(6, snapshot.quickCategories.size)
         assertEquals("🍔", snapshot.quickCategories.first().icon)
     }
+
+    // R4.3 — закреплённые вручную категории побеждают автоподбор по частоте и идут в заданном
+    // пользователем порядке, даже если он не совпадает с порядком по частоте.
+    @Test
+    fun `pinned categories win over frequency and keep the pinned order`() {
+        val cats = (1..3).map { category("c$it") }
+        val txns = buildList {
+            // По частоте порядок был бы c1(3), c2(2), c3(1) — закрепление переопределяет и то, и другое.
+            repeat(3) { add(expense("cash", 100, "c1", today.minusDays(1))) }
+            repeat(2) { add(expense("cash", 100, "c2", today.minusDays(2))) }
+            add(expense("cash", 100, "c3", today.minusDays(3)))
+        }
+        val snapshot = buildWidgetSnapshot(
+            accounts = listOf(account("cash", rub, 0)),
+            transactions = txns,
+            currencies = listOf(rubMeta),
+            categories = cats,
+            pinnedCurrencies = listOf(rub),
+            activeAccountId = "cash",
+            today = today,
+            computedAt = 0L,
+            pinnedCategoryIds = listOf("c3", "c1"), // явный порядок, не совпадающий с частотой
+        )
+        assertEquals(listOf("c3", "c1"), snapshot.quickCategories.map { it.id })
+    }
+
+    // R4.3 — закреплённая категория архивирована/удалена: выпадает из списка, но не ломает
+    // остальные закреплённые и не подмешивает автоподбор, пока есть хоть одна валидная закреплённая.
+    @Test
+    fun `an archived or missing pinned category is dropped, the rest of the pin stays`() {
+        val cats = listOf(category("c1"), category("c2", archived = true))
+        val snapshot = buildWidgetSnapshot(
+            accounts = listOf(account("cash", rub, 0)),
+            transactions = emptyList(),
+            currencies = listOf(rubMeta),
+            categories = cats,
+            pinnedCurrencies = listOf(rub),
+            activeAccountId = "cash",
+            today = today,
+            computedAt = 0L,
+            pinnedCategoryIds = listOf("c1", "c2", "gone"),
+        )
+        assertEquals(listOf("c1"), snapshot.quickCategories.map { it.id })
+    }
+
+    // R4.3 — ничего не закреплено: прежнее поведение (автоподбор по частоте) не сломано.
+    @Test
+    fun `falls back to the automatic frequent selection when nothing is pinned`() {
+        val cats = listOf(category("c1"), category("c2"))
+        val txns = listOf(
+            expense("cash", 100, "c2", today.minusDays(1)),
+            expense("cash", 100, "c2", today.minusDays(2)),
+            expense("cash", 100, "c1", today.minusDays(3)),
+        )
+        val snapshot = buildWidgetSnapshot(
+            accounts = listOf(account("cash", rub, 0)),
+            transactions = txns,
+            currencies = listOf(rubMeta),
+            categories = cats,
+            pinnedCurrencies = listOf(rub),
+            activeAccountId = "cash",
+            today = today,
+            computedAt = 0L,
+            pinnedCategoryIds = emptyList(),
+        )
+        assertEquals(listOf("c2", "c1"), snapshot.quickCategories.map { it.id })
+    }
+
+    // R4.3 — все закреплённые категории архивны/удалены: падаем на автоподбор, а не на пустоту.
+    @Test
+    fun `falls back to automatic selection when every pinned category is invalid`() {
+        val cats = listOf(category("c1"))
+        val txns = listOf(expense("cash", 100, "c1", today.minusDays(1)))
+        val snapshot = buildWidgetSnapshot(
+            accounts = listOf(account("cash", rub, 0)),
+            transactions = txns,
+            currencies = listOf(rubMeta),
+            categories = cats,
+            pinnedCurrencies = listOf(rub),
+            activeAccountId = "cash",
+            today = today,
+            computedAt = 0L,
+            pinnedCategoryIds = listOf("gone"),
+        )
+        assertEquals(listOf("c1"), snapshot.quickCategories.map { it.id })
+    }
+
+    @Test
+    fun `defaultQuickCategories mirrors the frequency ranking used without pinning`() {
+        val cats = listOf(category("c1"), category("c2"), category("old", archived = true))
+        val txns = listOf(
+            expense("cash", 100, "c1", today.minusDays(1)),
+            expense("cash", 100, "c2", today.minusDays(2)),
+            expense("cash", 100, "c2", today.minusDays(3)),
+            expense("cash", 100, "old", today.minusDays(4)),
+        )
+        assertEquals(listOf("c2", "c1"), defaultQuickCategories(txns, cats, today).map { it.id })
+    }
 }

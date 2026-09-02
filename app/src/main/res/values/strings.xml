@@ -58,6 +58,8 @@
     <string name="widget_settings_hint">Закреплённые валюты и счёт для быстрого ввода</string>
     <string name="widget_pinned_currencies">Валюты в виджете (до 3)</string>
     <string name="widget_active_account">Счёт для быстрого ввода</string>
+    <string name="widget_pinned_categories">Категории в виджете (до 6)</string>
+    <string name="widget_pinned_categories_hint">Если ничего не выбрано — виджет сам покажет шесть самых частых категорий за последние 60 дней</string>
     <string name="quick_expense_save_failed">Не удалось сохранить операцию. Попробуйте ещё раз.</string>
     <string name="quick_expense_no_category">Без категории</string>
     <string name="quick_change_account_failed">Не удалось сменить счёт. Попробуйте ещё раз.</string>

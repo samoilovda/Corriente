@@ -85,9 +85,43 @@ fun defaultPinnedCurrencies(
 }
 
 /**
+ * R4.3: шесть самых частых категорий за [QUICK_CATEGORY_WINDOW_DAYS] дней — автоподбор для
+ * виджета, пока пользователь не закрепил свои в «Настройках виджета» (ровно как
+ * [defaultPinnedCurrencies] для валют). Архивные категории и переводы не считаются (I-11).
+ */
+fun defaultQuickCategories(
+    transactions: List<Txn>,
+    categories: List<Category>,
+    today: LocalDate,
+): List<Category> {
+    val windowStart = today.minusDays(QUICK_CATEGORY_WINDOW_DAYS)
+    val categoryById = categories.associateBy { it.id }
+    val frequency = LinkedHashMap<String, Int>()
+    transactions
+        .asSequence()
+        .filter { it.date >= windowStart && it.date <= today }
+        .forEach { txn ->
+            val categoryId = when (txn) {
+                is Txn.Expense -> txn.categoryId
+                is Txn.Income -> txn.categoryId
+                is Txn.Transfer -> null
+            } ?: return@forEach
+            val category = categoryById[categoryId] ?: return@forEach
+            if (category.isArchived) return@forEach
+            frequency[categoryId] = (frequency[categoryId] ?: 0) + 1
+        }
+    return frequency.entries
+        .sortedWith(compareByDescending<Map.Entry<String, Int>> { it.value }.thenBy { it.key })
+        .take(MAX_QUICK_CATEGORIES)
+        .mapNotNull { (id, _) -> categoryById[id] }
+}
+
+/**
  * Чистая функция: те же входы → тот же снимок. Никаких обращений к БД, времени, локали.
  *
  * @param pinnedCurrencies закреплённые в настройках виджета валюты (1–3), в порядке показа.
+ * @param pinnedCategoryIds закреплённые в настройках виджета категории (до 6), в порядке показа
+ *   (R4.3); пустой список — автоподбор через [defaultQuickCategories], как раньше.
  * @param today «сегодня» для окна частых категорий и определения текущего месяца.
  */
 fun buildWidgetSnapshot(
@@ -105,6 +139,7 @@ fun buildWidgetSnapshot(
      * баланс считается полным сканом [transactions] (офлайн-снимок, тесты).
      */
     accountDeltas: Map<String, Long>? = null,
+    pinnedCategoryIds: List<String> = emptyList(),
 ): WidgetSnapshot {
     val currencyByCode = currencies.associateBy { it.code }
     val activeAccounts = accounts.filterNot { it.isArchived }
@@ -138,30 +173,15 @@ fun buildWidgetSnapshot(
         CurrencyLine(code.code, MoneyFormatter.format(spent, meta))
     }
 
-    val windowStart = today.minusDays(QUICK_CATEGORY_WINDOW_DAYS)
+    // R4.3: закреплённые вручную категории — в заданном пользователем порядке, с приоритетом
+    // над автоподбором; падение на автоподбор ([defaultQuickCategories]), если ничего не закреплено
+    // или закреплённые категории архивны/удалены.
     val categoryById = categories.associateBy { it.id }
-    val frequency = LinkedHashMap<String, Int>()
-    transactions
-        .asSequence()
-        .filter { it.date >= windowStart && it.date <= today }
-        .forEach { txn ->
-            val categoryId = when (txn) {
-                is Txn.Expense -> txn.categoryId
-                is Txn.Income -> txn.categoryId
-                is Txn.Transfer -> null
-            } ?: return@forEach
-            val category = categoryById[categoryId] ?: return@forEach
-            if (category.isArchived) return@forEach
-            frequency[categoryId] = (frequency[categoryId] ?: 0) + 1
-        }
-
-    val quickCategories = frequency.entries
-        .sortedWith(compareByDescending<Map.Entry<String, Int>> { it.value }.thenBy { it.key })
+    val pinnedCategories = pinnedCategoryIds.mapNotNull { id -> categoryById[id]?.takeUnless { it.isArchived } }
+    val effectiveCategories = pinnedCategories.ifEmpty { defaultQuickCategories(transactions, categories, today) }
+    val quickCategories = effectiveCategories
         .take(MAX_QUICK_CATEGORIES)
-        .mapNotNull { (id, _) ->
-            val category = categoryById[id] ?: return@mapNotNull null
-            QuickCategory(category.id, category.name, category.icon, category.color)
-        }
+        .map { category -> QuickCategory(category.id, category.name, category.icon, category.color) }
 
     val activeAccountName = accounts.firstOrNull { it.id == activeAccountId }?.name ?: ""
 

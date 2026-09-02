@@ -144,6 +144,7 @@ class WidgetUpdater(
             today = now,
             computedAt = System.currentTimeMillis(),
             accountDeltas = d.deltas,
+            pinnedCategoryIds = config.pinnedCategoryIds,
         )
     }
 
