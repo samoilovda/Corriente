@@ -2,7 +2,7 @@ package com.corriente.app.ui.txnentry
 
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
-import androidx.lifecycle.viewmodel.compose.createSavedStateHandle
+import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.corriente.app.R
@@ -34,6 +34,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -193,34 +194,52 @@ class TxnEntryViewModel(
     val isEditing: Boolean get() = editingTxnId != null
 
     init {
-        // R5.4: каждое изменение формы зеркалится в SavedStateHandle — переживает и
-        // сворачивание с пересозданием процесса, и обычный поворот экрана.
-        viewModelScope.launch { form.collect(::persistForm) }
-
-        // R5.4: SavedStateHandle, заполненный в предыдущей жизни процесса, важнее свежей
-        // загрузки из БД — иначе непроверенные правки пользователя (в т.ч. при редактировании
-        // существующей операции) терялись бы точно так же, как до этой задачи.
-        if (savedStateHandle.get<String>(SavedKeys.KIND) != null) {
-            viewModelScope.launch { form.value = restoreFormFromSavedState() }
-        } else if (editingTxnId != null) {
-            viewModelScope.launch {
-                val existing = txns.getById(editingTxnId) ?: return@launch
-                val (kind, accountId, amount, categoryId) = when (existing) {
-                    is Txn.Expense -> Quad(EntryKind.EXPENSE, existing.accountId, existing.amount, existing.categoryId)
-                    is Txn.Income -> Quad(EntryKind.INCOME, existing.accountId, existing.amount, existing.categoryId)
-                    is Txn.Transfer -> return@launch // переводы здесь не редактируются
+        viewModelScope.launch {
+            // R5.4: сперва восстанавливаем форму — из SavedStateHandle предыдущей жизни
+            // процесса (важнее свежей загрузки из БД: непроверенные правки не теряются) либо
+            // из БД при редактировании — и только ПОТОМ включаем зеркалирование формы в
+            // SavedStateHandle. Иначе первая (пустая) эмиссия `form` затирала бы сохранённое
+            // состояние раньше, чем `restoreFormFromSavedState` успевает его прочитать.
+            when {
+                savedStateHandle.get<String>(SavedKeys.KIND) != null -> {
+                    form.value = restoreFormFromSavedState()
                 }
-                val currency = currencies.getByCode(amount.currency)
-                    ?: Currency(amount.currency, minorUnits = 2, displayScale = 2, symbol = amount.currency.code)
-                form.value = Form(
-                    kind = kind,
-                    amount = AmountInput.fromMinor(amount.amount, currency),
-                    selectedAccountId = accountId,
-                    selectedCategoryId = categoryId,
-                    date = existing.date,
-                    note = existing.note.orEmpty(),
-                )
+                editingTxnId != null -> {
+                    val existing = txns.getById(editingTxnId)
+                    val quad = when (existing) {
+                        is Txn.Expense -> Quad(EntryKind.EXPENSE, existing.accountId, existing.amount, existing.categoryId)
+                        is Txn.Income -> Quad(EntryKind.INCOME, existing.accountId, existing.amount, existing.categoryId)
+                        is Txn.Transfer, null -> null // переводы здесь не редактируются
+                    }
+                    if (existing != null && quad != null) {
+                        val (kind, accountId, amount, categoryId) = quad
+                        val currency = currencies.getByCode(amount.currency)
+                            ?: Currency(amount.currency, minorUnits = 2, displayScale = 2, symbol = amount.currency.code)
+                        form.value = Form(
+                            kind = kind,
+                            amount = AmountInput.fromMinor(amount.amount, currency),
+                            selectedAccountId = accountId,
+                            selectedCategoryId = categoryId,
+                            date = existing.date,
+                            note = existing.note.orEmpty(),
+                        )
+                    }
+                }
             }
+
+            // R5.4: автоподстановку «первого активного счёта» (раньше она жила только в
+            // производном uiState) фиксируем в самой форме — иначе счёт по умолчанию не
+            // попадёт в SavedStateHandle и потеряется вместе с процессом. При редактировании
+            // счёт уже задан из операции.
+            if (editingTxnId == null && form.value.selectedAccountId == null) {
+                accounts.observeActive().first().firstOrNull()?.let { default ->
+                    form.update { if (it.selectedAccountId == null) it.copy(selectedAccountId = default.id) else it }
+                }
+            }
+
+            // R5.4: каждое изменение формы зеркалится в SavedStateHandle — переживает и
+            // сворачивание с пересозданием процесса, и обычный поворот экрана.
+            form.collect(::persistForm)
         }
     }
 

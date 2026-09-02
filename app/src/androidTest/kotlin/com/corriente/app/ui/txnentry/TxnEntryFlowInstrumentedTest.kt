@@ -1,7 +1,8 @@
 package com.corriente.app.ui.txnentry
 
-import androidx.compose.ui.test.assertExists
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -73,6 +74,8 @@ class TxnEntryFlowInstrumentedTest {
         // Назад в списке операций — строка с категорией и суммой должна быть видна.
         composeRule.onNodeWithText("Еда-тест").assertExists()
         // MoneyFormatter (I-25): знак «-», точка десятичная, независимо от локали устройства.
-        composeRule.onNodeWithText("-12.50 ₽").assertExists()
+        // Сумма встречается и в строке операции, и в подытоге дня (единственный расход за день) —
+        // поэтому onAllNodesWithText + первый, а не onNodeWithText (тот требует ровно один узел).
+        composeRule.onAllNodesWithText("-12.50 ₽").onFirst().assertExists()
     }
 }

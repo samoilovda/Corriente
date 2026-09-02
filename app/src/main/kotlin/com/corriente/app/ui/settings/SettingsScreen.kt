@@ -55,6 +55,9 @@ fun SettingsScreen(
     ),
 ) {
     val context = LocalContext.current
+    // Читаем ресурс в композиции (конфиг-осведомлённо), а не через context.getString в
+    // обработчике клика — того требует lint-правило LocalContextGetResourceValueCall.
+    val shareChooserTitle = stringResource(R.string.backup_share)
     val result by backupViewModel.result.collectAsState()
     val busy by backupViewModel.busy.collectAsState()
     var pendingImportUri by remember { mutableStateOf<android.net.Uri?>(null) }
@@ -139,7 +142,7 @@ fun SettingsScreen(
                             putExtra(Intent.EXTRA_STREAM, uri)
                             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                         }
-                        context.startActivity(Intent.createChooser(sendIntent, context.getString(R.string.backup_share)))
+                        context.startActivity(Intent.createChooser(sendIntent, shareChooserTitle))
                     }
                 },
             )

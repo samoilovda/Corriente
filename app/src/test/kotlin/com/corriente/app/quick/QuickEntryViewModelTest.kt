@@ -159,7 +159,7 @@ class QuickEntryViewModelTest {
         val row = fakes.txnDao.rows.value.single()
         assertEquals("acc-usd", row.accountId)
         assertEquals("USD", row.currencyCode)
-        assertEquals(75L, row.amountMinor)
+        assertEquals(7500L, row.amountMinor) // «75» при 2 знаках дробной части USD = 75.00 = 7500 минор
         // R4.2: выбор счёта в окне не пишется никуда, кроме этой операции — WidgetConfigStore
         // тут вообще не участвует (ViewModel его не знает), так что «активный счёт виджета»
         // остаётся прежним по построению.
@@ -214,7 +214,7 @@ class QuickEntryViewModelTest {
     }
 
     @Test
-    fun `a null category (e.g. no matching widget tile) saves without one`() = runTest(dispatcher) {
+    fun `a null category (no matching widget tile) saves without one`() = runTest(dispatcher) {
         val fakes = Fakes().apply { seed() }
         val model = vm(fakes, categoryId = null)
         backgroundScope.observe(model)

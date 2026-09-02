@@ -449,7 +449,7 @@ class TxnEntryViewModelTest {
         assertEquals(300_00, option.entry.amountMinor)
 
         // Форма ещё пустая
-        assertEquals("", model.uiState.value.amount.displayText())
+        assertTrue(model.uiState.value.amount.isEmpty)
 
         model.applyFrequent(option)
         advanceUntilIdle()

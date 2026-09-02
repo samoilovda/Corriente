@@ -46,7 +46,7 @@ class FxReportViewModelTest {
         )
     }
 
-    private fun Fakes.seedAccounts() {
+    private suspend fun Fakes.seedAccounts() {
         accountDao.insert(AccountEntity("usd", "USD", "USD", AccountKind.CASH, 0, 0))
         accountDao.insert(AccountEntity("rub", "RUB", "RUB", AccountKind.CASH, 0, 1))
     }

@@ -79,8 +79,13 @@ fun CorrienteNavHost(deepLinkIntent: Intent? = null, onDeepLinkConsumed: () -> U
     // граф NavHost уже был построен, а эффекты в Compose выполняются уже после того, как вся
     // функция скомпозилась (в т.ч. NavHost ниже), независимо от места этого вызова в исходнике.
     LaunchedEffect(deepLinkIntent) {
-        val handled = deepLinkIntent?.let { navController.handleDeepLink(it) } ?: false
-        if (handled) onDeepLinkConsumed()
+        // R4.4: обрабатываем только intent'ы наших ярлыков (схема corriente://…). Обычный
+        // запуск из лаунчера приходит сюда как ACTION_MAIN без data — его отдавать в
+        // handleDeepLink нельзя: в navigation 2.9.0 это роняет NavController (getTopGraph NPE).
+        val uri = deepLinkIntent?.data
+        if (uri == null || uri.scheme != DEEP_LINK_SCHEME) return@LaunchedEffect
+        val handled = runCatching { navController.handleDeepLink(deepLinkIntent) }.getOrDefault(false)
+        if (handled == true) onDeepLinkConsumed()
     }
 
     Scaffold(
