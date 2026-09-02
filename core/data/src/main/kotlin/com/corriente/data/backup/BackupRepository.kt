@@ -18,6 +18,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.serialization.json.Json
 import java.io.InputStream
 import java.io.OutputStream
+import java.time.LocalDate
 
 /**
  * Полный экспорт/восстановление БД в файл (T1.9, I-21). Пишется и читается через SAF —
@@ -54,13 +55,19 @@ class BackupRepository(private val db: AppDatabase) {
      * текущая версия приложения (I-21: старые версии обязаны читаться через миграции, а не
      * этот путь; более новые читать безопасно нельзя в принципе).
      */
-    suspend fun restore(input: InputStream) {
+    suspend fun restore(input: InputStream, beforeReplace: suspend () -> Unit = {}) {
         val payload = input.reader(Charsets.UTF_8).use {
             json.decodeFromString(BackupPayload.serializer(), it.readText())
         }
         if (payload.schemaVersion > SCHEMA_VERSION) {
             throw BackupVersionException(payload.schemaVersion, SCHEMA_VERSION)
         }
+        // F1.4: целостность проверяется ДО удаления текущих данных, а не полагается на внешние
+        // ключи SQLite уже внутри транзакции.
+        val problems = validate(payload)
+        if (problems.isNotEmpty()) throw BackupInvalidException(problems)
+        // Копия текущей БД на случай, если восстановление всё же не задастся (F1.4).
+        beforeReplace()
         db.withTransaction {
             // Порядок удаления - по внешним ключам, от зависимых к независимым.
             db.txnDao().deleteAll()
@@ -84,11 +91,74 @@ class BackupRepository(private val db: AppDatabase) {
 
     companion object {
         const val SCHEMA_VERSION = 1
+
+        /**
+         * Проверка полезной нагрузки бэкапа до записи (F1.4). Чистая функция — тестируется без БД.
+         * @return список человекочитаемых проблем; пустой — файл можно восстанавливать.
+         */
+        fun validate(payload: BackupPayload): List<String> {
+            val problems = mutableListOf<String>()
+            val currencyCodes = payload.currencies.mapTo(HashSet()) { it.code }
+            val accountIds = payload.accounts.mapTo(HashSet()) { it.id }
+            val categoryIds = payload.categories.mapTo(HashSet()) { it.id }
+            val batchIds = payload.importBatches.mapTo(HashSet()) { it.id }
+
+            payload.accounts.forEach { a ->
+                if (a.currencyCode !in currencyCodes) {
+                    problems += "счёт «${a.name}»: валюты ${a.currencyCode} нет в справочнике"
+                }
+            }
+            payload.categories.forEach { c ->
+                if (c.parentId != null && c.parentId !in categoryIds) {
+                    problems += "категория «${c.name}»: родитель ${c.parentId} не найден"
+                }
+            }
+            payload.transactions.forEach { t ->
+                val tag = "операция ${t.id}"
+                if (t.accountId !in accountIds) problems += "$tag: счёт ${t.accountId} не найден"
+                if (t.currencyCode !in currencyCodes) problems += "$tag: валюты ${t.currencyCode} нет в справочнике"
+                if (t.categoryId != null && t.categoryId !in categoryIds) {
+                    problems += "$tag: категория ${t.categoryId} не найдена"
+                }
+                if (t.importBatchId != null && t.importBatchId !in batchIds) {
+                    problems += "$tag: батч импорта ${t.importBatchId} не найден"
+                }
+                if (t.amountMinor <= 0) problems += "$tag: сумма ${t.amountMinor} не положительна"
+                if (runCatching { LocalDate.parse(t.date) }.isFailure) {
+                    problems += "$tag: дата «${t.date}» не разбирается"
+                }
+                when (t.kind) {
+                    "TRANSFER" -> {
+                        if (t.toAccountId == null || t.toAmountMinor == null || t.toCurrencyCode == null) {
+                            problems += "$tag: у перевода не заполнена вторая сторона"
+                        } else {
+                            if (t.toAccountId !in accountIds) problems += "$tag: счёт-получатель ${t.toAccountId} не найден"
+                            if (t.toCurrencyCode !in currencyCodes) problems += "$tag: валюты получателя ${t.toCurrencyCode} нет"
+                            if (t.toAmountMinor <= 0) problems += "$tag: сумма получателя ${t.toAmountMinor} не положительна"
+                        }
+                        if (t.categoryId != null) problems += "$tag: у перевода не должно быть категории"
+                    }
+
+                    "EXPENSE", "INCOME" -> if (
+                        t.toAccountId != null || t.toAmountMinor != null || t.toCurrencyCode != null
+                    ) {
+                        problems += "$tag: у расхода/дохода не должно быть второй стороны"
+                    }
+
+                    else -> problems += "$tag: неизвестный тип «${t.kind}»"
+                }
+            }
+            return problems
+        }
     }
 }
 
 class BackupVersionException(val fileVersion: Int, val appVersion: Int) :
     IllegalStateException("Backup schema version $fileVersion is newer than app's $appVersion")
+
+/** Файл бэкапа синтаксически валиден, но нарушает целостность (F1.4). */
+class BackupInvalidException(val problems: List<String>) :
+    IllegalStateException("Backup payload failed validation: ${problems.joinToString("; ")}")
 
 // --- entity <-> backup DTO ---
 

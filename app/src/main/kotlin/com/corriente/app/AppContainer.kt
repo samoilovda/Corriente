@@ -49,4 +49,14 @@ class AppContainer(context: Context) {
         AccountBalanceUseCase(accountRepository, txnRepository)
     }
     val categoryReportUseCase: CategoryReportUseCase by lazy { CategoryReportUseCase(txnRepository) }
+
+    /**
+     * Копия текущей БД в `databases/pre-migration/` перед восстановлением из бэкапа (F1.4).
+     * Копируются и `-wal`/`-shm`, поэтому снимок целостен без явного checkpoint.
+     */
+    suspend fun snapshotDatabaseBeforeRestore() {
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            PreMigrationBackup.copyDatabaseFile(appContext, AppDatabase.DB_NAME, "pre-restore")
+        }
+    }
 }

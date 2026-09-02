@@ -22,6 +22,8 @@
     <string name="backup_result_imported">Данные восстановлены из файла.</string>
     <string name="backup_result_version">Файл создан более новой версией приложения (схема %1$d, приложение понимает до %2$d). Обновите приложение.</string>
     <string name="backup_result_failed">Не удалось прочитать файл бэкапа.</string>
+    <string name="backup_result_invalid">Файл бэкапа повреждён, текущие данные не тронуты:</string>
+    <string name="backup_result_invalid_more">…и ещё %1$d</string>
 
     <string name="autobackup_title">Автобэкап</string>
     <string name="autobackup_hint">Регулярно сохранять базу в папку</string>

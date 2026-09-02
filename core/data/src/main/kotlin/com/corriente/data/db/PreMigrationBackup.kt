@@ -13,8 +13,7 @@ import java.util.Locale
  * «перед миграцией», поэтому проверяем сами — до открытия БД сравниваем `PRAGMA user_version`
  * файла с целевой версией схемы и, если файл старее, копируем его (вместе с `-wal`/`-shm`).
  *
- * Схема всё ещё v1, поэтому копия сейчас не создаётся ни разу — механизм готов заранее
- * (как и `MigrationTestHelper` в T0.4), чтобы первая же миграция была безопасной.
+ * F1.4: [copyDatabaseFile] переиспользуется для копии «до восстановления из бэкапа».
  */
 object PreMigrationBackup {
 
@@ -27,6 +26,18 @@ object PreMigrationBackup {
         if (!dbFile.exists()) return null
         val currentVersion = readUserVersion(dbFile) ?: return null
         if (currentVersion >= targetVersion) return null
+        return copyDatabaseFile(context, dbName, "v$currentVersion", now)
+    }
+
+    /**
+     * Копирует файл БД (и `-wal`/`-shm`) в `databases/pre-migration/` под именем
+     * `<dbName>.<reason>.<штамп>`, подрезая старые копии до [KEEP]. F1.4.
+     *
+     * @return копия основного файла, либо null если файла БД нет.
+     */
+    fun copyDatabaseFile(context: Context, dbName: String, reason: String, now: Date = Date()): File? {
+        val dbFile = context.getDatabasePath(dbName)
+        if (!dbFile.exists()) return null
 
         val dir = File(dbFile.parentFile, "pre-migration").apply { mkdirs() }
         val stamp = STAMP.format(now)
@@ -34,12 +45,13 @@ object PreMigrationBackup {
         for (suffix in listOf("", "-wal", "-shm")) {
             val src = File(dbFile.path + suffix)
             if (!src.exists()) continue
-            val dst = File(dir, "$dbName.v$currentVersion.$stamp$suffix")
+            val dst = File(dir, "$dbName.$reason.$stamp$suffix")
             src.copyTo(dst, overwrite = true)
             if (suffix.isEmpty()) mainCopy = dst
         }
 
-        val mains = dir.list()?.filter { it.startsWith("$dbName.v") && !it.endsWith("-wal") && !it.endsWith("-shm") }
+        val mains = dir.list()
+            ?.filter { it.startsWith("$dbName.") && !it.endsWith("-wal") && !it.endsWith("-shm") }
             ?: emptyList()
         namesToPrune(mains, KEEP).forEach { name ->
             File(dir, name).delete()

@@ -84,6 +84,35 @@ class BackupRepositoryInstrumentedTest {
         assertEquals(listOf(txn), db.txnDao().observeAll().first())
     }
 
+    // F1.4 — файл с висячей ссылкой на счёт: текущие данные не тронуты, причина понятна.
+    @Test
+    fun restoreRejectsAnInvalidPayloadWithoutTouchingCurrentData() = runBlocking {
+        db.currencyDao().insertAll(listOf(CurrencyEntity("RUB", 2, 2, "₽", isActive = true, displayOrder = 0)))
+        db.accountDao().insert(AccountEntity("keep", "Наличные", "RUB", AccountKind.CASH, 0, 0))
+        db.txnDao().insert(
+            TxnEntity(
+                id = "keep-t", kind = TxnKind.EXPENSE, date = "2026-01-01", createdAt = 0, updatedAt = 0,
+                accountId = "keep", amountMinor = 100, currencyCode = "RUB",
+            ),
+        )
+
+        val broken = """
+            {"schemaVersion": 1, "exportedAt": 0,
+             "currencies": [{"code":"RUB","minorUnits":2,"displayScale":2,"symbol":"₽","isActive":true,"displayOrder":0}],
+             "accounts": [],
+             "categories": [],
+             "transactions": [{"id":"x","kind":"EXPENSE","date":"2026-01-01","createdAt":0,"updatedAt":0,
+               "accountId":"ghost","amountMinor":100,"currencyCode":"RUB","toAccountId":null,"toAmountMinor":null,
+               "toCurrencyCode":null,"categoryId":null,"note":null,"importBatchId":null,"importHash":null}],
+             "importBatches": [], "importAliases": [], "appSettings": []}
+        """.trimIndent()
+
+        val error = runCatching { backup.restore(ByteArrayInputStream(broken.toByteArray())) }.exceptionOrNull()
+        assert(error is BackupInvalidException) { "expected BackupInvalidException, got $error" }
+        assertEquals(1, db.txnDao().observeAll().first().size) // прежние данные на месте
+        assertEquals(1, db.accountDao().observeActive().first().size)
+    }
+
     @Test
     fun restoreRejectsANewerSchemaVersion() = runBlocking {
         val fromFuture = """

@@ -76,6 +76,53 @@ class BackupRoundTripTest {
         assertEquals(payload, decoded)
     }
 
+    // F1.4 — проверка целостности до записи.
+    private fun payloadOf(vararg txns: TxnEntity) = BackupPayload(
+        schemaVersion = 1, exportedAt = 0,
+        currencies = listOf(CurrencyEntity("RUB", 2, 2, "₽", isActive = true, displayOrder = 0).toBackup()),
+        accounts = listOf(
+            AccountEntity("acc", "Наличные", "RUB", AccountKind.CASH, 0, 0).toBackup(),
+        ),
+        categories = listOf(CategoryEntity("cat", "Еда", CategoryKind.EXPENSE, color = 0).toBackup()),
+        transactions = txns.map { it.toBackup() },
+        importBatches = emptyList(), importAliases = emptyList(), appSettings = emptyList(),
+    )
+
+    private fun expenseEntity(id: String) = TxnEntity(
+        id = id, kind = TxnKind.EXPENSE, date = "2026-01-01", createdAt = 0, updatedAt = 0,
+        accountId = "acc", amountMinor = 100, currencyCode = "RUB", categoryId = "cat",
+    )
+
+    @Test
+    fun `validate returns no problems for a consistent payload`() {
+        assertEquals(emptyList<String>(), BackupRepository.validate(payloadOf(expenseEntity("t1"))))
+    }
+
+    @Test
+    fun `validate flags a dangling account reference`() {
+        val problems = BackupRepository.validate(payloadOf(expenseEntity("t1").copy(accountId = "ghost")))
+        assertEquals(1, problems.size)
+        assert(problems.single().contains("ghost")) { problems.toString() }
+    }
+
+    @Test
+    fun `validate flags a non-positive amount, an unknown currency and a bad date`() {
+        val bad = expenseEntity("t1").copy(amountMinor = 0, currencyCode = "ZZZ", date = "not-a-date")
+        val problems = BackupRepository.validate(payloadOf(bad))
+        assertEquals(3, problems.size)
+    }
+
+    @Test
+    fun `validate flags a transfer missing its second side and one carrying a category`() {
+        val halfTransfer = TxnEntity(
+            id = "tr", kind = TxnKind.TRANSFER, date = "2026-01-01", createdAt = 0, updatedAt = 0,
+            accountId = "acc", amountMinor = 100, currencyCode = "RUB", categoryId = "cat",
+        )
+        val problems = BackupRepository.validate(payloadOf(halfTransfer))
+        assert(problems.any { it.contains("вторая сторона") }) { problems.toString() }
+        assert(problems.any { it.contains("категори") }) { problems.toString() }
+    }
+
     // Отдельно - именно та особенность, из-за которой перевод вообще существует одной строкой
     // с nullable-полями (I-7а): они обязаны пережить сериализацию как null, а не как "0"/"".
     @Test
