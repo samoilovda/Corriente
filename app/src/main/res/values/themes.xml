@@ -1,8 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Базовая тема окна для Compose-приложения (splash/фон до отрисовки первого кадра).
-         Вся реальная тема - в CorrienteTheme.kt через Material3 Compose. -->
-    <style name="Theme.Corriente" parent="android:Theme.Material.Light.NoActionBar" />
+    <!-- Базовая тема окна для Compose-приложения: рисуется до первого кадра Compose.
+         Вся реальная тема - в CorrienteTheme.kt через Material3 Compose.
+         F2.3: фон окна - цвет Material 3 (@color/window_background, day/night), а не белый;
+         на API 29+ добавлен values-v29 с DayNight-родителем. -->
+    <style name="Theme.Corriente" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/window_background</item>
+    </style>
 
     <!-- Полупрозрачные Activity быстрого ввода из виджета (T4.3/T4.4). -->
     <style name="Theme.Corriente.Translucent" parent="android:Theme.Material.Light.NoActionBar">
