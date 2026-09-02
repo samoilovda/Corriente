@@ -18,12 +18,17 @@ class CorrienteApplication : Application() {
     lateinit var container: AppContainer
         private set
 
+    /** R4.0: публичный, чтобы [com.corriente.app.widget.WidgetRefreshReceiver] мог дёрнуть пере-проверку. */
+    lateinit var widgetUpdater: WidgetUpdater
+        private set
+
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     override fun onCreate() {
         super.onCreate()
         container = AppContainer(this)
-        WidgetUpdater(this, container).start()
+        widgetUpdater = WidgetUpdater(this, container)
+        widgetUpdater.start()
 
         // R2.4: воркер материализации повторяющихся операций — раз в сутки, безусловно.
         RecurrenceScheduler.apply(this)

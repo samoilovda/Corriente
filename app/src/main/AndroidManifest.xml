@@ -33,6 +33,17 @@
             android:excludeFromRecents="true"
             android:theme="@style/Theme.Corriente.Translucent" />
 
+        <!-- R4.0: ловит внутреннюю ретрансляцию ACTION_APPWIDGET_ENABLED/UPDATE от
+             CorrienteWidgetReceiver (:widget) — сами эти системные действия приходят явным
+             intent'ом прямо на провайдера, поймать их отдельным receiver'ом здесь нельзя. -->
+        <receiver
+            android:name=".widget.WidgetRefreshReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.corriente.app.action.WIDGET_PLACEMENT_CHANGED" />
+            </intent-filter>
+        </receiver>
+
         <!-- R1.2: «Отправить бэкап» — временный файл в cache/share отдаётся системному шерингу
              через FileProvider (часть androidx.core, отдельной зависимости не требует).
              Не экспортирован, доступ только по разовому URI-гранту (FLAG_GRANT_READ_URI_PERMISSION),
