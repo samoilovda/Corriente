@@ -9,8 +9,10 @@ import com.corriente.data.db.PreMigrationBackup
 import com.corriente.data.imports.MonefyImportRepository
 import com.corriente.data.widget.WidgetConfigStore
 import com.corriente.data.repository.AccountRepository
+import com.corriente.data.repository.BudgetRepository
 import com.corriente.data.repository.CategoryRepository
 import com.corriente.data.repository.CurrencyRepository
+import com.corriente.data.repository.RecurrenceRepository
 import com.corriente.data.repository.TxnRepository
 import com.corriente.data.usecase.AccountBalanceUseCase
 import com.corriente.data.usecase.CategoryReportUseCase
@@ -44,6 +46,8 @@ class AppContainer(context: Context) {
     val backupRepository: BackupRepository by lazy { BackupRepository(database) }
     val autoBackupSettings: AutoBackupSettings by lazy { AutoBackupSettings(database.appSettingDao()) }
     val monefyImportRepository: MonefyImportRepository by lazy { MonefyImportRepository(database) }
+    val budgetRepository: BudgetRepository by lazy { BudgetRepository(database.budgetDao()) }
+    val recurrenceRepository: RecurrenceRepository by lazy { RecurrenceRepository(database.recurrenceDao()) }
     val widgetConfigStore: WidgetConfigStore by lazy { WidgetConfigStore(appContext) }
 
     val accountBalanceUseCase: AccountBalanceUseCase by lazy {

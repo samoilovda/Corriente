@@ -3,6 +3,8 @@ package com.corriente.data.backup
 import com.corriente.data.db.entity.AccountEntity
 import com.corriente.data.db.entity.AccountKind
 import com.corriente.data.db.entity.AppSettingEntity
+import com.corriente.data.db.entity.BudgetEntity
+import com.corriente.data.db.entity.BudgetPeriod
 import com.corriente.data.db.entity.CategoryEntity
 import com.corriente.data.db.entity.CategoryKind
 import com.corriente.data.db.entity.CategoryOrigin
@@ -50,7 +52,14 @@ class BackupRoundTripTest {
         val importBatch = ImportBatchEntity("batch-1", "MONEFY", "export.csv", 5L, 2, "{\"needsReview\":2}")
         val alias = ImportAliasEntity("MONEFY", ImportAliasKind.CATEGORY, "Ремонт и быт", "cat-1")
         val setting = AppSettingEntity("base_currency", "USD")
-
+        val budget = BudgetEntity(
+            id = "budget-1", categoryId = "cat-1", currencyCode = "RUB",
+            amountMinor = 10_000_00, period = BudgetPeriod.MONTH, startsOn = "2026-09-01",
+        )
+        val wholeCurrencyBudget = BudgetEntity(
+            id = "budget-2", categoryId = null, currencyCode = "RUB",
+            amountMinor = 50_000_00, period = BudgetPeriod.MONTH, startsOn = "2026-09-01",
+        )
         val payload = BackupPayload(
             schemaVersion = 1,
             exportedAt = 42L,
@@ -61,6 +70,7 @@ class BackupRoundTripTest {
             importBatches = listOf(importBatch.toBackup()),
             importAliases = listOf(alias.toBackup()),
             appSettings = listOf(setting.toBackup()),
+            budgets = listOf(budget.toBackup(), wholeCurrencyBudget.toBackup()),
         )
 
         val encoded = json.encodeToString(BackupPayload.serializer(), payload)
@@ -73,11 +83,35 @@ class BackupRoundTripTest {
         assertEquals(importBatch, decoded.importBatches.single().toEntity())
         assertEquals(alias, decoded.importAliases.single().toEntity())
         assertEquals(setting, decoded.appSettings.single().toEntity())
+        assertEquals(listOf(budget, wholeCurrencyBudget), decoded.budgets.map { it.toEntity() })
         assertEquals(payload, decoded)
     }
 
+    // R2.3: файл бэкапа старой версии (до budgets) читается как пустой список — I-21.
+    @Test
+    fun `a backup file without a budgets field decodes to an empty list`() {
+        val legacyJson = """
+            {
+                "schemaVersion": 3,
+                "exportedAt": 0,
+                "currencies": [],
+                "accounts": [],
+                "categories": [],
+                "transactions": [],
+                "importBatches": [],
+                "importAliases": [],
+                "appSettings": []
+            }
+        """.trimIndent()
+        val decoded = json.decodeFromString(BackupPayload.serializer(), legacyJson)
+        assertEquals(emptyList<BudgetBackup>(), decoded.budgets)
+    }
+
     // F1.4 — проверка целостности до записи.
-    private fun payloadOf(vararg txns: TxnEntity) = BackupPayload(
+    private fun payloadOf(
+        vararg txns: TxnEntity,
+        budgets: List<BudgetEntity> = emptyList(),
+    ) = BackupPayload(
         schemaVersion = 1, exportedAt = 0,
         currencies = listOf(CurrencyEntity("RUB", 2, 2, "₽", isActive = true, displayOrder = 0).toBackup()),
         accounts = listOf(
@@ -86,7 +120,30 @@ class BackupRoundTripTest {
         categories = listOf(CategoryEntity("cat", "Еда", CategoryKind.EXPENSE, color = 0).toBackup()),
         transactions = txns.map { it.toBackup() },
         importBatches = emptyList(), importAliases = emptyList(), appSettings = emptyList(),
+        budgets = budgets.map { it.toBackup() },
     )
+
+    private fun budgetEntity(id: String, categoryId: String? = "cat", currencyCode: String = "RUB", amountMinor: Long = 100_00) =
+        BudgetEntity(id, categoryId, currencyCode, amountMinor, BudgetPeriod.MONTH, "2026-09-01")
+
+    @Test
+    fun `validate accepts a well-formed budget, including the whole-currency one`() {
+        val problems = BackupRepository.validate(
+            payloadOf(expenseEntity("t1"), budgets = listOf(budgetEntity("b1"), budgetEntity("b2", categoryId = null))),
+        )
+        assertEquals(emptyList<String>(), problems)
+    }
+
+    @Test
+    fun `validate flags a budget with a dangling category, unknown currency, negative amount or bad date`() {
+        val problems = BackupRepository.validate(
+            payloadOf(
+                expenseEntity("t1"),
+                budgets = listOf(budgetEntity("b1", categoryId = "ghost", currencyCode = "ZZZ", amountMinor = -1)),
+            ),
+        )
+        assertEquals(3, problems.size)
+    }
 
     private fun expenseEntity(id: String) = TxnEntity(
         id = id, kind = TxnKind.EXPENSE, date = "2026-01-01", createdAt = 0, updatedAt = 0,

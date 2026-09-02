@@ -6,6 +6,7 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.corriente.data.db.dao.AccountDao
 import com.corriente.data.db.dao.AppSettingDao
+import com.corriente.data.db.dao.BudgetDao
 import com.corriente.data.db.dao.CategoryDao
 import com.corriente.data.db.dao.CurrencyDao
 import com.corriente.data.db.dao.ImportAliasDao
@@ -13,6 +14,7 @@ import com.corriente.data.db.dao.ImportBatchDao
 import com.corriente.data.db.dao.TxnDao
 import com.corriente.data.db.entity.AccountEntity
 import com.corriente.data.db.entity.AppSettingEntity
+import com.corriente.data.db.entity.BudgetEntity
 import com.corriente.data.db.entity.CategoryEntity
 import com.corriente.data.db.entity.CurrencyEntity
 import com.corriente.data.db.entity.ImportAliasEntity
@@ -36,8 +38,9 @@ import com.corriente.data.seed.ISO_CURRENCIES
         ImportAliasEntity::class,
         AppSettingEntity::class,
         TxnFtsEntity::class,
+        BudgetEntity::class,
     ],
-    version = 3,
+    version = 4,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -48,12 +51,13 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun importBatchDao(): ImportBatchDao
     abstract fun importAliasDao(): ImportAliasDao
     abstract fun appSettingDao(): AppSettingDao
+    abstract fun budgetDao(): BudgetDao
 
     companion object {
         const val DB_NAME = "corriente.db"
 
         /** Держать в синхроне с `version` в аннотации [Database]. */
-        const val SCHEMA_VERSION = 3
+        const val SCHEMA_VERSION = 4
 
         /**
          * v1 → v2 (F1.5): `category.import_batch_id` — чтобы откат импорта удалял только свои
@@ -109,7 +113,34 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
-        val ALL_MIGRATIONS: Array<Migration> = arrayOf(MIGRATION_1_2, MIGRATION_2_3)
+        /**
+         * v3 → v4 (R2.3): таблица `budget` — бюджет по категории (или «на всё», `category_id`
+         * NULL), строго в одной валюте (ADR-012/I-8, `currency_code` NOT NULL). `period` пока
+         * только `MONTH`, хранится строкой (I-14-стиль: значения enum'а — данные Room, не число).
+         */
+        val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `budget` (
+                        `id` TEXT NOT NULL,
+                        `category_id` TEXT,
+                        `currency_code` TEXT NOT NULL,
+                        `amount_minor` INTEGER NOT NULL,
+                        `period` TEXT NOT NULL,
+                        `starts_on` TEXT NOT NULL,
+                        PRIMARY KEY(`id`),
+                        FOREIGN KEY(`category_id`) REFERENCES `category`(`id`) ON UPDATE NO ACTION ON DELETE NO ACTION,
+                        FOREIGN KEY(`currency_code`) REFERENCES `currency`(`code`) ON UPDATE NO ACTION ON DELETE NO ACTION
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_budget_category_id` ON `budget` (`category_id`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_budget_currency_code` ON `budget` (`currency_code`)")
+            }
+        }
+
+        val ALL_MIGRATIONS: Array<Migration> = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
 
         /**
          * Сеет полный справочник ISO-4217 при создании файла БД (I-14). Выполняется как сырой

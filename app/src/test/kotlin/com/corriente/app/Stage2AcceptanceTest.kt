@@ -1,6 +1,7 @@
 package com.corriente.app
 
 import com.corriente.app.ui.accounts.FakeAccountDao
+import com.corriente.app.ui.budgets.FakeBudgetDao
 import com.corriente.app.ui.categories.FakeCategoryDao
 import com.corriente.app.ui.currencies.FakeCurrencyDao
 import com.corriente.app.ui.report.PeriodMode
@@ -14,6 +15,7 @@ import com.corriente.data.db.entity.CategoryEntity
 import com.corriente.data.db.entity.CategoryKind
 import com.corriente.data.db.entity.CurrencyEntity
 import com.corriente.data.repository.AccountRepository
+import com.corriente.data.repository.BudgetRepository
 import com.corriente.data.repository.CategoryRepository
 import com.corriente.data.repository.CurrencyRepository
 import com.corriente.data.repository.TxnRepository
@@ -66,6 +68,7 @@ class Stage2AcceptanceTest {
                 listOf(CurrencyEntity("RUB", 2, 2, "₽", true, 0), CurrencyEntity("USD", 2, 2, "$", true, 1)),
             )
             val categoryDao = FakeCategoryDao()
+            val budgetDao = FakeBudgetDao()
             accountDao.insert(AccountEntity("rub", "Рубли", "RUB", AccountKind.CASH, 100_000_00, 0))
             accountDao.insert(AccountEntity("usd", "Доллары", "USD", AccountKind.CASH, 0, 0))
             categoryDao.insert(CategoryEntity("food", "Еда", CategoryKind.EXPENSE, color = 0))
@@ -96,7 +99,9 @@ class Stage2AcceptanceTest {
             assertEquals(Money(Minor(1_000_00), rub), report.single().total)
 
             // 3b. то же через ReportViewModel
-            val reportVm = ReportViewModel(txns, CategoryRepository(categoryDao), CurrencyRepository(currencyDao)) { march }
+            val reportVm = ReportViewModel(
+                txns, CategoryRepository(categoryDao), CurrencyRepository(currencyDao), BudgetRepository(budgetDao),
+            ) { march }
             val jobs = launch { reportVm.uiState.collect {} }
             advanceUntilIdle()
             assertEquals(listOf("Еда"), reportVm.uiState.value.rows.map { it.name })

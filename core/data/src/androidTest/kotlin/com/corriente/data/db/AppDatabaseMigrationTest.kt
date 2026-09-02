@@ -115,4 +115,52 @@ class AppDatabaseMigrationTest {
         }
         db.close()
     }
+
+    // R2.3 — миграция v3 → v4 создаёт таблицу `budget` (бюджеты по категориям).
+    @Test
+    fun migration3to4CreatesBudgetTable() {
+        helper.createDatabase(testDbName, 3).apply {
+            execSQL(
+                """
+                INSERT INTO currency(code, minor_units, display_scale, symbol, is_active, display_order)
+                VALUES ('RUB', 2, 2, '₽', 1, 0)
+                """.trimIndent(),
+            )
+            execSQL(
+                """
+                INSERT INTO category(id, name, kind, parent_id, color, origin, display_order, is_archived)
+                VALUES ('food', 'Еда', 'EXPENSE', NULL, 0, 'USER', 0, 0)
+                """.trimIndent(),
+            )
+            close()
+        }
+
+        val db = helper.runMigrationsAndValidate(testDbName, 4, true, AppDatabase.MIGRATION_3_4)
+
+        db.execSQL(
+            """
+            INSERT INTO budget(id, category_id, currency_code, amount_minor, period, starts_on)
+            VALUES ('b1', 'food', 'RUB', 1000000, 'MONTH', '2026-09-01')
+            """.trimIndent(),
+        )
+        db.query("SELECT category_id, amount_minor FROM budget WHERE id = 'b1'").use { c ->
+            assertEquals(true, c.moveToFirst())
+            assertEquals("food", c.getString(0))
+            assertEquals(1000000, c.getLong(1))
+        }
+
+        // Бюджет «на всё» — category_id может быть NULL.
+        db.execSQL(
+            """
+            INSERT INTO budget(id, category_id, currency_code, amount_minor, period, starts_on)
+            VALUES ('b2', NULL, 'RUB', 5000000, 'MONTH', '2026-09-01')
+            """.trimIndent(),
+        )
+        db.query("SELECT category_id FROM budget WHERE id = 'b2'").use { c ->
+            assertEquals(true, c.moveToFirst())
+            assertEquals(true, c.isNull(0))
+        }
+        db.close()
+    }
+
 }

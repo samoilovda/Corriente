@@ -10,6 +10,7 @@
     <string name="save">Сохранить</string>
     <string name="cancel">Отмена</string>
     <string name="ok">OK</string>
+    <string name="delete">Удалить</string>
 
     <string name="backup_export">Экспорт данных</string>
     <string name="backup_export_hint">Сохранить всю базу в JSON-файл</string>
@@ -199,4 +200,34 @@
     <string name="report_open_fx">Курсы обмена</string>
     <string name="fx_report_title">Мои курсы обмена</string>
     <string name="fx_report_empty">Межвалютных переводов пока не было. Курс появляется из ваших собственных обменов.</string>
+
+    <string name="budgets_title">Бюджеты</string>
+    <string name="budgets_hint">Сколько потрачено из запланированного на месяц</string>
+    <string name="budgets_add">Добавить бюджет</string>
+    <string name="budgets_edit">Изменить бюджет</string>
+    <string name="budgets_empty">Бюджетов пока нет. Добавьте — на экране отчёта появится полоса «потрачено из бюджета».</string>
+    <string name="budgets_per_month">%1$s в месяц</string>
+    <string name="budgets_whole_currency">На всё</string>
+    <string name="budgets_amount">Сумма</string>
+    <string name="budgets_delete_confirm_title">Удалить этот бюджет?</string>
+    <string name="report_budget_over">Перерасход</string>
+
+    <string name="recurring_title">Повторяющиеся</string>
+    <string name="recurring_hint">Аренда, подписки, зарплата — создаются автоматически по расписанию</string>
+    <string name="recurring_add">Добавить правило</string>
+    <string name="recurring_edit">Изменить правило</string>
+    <string name="recurring_empty">Повторяющихся операций пока нет.</string>
+    <string name="recurring_amount">Сумма</string>
+    <string name="recurring_account">Счёт</string>
+    <string name="recurring_category">Категория</string>
+    <string name="recurring_kind_expense">Расход</string>
+    <string name="recurring_kind_income">Доход</string>
+    <string name="recurring_rule_day_of_month">День месяца</string>
+    <string name="recurring_rule_every_n_days">Каждые N дней</string>
+    <string name="recurring_rule_type">Правило повторения</string>
+    <string name="recurring_day_of_month">День месяца (1–31)</string>
+    <string name="recurring_interval_days">Интервал, дней</string>
+    <string name="recurring_next_run">Следующая операция: %1$s</string>
+    <string name="recurring_auto_created_note">Создано автоматически по повторяющемуся правилу</string>
+    <string name="recurring_delete_confirm_title">Удалить это правило?</string>
 </resources>

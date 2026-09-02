@@ -20,12 +20,14 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.corriente.app.ui.accounts.AccountsScreen
+import com.corriente.app.ui.budgets.BudgetsScreen
 import com.corriente.app.ui.categories.CategoriesScreen
 import com.corriente.app.ui.autobackup.AutoBackupScreen
 import com.corriente.app.ui.currencies.CurrenciesScreen
 import com.corriente.app.ui.fxreport.FxReportScreen
 import com.corriente.app.ui.imports.ImportHistoryScreen
 import com.corriente.app.ui.imports.ImportScreen
+import com.corriente.app.ui.recurring.RecurringScreen
 import com.corriente.app.ui.report.ReportScreen
 import com.corriente.app.ui.settings.SettingsScreen
 import com.corriente.app.ui.transactions.TransactionsScreen
@@ -41,6 +43,8 @@ private const val IMPORT_ROUTE = "import_monefy"
 private const val IMPORT_HISTORY_ROUTE = "import_history"
 private const val WIDGET_SETTINGS_ROUTE = "widget_settings"
 private const val AUTOBACKUP_ROUTE = "autobackup"
+private const val BUDGETS_ROUTE = "budgets"
+private const val RECURRING_ROUTE = "recurring"
 private const val FX_REPORT_ROUTE = "fx_report"
 private const val TXN_ENTRY_ROUTE = "txn_entry"
 private const val TXN_EDIT_ROUTE = "txn_edit"
@@ -117,10 +121,18 @@ fun CorrienteNavHost() {
                     onOpenImportHistory = { navController.navigate(IMPORT_HISTORY_ROUTE) },
                     onOpenWidgetSettings = { navController.navigate(WIDGET_SETTINGS_ROUTE) },
                     onOpenAutoBackup = { navController.navigate(AUTOBACKUP_ROUTE) },
+                    onOpenBudgets = { navController.navigate(BUDGETS_ROUTE) },
+                    onOpenRecurring = { navController.navigate(RECURRING_ROUTE) },
                 )
             }
             composable(AUTOBACKUP_ROUTE) {
                 AutoBackupScreen(onBack = { navController.popBackStack() })
+            }
+            composable(BUDGETS_ROUTE) {
+                BudgetsScreen(onBack = { navController.popBackStack() })
+            }
+            composable(RECURRING_ROUTE) {
+                RecurringScreen(onBack = { navController.popBackStack() })
             }
             composable(IMPORT_ROUTE) {
                 ImportScreen(onBack = { navController.popBackStack() })

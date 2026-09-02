@@ -44,6 +44,8 @@ fun SettingsScreen(
     onOpenImportHistory: () -> Unit,
     onOpenWidgetSettings: () -> Unit,
     onOpenAutoBackup: () -> Unit,
+    onOpenBudgets: () -> Unit,
+    onOpenRecurring: () -> Unit,
     backupViewModel: BackupViewModel = viewModel(
         factory = BackupViewModel.factory(
             corrienteContainer().backupRepository,
@@ -93,6 +95,16 @@ fun SettingsScreen(
                 headlineContent = { Text(stringResource(R.string.import_history_title)) },
                 supportingContent = { Text(stringResource(R.string.import_history_hint)) },
                 modifier = Modifier.clickable(onClick = onOpenImportHistory),
+            )
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.budgets_title)) },
+                supportingContent = { Text(stringResource(R.string.budgets_hint)) },
+                modifier = Modifier.clickable(onClick = onOpenBudgets),
+            )
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.recurring_title)) },
+                supportingContent = { Text(stringResource(R.string.recurring_hint)) },
+                modifier = Modifier.clickable(onClick = onOpenRecurring),
             )
             HorizontalDivider()
             ListItem(

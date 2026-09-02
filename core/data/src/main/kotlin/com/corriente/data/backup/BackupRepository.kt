@@ -5,6 +5,8 @@ import com.corriente.data.db.AppDatabase
 import com.corriente.data.db.entity.AccountEntity
 import com.corriente.data.db.entity.AccountKind
 import com.corriente.data.db.entity.AppSettingEntity
+import com.corriente.data.db.entity.BudgetEntity
+import com.corriente.data.db.entity.BudgetPeriod
 import com.corriente.data.db.entity.CategoryEntity
 import com.corriente.data.db.entity.CategoryKind
 import com.corriente.data.db.entity.CategoryOrigin
@@ -53,6 +55,7 @@ class BackupRepository(private val db: AppDatabase) : BackupIo {
         importBatches = db.importBatchDao().getAll().map { it.toBackup() },
         importAliases = db.importAliasDao().getAll().map { it.toBackup() },
         appSettings = db.appSettingDao().getAll().map { it.toBackup() },
+        budgets = db.budgetDao().getAll().map { it.toBackup() },
     )
 
     override suspend fun export(output: OutputStream) {
@@ -88,6 +91,7 @@ class BackupRepository(private val db: AppDatabase) : BackupIo {
         beforeReplace()
         db.withTransaction {
             // Порядок удаления - по внешним ключам, от зависимых к независимым.
+            db.budgetDao().deleteAll()
             db.txnDao().deleteAll()
             db.importBatchDao().deleteAll()
             db.importAliasDao().deleteAll()
@@ -104,6 +108,7 @@ class BackupRepository(private val db: AppDatabase) : BackupIo {
             payload.importBatches.forEach { db.importBatchDao().insert(it.toEntity()) }
             payload.importAliases.forEach { db.importAliasDao().upsert(it.toEntity()) }
             payload.appSettings.forEach { db.appSettingDao().set(it.toEntity()) }
+            payload.budgets.forEach { db.budgetDao().insert(it.toEntity()) }
         }
     }
 
@@ -111,8 +116,9 @@ class BackupRepository(private val db: AppDatabase) : BackupIo {
     suspend fun currentSummary(): BackupSummary = summarize(buildPayload())
 
     companion object {
-        // v2: category.import_batch_id (F1.5). Держать в синхроне с AppDatabase.SCHEMA_VERSION.
-        const val SCHEMA_VERSION = 2
+        // v2: category.import_batch_id (F1.5). v3: txn_fts (R2.1, не входит в бэкап — производный
+        // кэш, I-9). v4: budget (R2.3). Держать в синхроне с AppDatabase.SCHEMA_VERSION.
+        const val SCHEMA_VERSION = 4
 
         private val json = Json { prettyPrint = true; ignoreUnknownKeys = true }
 
@@ -198,6 +204,14 @@ class BackupRepository(private val db: AppDatabase) : BackupIo {
                     else -> problems += "$tag: неизвестный тип «${t.kind}»"
                 }
             }
+            payload.budgets.forEach { b ->
+                val tag = "бюджет ${b.id}"
+                if (b.currencyCode !in currencyCodes) problems += "$tag: валюты ${b.currencyCode} нет в справочнике"
+                if (b.categoryId != null && b.categoryId !in categoryIds) problems += "$tag: категория ${b.categoryId} не найдена"
+                if (b.amountMinor < 0) problems += "$tag: сумма ${b.amountMinor} отрицательна"
+                if (runCatching { LocalDate.parse(b.startsOn) }.isFailure) problems += "$tag: дата «${b.startsOn}» не разбирается"
+                if (b.period != "MONTH") problems += "$tag: неизвестный период «${b.period}»"
+            }
             return problems
         }
     }
@@ -249,3 +263,6 @@ internal fun ImportAliasBackup.toEntity() = ImportAliasEntity(sourceApp, ImportA
 
 internal fun AppSettingEntity.toBackup() = AppSettingBackup(key, value)
 internal fun AppSettingBackup.toEntity() = AppSettingEntity(key, value)
+
+internal fun BudgetEntity.toBackup() = BudgetBackup(id, categoryId, currencyCode, amountMinor, period.name, startsOn)
+internal fun BudgetBackup.toEntity() = BudgetEntity(id, categoryId, currencyCode, amountMinor, BudgetPeriod.valueOf(period), startsOn)

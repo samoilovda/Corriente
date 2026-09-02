@@ -5,11 +5,13 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.corriente.data.model.Txn
+import com.corriente.data.repository.BudgetRepository
 import com.corriente.data.repository.CategoryRepository
 import com.corriente.data.repository.CurrencyRepository
 import com.corriente.data.repository.TxnRepository
 import com.corriente.data.usecase.CategoryTotal
 import com.corriente.data.usecase.ReportKind
+import com.corriente.data.usecase.budgetProgress
 import com.corriente.data.usecase.categoryReport
 import com.corriente.data.usecase.monthlySeries
 import com.corriente.money.Currency
@@ -45,6 +47,20 @@ data class TxnBrief(val id: String, val date: LocalDate, val amountText: String,
 
 data class Drilldown(val categoryName: String, val txns: List<TxnBrief>)
 
+/**
+ * R2.3: полоса «потрачено из бюджета» под строкой категории. [percentClamped] уже зажат в
+ * [0, 100] (I-1: целые проценты, не Float — `Float` появляется только на границе с
+ * `LinearProgressIndicator`, внутри `ReportScreen.kt`, не здесь); факт перерасхода — отдельный
+ * флаг [isOverBudget], не выводится из сравнения процентов.
+ */
+data class BudgetBar(
+    val categoryId: String?,
+    val spentText: String,
+    val budgetText: String,
+    val percentClamped: Int,
+    val isOverBudget: Boolean,
+)
+
 data class ReportUiState(
     val kind: ReportKind = ReportKind.EXPENSE,
     val periodMode: PeriodMode = PeriodMode.MONTH,
@@ -56,6 +72,13 @@ data class ReportUiState(
     val drilldown: Drilldown? = null,
     val monthly: List<MonthlyBar> = emptyList(),
     val slices: List<CategorySlice> = emptyList(),
+    /**
+     * Бюджеты категорий, ключ — `categoryId` (только для расходов, R2.3). Бюджет «на всё»
+     * (`categoryId == null`) хранится отдельно от [ReportRow] с `categoryId == null` («Без
+     * категории») — это разные вещи, которые иначе конфликтовали бы за один и тот же ключ.
+     */
+    val categoryBudgetBars: Map<String, BudgetBar> = emptyMap(),
+    val wholeCurrencyBudgetBar: BudgetBar? = null,
 )
 
 internal fun withShares(
@@ -99,6 +122,7 @@ class ReportViewModel(
     private val txns: TxnRepository,
     private val categories: CategoryRepository,
     private val currencies: CurrencyRepository,
+    private val budgets: BudgetRepository,
     private val today: () -> LocalDate = LocalDate::now,
 ) : ViewModel() {
 
@@ -129,7 +153,8 @@ class ReportViewModel(
             txns.observeRange(from, to),
             categories.observeAllForLookup(),
             currencies.observeAll(),
-        ) { allTxns, allCategories, allCurrencies ->
+            budgets.observeAll(),
+        ) { allTxns, allCategories, allCurrencies, allBudgets ->
         val range = periodRange(f.mode, f.anchor, f.customStart, f.customEnd)
         val byCode = allCurrencies.associateBy { it.code.code }
         val names = allCategories.associate { it.id to it.name }
@@ -172,6 +197,24 @@ class ReportViewModel(
                 )
             }
 
+        // R2.3: полоса бюджета — только для расходов, только в валюте отчёта (ADR-012/I-8).
+        val budgetBars: List<BudgetBar> = if (f.kind != ReportKind.EXPENSE || selected == null || currency == null) {
+            emptyList()
+        } else {
+            val nonNullCurrency = currency
+            budgetProgress(allBudgets, report, CurrencyCode(selected)).map { p ->
+                BudgetBar(
+                    categoryId = p.budget.categoryId,
+                    spentText = MoneyFormatter.format(p.spent, nonNullCurrency),
+                    budgetText = MoneyFormatter.format(p.budget.amount, nonNullCurrency),
+                    percentClamped = p.percent?.coerceIn(0, 100) ?: if (p.isOverBudget) 100 else 0,
+                    isOverBudget = p.isOverBudget,
+                )
+            }
+        }
+        val categoryBudgetBars = budgetBars.filter { it.categoryId != null }.associateBy { it.categoryId!! }
+        val wholeCurrencyBudgetBar = budgetBars.firstOrNull { it.categoryId == null }
+
         val drilldown = if (f.drilldownActive && selected != null && currency != null) {
             val catName = f.drilldownCategoryId?.let { names[it] } ?: "Без категории"
             val briefs = inPeriod
@@ -201,6 +244,8 @@ class ReportViewModel(
             drilldown = drilldown,
             monthly = monthly,
             slices = slices,
+            categoryBudgetBars = categoryBudgetBars,
+            wholeCurrencyBudgetBar = wholeCurrencyBudgetBar,
         )
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ReportUiState())
@@ -230,8 +275,9 @@ class ReportViewModel(
             txns: TxnRepository,
             categories: CategoryRepository,
             currencies: CurrencyRepository,
+            budgets: BudgetRepository,
         ) = viewModelFactory {
-            initializer { ReportViewModel(txns, categories, currencies) }
+            initializer { ReportViewModel(txns, categories, currencies, budgets) }
         }
     }
 }
