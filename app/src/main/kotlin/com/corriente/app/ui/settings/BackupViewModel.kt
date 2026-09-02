@@ -5,7 +5,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.corriente.data.backup.BackupInvalidException
-import com.corriente.data.backup.BackupRepository
+import com.corriente.data.backup.BackupIo
 import com.corriente.data.backup.BackupVersionException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import java.io.InputStream
 import java.io.OutputStream
+import kotlin.coroutines.CoroutineContext
 
 sealed interface BackupResult {
     data object Exported : BackupResult
@@ -29,9 +30,10 @@ sealed interface BackupResult {
  * делегирует в [BackupRepository] — как и он сам, ничего не знает про сеть (I-24).
  */
 class BackupViewModel(
-    private val backup: BackupRepository,
+    private val backup: BackupIo,
     /** Копия текущей БД перед замещением — вызывается только если файл прошёл проверку (F1.4). */
     private val snapshotBeforeRestore: suspend () -> Unit = {},
+    private val io: CoroutineContext = Dispatchers.IO,
 ) : ViewModel() {
 
     private val _result = MutableStateFlow<BackupResult?>(null)
@@ -42,7 +44,7 @@ class BackupViewModel(
 
     fun export(output: OutputStream) {
         _busy.value = true
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch(io) {
             _result.value = runCatching { output.use { backup.export(it) } }
                 .fold(onSuccess = { BackupResult.Exported }, onFailure = { BackupResult.Failed })
             _busy.value = false
@@ -51,7 +53,7 @@ class BackupViewModel(
 
     fun restore(input: InputStream) {
         _busy.value = true
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch(io) {
             _result.value = runCatching { input.use { backup.restore(it, snapshotBeforeRestore) } }.fold(
                 onSuccess = { BackupResult.Imported },
                 onFailure = { e ->
@@ -72,7 +74,7 @@ class BackupViewModel(
 
     companion object {
         fun factory(
-            backup: BackupRepository,
+            backup: BackupIo,
             snapshotBeforeRestore: suspend () -> Unit = {},
         ) = viewModelFactory {
             initializer { BackupViewModel(backup, snapshotBeforeRestore) }

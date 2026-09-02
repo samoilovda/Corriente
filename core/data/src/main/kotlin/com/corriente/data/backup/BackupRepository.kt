@@ -21,6 +21,15 @@ import java.io.OutputStream
 import java.time.LocalDate
 
 /**
+ * Экспорт/восстановление бэкапа для ViewModel (F2.7) — интерфейс, чтобы состояние занятости
+ * можно было проверить юнит-тестом без Room.
+ */
+interface BackupIo {
+    suspend fun export(output: OutputStream)
+    suspend fun restore(input: InputStream, beforeReplace: suspend () -> Unit = {})
+}
+
+/**
  * Полный экспорт/восстановление БД в файл (T1.9, I-21). Пишется и читается через SAF —
  * вызывающий код (:app) сам открывает поток на выбранный пользователем файл, репозиторий
  * знает только про [InputStream]/[OutputStream], а не про `Uri`/`ContentResolver` (I-24 заодно:
@@ -29,11 +38,11 @@ import java.time.LocalDate
  * Восстановление **полностью замещает** текущие данные — экран T1.9 обязан спросить
  * подтверждение до вызова [restore].
  */
-class BackupRepository(private val db: AppDatabase) {
+class BackupRepository(private val db: AppDatabase) : BackupIo {
 
     private val json = Json { prettyPrint = true; ignoreUnknownKeys = true }
 
-    suspend fun export(output: OutputStream) {
+    override suspend fun export(output: OutputStream) {
         val payload = BackupPayload(
             schemaVersion = SCHEMA_VERSION,
             exportedAt = System.currentTimeMillis(),
@@ -55,7 +64,7 @@ class BackupRepository(private val db: AppDatabase) {
      * текущая версия приложения (I-21: старые версии обязаны читаться через миграции, а не
      * этот путь; более новые читать безопасно нельзя в принципе).
      */
-    suspend fun restore(input: InputStream, beforeReplace: suspend () -> Unit = {}) {
+    override suspend fun restore(input: InputStream, beforeReplace: suspend () -> Unit) {
         val payload = input.reader(Charsets.UTF_8).use {
             json.decodeFromString(BackupPayload.serializer(), it.readText())
         }

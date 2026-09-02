@@ -5,10 +5,12 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -46,6 +48,7 @@ fun SettingsScreen(
 ) {
     val context = LocalContext.current
     val result by backupViewModel.result.collectAsState()
+    val busy by backupViewModel.busy.collectAsState()
     var pendingImportUri by remember { mutableStateOf<android.net.Uri?>(null) }
 
     val exportLauncher = rememberLauncherForActivityResult(
@@ -88,13 +91,16 @@ fun SettingsScreen(
             ListItem(
                 headlineContent = { Text(stringResource(R.string.backup_export)) },
                 supportingContent = { Text(stringResource(R.string.backup_export_hint)) },
-                modifier = Modifier.clickable { exportLauncher.launch("corriente-backup.json") },
+                modifier = Modifier.clickable(enabled = !busy) { exportLauncher.launch("corriente-backup.json") },
             )
             ListItem(
                 headlineContent = { Text(stringResource(R.string.backup_import)) },
                 supportingContent = { Text(stringResource(R.string.backup_import_hint)) },
-                modifier = Modifier.clickable { importLauncher.launch(arrayOf("application/json")) },
+                modifier = Modifier.clickable(enabled = !busy) { importLauncher.launch(arrayOf("application/json")) },
             )
+            if (busy) {
+                LinearProgressIndicator(Modifier.fillMaxWidth())
+            }
             ListItem(
                 headlineContent = { Text(stringResource(R.string.autobackup_title)) },
                 supportingContent = { Text(stringResource(R.string.autobackup_hint)) },
