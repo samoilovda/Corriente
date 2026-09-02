@@ -47,7 +47,7 @@
     <string name="backup_verify_title">Проверка файла</string>
     <string name="backup_verify_current">Сейчас в базе: %1$d счетов, %2$d категорий, %3$d операций</string>
     <string name="backup_verify_file">В файле: %1$d счетов, %2$d категорий, %3$d операций</string>
-    <string name="backup_verify_sums">Суммы по валютам</string>
+    <string name="backup_verify_sums">Суммы по валютам (в минимальных единицах, без переводов)</string>
     <string name="backup_verify_invalid">Файл повреждён:</string>
     <string name="backup_verify_failed">Не удалось прочитать файл.</string>
 

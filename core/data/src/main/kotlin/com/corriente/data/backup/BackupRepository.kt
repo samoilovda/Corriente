@@ -40,22 +40,23 @@ interface BackupIo {
  */
 class BackupRepository(private val db: AppDatabase) : BackupIo {
 
-    private val json = Json { prettyPrint = true; ignoreUnknownKeys = true }
+    /** Полезная нагрузка бэкапа, собранная из текущего состояния [db] (T1.9). */
+    suspend fun buildPayload(): BackupPayload = BackupPayload(
+        schemaVersion = SCHEMA_VERSION,
+        exportedAt = System.currentTimeMillis(),
+        currencies = db.currencyDao().observeAll().first().map { it.toBackup() },
+        // observeAll, не observeActive: бэкап обязан сохранять состояние ПОЛНОСТЬЮ (I-21),
+        // включая архивные счета и категории.
+        accounts = db.accountDao().observeAll().first().map { it.toBackup() },
+        categories = db.categoryDao().observeAll().first().map { it.toBackup() },
+        transactions = db.txnDao().observeAll().first().map { it.toBackup() },
+        importBatches = db.importBatchDao().getAll().map { it.toBackup() },
+        importAliases = db.importAliasDao().getAll().map { it.toBackup() },
+        appSettings = db.appSettingDao().getAll().map { it.toBackup() },
+    )
 
     override suspend fun export(output: OutputStream) {
-        val payload = BackupPayload(
-            schemaVersion = SCHEMA_VERSION,
-            exportedAt = System.currentTimeMillis(),
-            currencies = db.currencyDao().observeAll().first().map { it.toBackup() },
-            // observeAll, не observeActive: бэкап обязан сохранять состояние ПОЛНОСТЬЮ (I-21),
-            // включая архивные счета и категории.
-            accounts = db.accountDao().observeAll().first().map { it.toBackup() },
-            categories = db.categoryDao().observeAll().first().map { it.toBackup() },
-            transactions = db.txnDao().observeAll().first().map { it.toBackup() },
-            importBatches = db.importBatchDao().getAll().map { it.toBackup() },
-            importAliases = db.importAliasDao().getAll().map { it.toBackup() },
-            appSettings = db.appSettingDao().getAll().map { it.toBackup() },
-        )
+        val payload = buildPayload()
         output.writer(Charsets.UTF_8).use { it.write(json.encodeToString(BackupPayload.serializer(), payload)) }
     }
 
@@ -65,9 +66,17 @@ class BackupRepository(private val db: AppDatabase) : BackupIo {
      * этот путь; более новые читать безопасно нельзя в принципе).
      */
     override suspend fun restore(input: InputStream, beforeReplace: suspend () -> Unit) {
-        val payload = input.reader(Charsets.UTF_8).use {
-            json.decodeFromString(BackupPayload.serializer(), it.readText())
-        }
+        restorePayload(parsePayload(input), beforeReplace)
+    }
+
+    /**
+     * Замещает данные в [db] содержимым [payload] (F1.4/R1.4). Вынесено из [restore] отдельно,
+     * чтобы «Проверить файл» (R1.4) могло прогнать тот же путь на временной in-memory БД без
+     * лишнего сериализованного круга через JSON.
+     *
+     * @throws BackupVersionException / [BackupInvalidException] — как у [restore].
+     */
+    suspend fun restorePayload(payload: BackupPayload, beforeReplace: suspend () -> Unit = {}) {
         if (payload.schemaVersion > SCHEMA_VERSION) {
             throw BackupVersionException(payload.schemaVersion, SCHEMA_VERSION)
         }
@@ -98,9 +107,40 @@ class BackupRepository(private val db: AppDatabase) : BackupIo {
         }
     }
 
+    /** Контрольные суммы текущего состояния [db] (R1.4) — тот же счёт, что и по файлу бэкапа. */
+    suspend fun currentSummary(): BackupSummary = summarize(buildPayload())
+
     companion object {
         // v2: category.import_batch_id (F1.5). Держать в синхроне с AppDatabase.SCHEMA_VERSION.
         const val SCHEMA_VERSION = 2
+
+        private val json = Json { prettyPrint = true; ignoreUnknownKeys = true }
+
+        /** Разбор файла бэкапа в [BackupPayload] без записи куда-либо — используется restore и R1.4. */
+        fun parsePayload(input: InputStream): BackupPayload = input.reader(Charsets.UTF_8).use {
+            json.decodeFromString(BackupPayload.serializer(), it.readText())
+        }
+
+        /**
+         * Контрольные суммы бэкапа (R1.4): число счетов/категорий/операций и сумма движений по
+         * каждой валюте. Переводы исключены из сумм — как и в отчётах (I-11), это не доход и не
+         * расход. Сложение — `Math.addExact` (I-3): переполнение обязано падать, а не тихо
+         * переворачиваться. Чистая функция над [BackupPayload] — тестируется без БД.
+         */
+        fun summarize(payload: BackupPayload): BackupSummary {
+            val sums = mutableMapOf<String, Long>()
+            payload.transactions.forEach { t ->
+                if (t.kind == "TRANSFER") return@forEach
+                val delta = if (t.kind == "INCOME") t.amountMinor else -t.amountMinor
+                sums[t.currencyCode] = Math.addExact(sums[t.currencyCode] ?: 0L, delta)
+            }
+            return BackupSummary(
+                accounts = payload.accounts.size,
+                categories = payload.categories.size,
+                transactions = payload.transactions.size,
+                sumsByCurrency = sums,
+            )
+        }
 
         /**
          * Проверка полезной нагрузки бэкапа до записи (F1.4). Чистая функция — тестируется без БД.

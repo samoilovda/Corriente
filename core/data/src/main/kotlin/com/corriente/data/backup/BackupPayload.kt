@@ -103,3 +103,15 @@ data class ImportAliasBackup(
 
 @Serializable
 data class AppSettingBackup(val key: String, val value: String)
+
+/**
+ * Контрольные суммы бэкапа (R1.4): счётчики + сумма движений по каждой валюте (без переводов,
+ * I-11). Не `@Serializable` — считается на лету для сравнения «файл vs текущая БД», в файл не
+ * пишется.
+ */
+data class BackupSummary(
+    val accounts: Int,
+    val categories: Int,
+    val transactions: Int,
+    val sumsByCurrency: Map<String, Long>,
+)

@@ -44,6 +44,7 @@ import com.corriente.app.corrienteContainer
 import com.corriente.app.ui.settings.BackupResultDialog
 import com.corriente.app.ui.settings.BackupViewModel
 import com.corriente.data.backup.BACKUP_RETENTION_CHOICES
+import com.corriente.data.backup.BackupSummary
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -69,6 +70,8 @@ fun AutoBackupScreen(
     val files by viewModel.backupFiles.collectAsState()
     val busy by backupViewModel.busy.collectAsState()
     val result by backupViewModel.result.collectAsState()
+    val verifying by viewModel.verifying.collectAsState()
+    val verifyResult by viewModel.verifyResult.collectAsState()
     var pendingRestore by remember { mutableStateOf<SafBackupFile?>(null) }
 
     val folderPicker = rememberLauncherForActivityResult(
@@ -169,7 +172,9 @@ fun AutoBackupScreen(
                         BackupFileRow(
                             file = file,
                             busy = busy,
+                            verifying = verifying,
                             onRestore = { pendingRestore = file },
+                            onVerify = { viewModel.verify(file) },
                         )
                         HorizontalDivider()
                     }
@@ -196,20 +201,74 @@ fun AutoBackupScreen(
     }
 
     result?.let { current -> BackupResultDialog(current, onDismiss = backupViewModel::consumeResult) }
+
+    verifyResult?.let { current -> VerifyResultDialog(current, onDismiss = viewModel::consumeVerifyResult) }
 }
 
 @Composable
-private fun BackupFileRow(file: SafBackupFile, busy: Boolean, onRestore: () -> Unit) {
+private fun BackupFileRow(
+    file: SafBackupFile,
+    busy: Boolean,
+    verifying: Boolean,
+    onRestore: () -> Unit,
+    onVerify: () -> Unit,
+) {
     ListItem(
         headlineContent = { Text(file.name) },
         supportingContent = { Text("${formatFileDate(file.lastModified)} · ${formatFileSize(file.size)}") },
         trailingContent = {
-            TextButton(onClick = onRestore, enabled = !busy) {
-                Text(stringResource(R.string.backup_restore_action))
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                TextButton(onClick = onVerify, enabled = !verifying) {
+                    Text(stringResource(R.string.backup_verify_action))
+                }
+                TextButton(onClick = onRestore, enabled = !busy) {
+                    Text(stringResource(R.string.backup_restore_action))
+                }
             }
         },
         modifier = Modifier.fillMaxWidth(),
     )
+}
+
+/** R1.4: сводка проверки файла — совпадающие/расходящиеся числа рядом, без риска для реальных данных. */
+@Composable
+private fun VerifyResultDialog(result: VerifyResult, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.backup_verify_title)) },
+        confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.ok)) } },
+        text = {
+            when (result) {
+                is VerifyResult.Success -> Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    SummaryText(R.string.backup_verify_file, result.fileSummary)
+                    SummaryText(R.string.backup_verify_current, result.currentSummary)
+                }
+                is VerifyResult.Invalid -> {
+                    val shown = result.problems.take(3).joinToString("\n") { "• $it" }
+                    val rest = result.problems.size - 3
+                    Text(
+                        stringResource(R.string.backup_verify_invalid) + "\n" + shown +
+                            if (rest > 0) "\n" + stringResource(R.string.backup_result_invalid_more, rest) else "",
+                    )
+                }
+                VerifyResult.Failed -> Text(stringResource(R.string.backup_verify_failed))
+            }
+        },
+    )
+}
+
+@Composable
+private fun SummaryText(labelRes: Int, summary: BackupSummary) {
+    Column {
+        Text(stringResource(labelRes, summary.accounts, summary.categories, summary.transactions))
+        if (summary.sumsByCurrency.isNotEmpty()) {
+            val sums = summary.sumsByCurrency.entries.sortedBy { it.key }.joinToString(", ") { "${it.key} ${it.value}" }
+            Text(
+                "${stringResource(R.string.backup_verify_sums)}: $sums",
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
+    }
 }
 
 @Composable

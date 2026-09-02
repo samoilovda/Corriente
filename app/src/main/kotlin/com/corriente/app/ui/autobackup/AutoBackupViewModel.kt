@@ -9,12 +9,16 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
+import androidx.room.Room
 import com.corriente.app.CorrienteApplication
 import com.corriente.app.backup.AutoBackupScheduler
 import com.corriente.app.backup.SafBackupFile
 import com.corriente.app.backup.SafBackupFolder
 import com.corriente.data.backup.AutoBackupConfig
 import com.corriente.data.backup.AutoBackupSettings
+import com.corriente.data.backup.BackupRepository
+import com.corriente.data.backup.BackupSummary
+import com.corriente.data.db.AppDatabase
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -35,6 +39,14 @@ data class AutoBackupUiState(
     /** `"ok"` или текст ошибки; null — ещё не выполнялся. */
     val lastResult: String? = null,
 )
+
+/** Итог «Проверить файл» (R1.4) — сравнение сводки файла со сводкой текущей БД. */
+sealed interface VerifyResult {
+    data class Success(val fileSummary: BackupSummary, val currentSummary: BackupSummary) : VerifyResult
+    /** Файл синтаксически валиден, но не проходит проверку целостности (F1.4/R1.4). */
+    data class Invalid(val problems: List<String>) : VerifyResult
+    data object Failed : VerifyResult
+}
 
 /** T5.1: экран автобэкапа. Хранит папку (SAF-дерево) и включатель, запускает бэкап вручную. */
 class AutoBackupViewModel(
@@ -74,6 +86,49 @@ class AutoBackupViewModel(
     /** Поток файла из папки автобэкапа для восстановления/проверки (R1.3/R1.4). */
     fun openBackupFile(file: SafBackupFile) =
         SafBackupFolder(app, currentTreeUri ?: error("папка автобэкапа не выбрана")).openInputStream(file.documentId)
+
+    private val _verifying = MutableStateFlow(false)
+    val verifying: StateFlow<Boolean> = _verifying
+
+    private val _verifyResult = MutableStateFlow<VerifyResult?>(null)
+    val verifyResult: StateFlow<VerifyResult?> = _verifyResult
+
+    /**
+     * «Проверить файл» (R1.4): читает файл, валидирует, восстанавливает во временную
+     * **in-memory** БД (`Room.inMemoryDatabaseBuilder`) и считает контрольные суммы — реальная
+     * БД ([CorrienteApplication.container]) при этом не открывается на запись вообще.
+     */
+    fun verify(file: SafBackupFile) {
+        _verifying.value = true
+        viewModelScope.launch(Dispatchers.IO) {
+            val result = try {
+                val payload = openBackupFile(file).use { BackupRepository.parsePayload(it) }
+                val problems = BackupRepository.validate(payload)
+                if (problems.isNotEmpty()) {
+                    VerifyResult.Invalid(problems)
+                } else {
+                    val tempDb = Room.inMemoryDatabaseBuilder(app, AppDatabase::class.java).build()
+                    try {
+                        val tempRepo = BackupRepository(tempDb)
+                        tempRepo.restorePayload(payload)
+                        val fileSummary = tempRepo.currentSummary()
+                        val currentSummary = (app as CorrienteApplication).container.backupRepository.currentSummary()
+                        VerifyResult.Success(fileSummary, currentSummary)
+                    } finally {
+                        tempDb.close()
+                    }
+                }
+            } catch (e: Exception) {
+                VerifyResult.Failed
+            }
+            _verifying.value = false
+            _verifyResult.value = result
+        }
+    }
+
+    fun consumeVerifyResult() {
+        _verifyResult.value = null
+    }
 
     fun setEnabled(enabled: Boolean) {
         viewModelScope.launch {
