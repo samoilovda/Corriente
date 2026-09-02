@@ -90,6 +90,8 @@
     <string name="accounts_new">Новый счёт</string>
     <string name="accounts_edit">Счёт</string>
     <string name="accounts_name">Название</string>
+    <string name="accounts_icon">Иконка (эмодзи, необязательно)</string>
+    <string name="accounts_color">Цвет</string>
     <string name="accounts_currency">Валюта</string>
     <string name="accounts_kind">Тип</string>
     <string name="accounts_opening_balance">Начальный остаток</string>

@@ -59,8 +59,12 @@ class AccountRepository(private val dao: AccountDao) {
         return account
     }
 
-    /** Переименование, смена иконки/цвета/участия в итоге — валюту и остаток этим методом не тронуть. */
-    suspend fun rename(id: String, name: String, color: Int, icon: String?, includeInTotal: Boolean) {
+    /**
+     * Имя, вид оформления (цвет/иконка) и участие в итоге. Валюту и остаток этим методом не
+     * тронуть. F3.3: цвет и иконка передаются явно — раньше метод принимал `color = 0`/`icon = null`
+     * вслепую и любая правка счёта их сбрасывала.
+     */
+    suspend fun update(id: String, name: String, color: Int, icon: String?, includeInTotal: Boolean) {
         val existing = requireNotNull(dao.getById(id)) { "Account $id not found" }
         dao.update(existing.copy(name = name, color = color, icon = icon, includeInTotal = includeInTotal))
     }

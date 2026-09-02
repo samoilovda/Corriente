@@ -3,6 +3,7 @@ package com.corriente.app.ui.accounts
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import com.corriente.app.ui.categories.CategoryPalette
 import com.corriente.app.ui.common.WritingViewModel
 import com.corriente.data.db.entity.AccountKind
 import com.corriente.data.model.Account
@@ -48,6 +49,8 @@ data class AccountForm(
     val kind: AccountKind,
     val openingBalanceText: String,
     val includeInTotal: Boolean,
+    val color: Int = CategoryPalette.first(),
+    val icon: String? = null,
 )
 
 /**
@@ -62,6 +65,8 @@ data class AccountEditor(
     val kind: AccountKind,
     val openingBalanceText: String,
     val includeInTotal: Boolean,
+    val color: Int,
+    val icon: String,
 )
 
 private fun fallbackCurrency(code: CurrencyCode): Currency =
@@ -141,6 +146,8 @@ class AccountsViewModel(
             kind = AccountKind.CASH,
             openingBalanceText = "",
             includeInTotal = true,
+            color = CategoryPalette.first(),
+            icon = "",
         )
     }
 
@@ -155,6 +162,8 @@ class AccountsViewModel(
                 kind = account.kind,
                 openingBalanceText = openingBalanceText(account.openingBalance.amount, currency),
                 includeInTotal = account.includeInTotal,
+                color = account.color.takeIf { it != 0 } ?: CategoryPalette.first(),
+                icon = account.icon.orEmpty(),
             )
         }
     }
@@ -175,17 +184,19 @@ class AccountsViewModel(
             val currency = currencies.getByCode(form.currency) ?: fallbackCurrency(form.currency)
             val money = Money(openingBalanceMinor(form.openingBalanceText, currency), form.currency)
             val id = editor?.editingId
+            val icon = form.icon?.trim()?.ifBlank { null }
             if (id == null) {
                 accounts.create(
                     name = form.name.trim(),
                     currency = form.currency,
                     kind = form.kind,
                     openingBalance = money,
-                    color = 0,
+                    color = form.color,
+                    icon = icon,
                     includeInTotal = form.includeInTotal,
                 )
             } else {
-                accounts.rename(id, form.name.trim(), color = 0, icon = null, includeInTotal = form.includeInTotal)
+                accounts.update(id, form.name.trim(), form.color, icon, form.includeInTotal)
                 if (editor.currencyLocked.not()) {
                     // Гонка: пока редактор был открыт, по счёту могла появиться операция —
                     // тогда валюта уже исторический факт (I-23), меняем только имя и флаги.

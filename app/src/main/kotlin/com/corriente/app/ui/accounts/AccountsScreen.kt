@@ -1,13 +1,18 @@
 package com.corriente.app.ui.accounts
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Unarchive
@@ -31,6 +36,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -38,11 +44,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.corriente.app.R
 import com.corriente.app.corrienteContainer
+import com.corriente.app.ui.categories.CategoryPalette
 import com.corriente.app.ui.common.rememberMessageSnackbarState
 import com.corriente.data.db.entity.AccountKind
 import com.corriente.money.CurrencyCode
@@ -93,6 +101,8 @@ fun AccountsScreen(
                         title = row.account.name,
                         subtitle = accountSubtitle(row.account.kind, row.account.includeInTotal),
                         trailing = row.balance?.let { MoneyFormatter.format(it, group.currency) }.orEmpty(),
+                        color = row.account.color,
+                        icon = row.account.icon,
                         onClick = { viewModel.startEdit(row.account) },
                     )
                     HorizontalDivider()
@@ -149,12 +159,30 @@ private fun CurrencyGroupHeader(title: String, total: String?) {
 }
 
 @Composable
-private fun AccountListRow(title: String, subtitle: String, trailing: String, onClick: () -> Unit) {
+private fun AccountListRow(
+    title: String,
+    subtitle: String,
+    trailing: String,
+    color: Int,
+    icon: String?,
+    onClick: () -> Unit,
+) {
     Row(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(16.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
+        Box(
+            Modifier
+                .size(20.dp)
+                .background(
+                    if (color != 0) Color(color) else MaterialTheme.colorScheme.surfaceVariant,
+                    CircleShape,
+                ),
+            contentAlignment = Alignment.Center,
+        ) {
+            icon?.takeIf { it.isNotBlank() }?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+        }
         Column(Modifier.weight(1f)) {
             Text(title)
             Text(subtitle, style = MaterialTheme.typography.bodySmall)
@@ -193,6 +221,8 @@ private fun AccountEditorDialog(
     var kindName by rememberSaveable(editor) { mutableStateOf(editor.kind.name) }
     var openingBalance by rememberSaveable(editor) { mutableStateOf(editor.openingBalanceText) }
     var includeInTotal by rememberSaveable(editor) { mutableStateOf(editor.includeInTotal) }
+    var color by rememberSaveable(editor) { mutableIntStateOf(editor.color) }
+    var icon by rememberSaveable(editor) { mutableStateOf(editor.icon) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -228,6 +258,28 @@ private fun AccountEditorDialog(
                     enabled = !editor.currencyLocked,
                     singleLine = true,
                 )
+                OutlinedTextField(
+                    value = icon,
+                    onValueChange = { icon = it },
+                    label = { Text(stringResource(R.string.accounts_icon)) },
+                    singleLine = true,
+                )
+                Text(stringResource(R.string.accounts_color), style = MaterialTheme.typography.labelMedium)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    CategoryPalette.forEach { swatch ->
+                        Box(
+                            Modifier
+                                .size(28.dp)
+                                .background(Color(swatch), CircleShape)
+                                .border(
+                                    width = if (swatch == color) 3.dp else 0.dp,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    shape = CircleShape,
+                                )
+                                .clickable { color = swatch },
+                        )
+                    }
+                }
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Switch(checked = includeInTotal, onCheckedChange = { includeInTotal = it })
                     Text(stringResource(R.string.accounts_include_in_total))
@@ -251,6 +303,8 @@ private fun AccountEditorDialog(
                             kind = AccountKind.valueOf(kindName),
                             openingBalanceText = openingBalance,
                             includeInTotal = includeInTotal,
+                            color = color,
+                            icon = icon,
                         ),
                     )
                 },

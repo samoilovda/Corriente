@@ -170,6 +170,41 @@ class AccountsViewModelTest {
             assertEquals("RUB", activeRows(vm).single().account.currency.code)
         }
 
+    // F3.3 — правка счёта не должна сбрасывать цвет и иконку.
+    @Test
+    fun `editing an account keeps its color and icon`() = runTest(dispatcher) {
+        val (vm, _, _) = build()
+        backgroundScope.observe(vm)
+        vm.startCreate(); advanceUntilIdle()
+        vm.save(
+            AccountForm(
+                "Карта", CurrencyCode("RUB"), AccountKind.CARD, "0", includeInTotal = true,
+                color = 0xFF29B6F6.toInt(), icon = "💳",
+            ),
+        )
+        advanceUntilIdle()
+        val account = activeRows(vm).single().account
+        assertEquals(0xFF29B6F6.toInt(), account.color)
+        assertEquals("💳", account.icon)
+
+        vm.startEdit(account); advanceUntilIdle()
+        val editor = vm.editor.value!!
+        assertEquals(0xFF29B6F6.toInt(), editor.color)
+        assertEquals("💳", editor.icon)
+        // сохраняем только с новым именем — форма отдаёт цвет/иконку из редактора
+        vm.save(
+            AccountForm(
+                "Карта банка", CurrencyCode("RUB"), AccountKind.CARD, "0", includeInTotal = true,
+                color = editor.color, icon = editor.icon,
+            ),
+        )
+        advanceUntilIdle()
+        val saved = activeRows(vm).single().account
+        assertEquals("Карта банка", saved.name)
+        assertEquals(0xFF29B6F6.toInt(), saved.color)
+        assertEquals("💳", saved.icon)
+    }
+
     // F0.2 — гонка: редактор открыт без блокировки валюты, но к счёту успела прийти операция.
     @Test
     fun `save re-checks hasTransactions and keeps the currency locked with a message`() = runTest(dispatcher) {
