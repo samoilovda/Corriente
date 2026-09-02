@@ -43,6 +43,53 @@ locale-зависимый разбор, `fallbackToDestructiveMigration`, `uses-
 отстаёт от версии Kotlin. Логика скана покрыта `InvariantGuardsTest` (buildSrc гоняет его
 на каждой сборке). Подключён к `check`.
 
+### Релизная сборка
+
+`app/build.gradle.kts` объявляет `buildTypes.release` (R6.1, ROADMAP.md §8):
+`isMinifyEnabled = true`, `isShrinkResources = true`, правила R8 в `app/proguard-rules.pro`
+(kotlinx-serialization — явный keep для `BackupPayload` и других `@Serializable`-моделей;
+Room с KSP правил не требует; `androidx.work.ListenableWorker` — явный keep, иначе
+`AutoBackupWorker`/`RecurrenceWorker`/`WidgetMidnightWorker` не поднимутся рефлексией
+WorkManager на реальном устройстве).
+
+**Подпись.** Ключ и пароли в репозиторий не попадают никогда. Источник — `local.properties`
+(гитигнорится) с ключами:
+
+```properties
+RELEASE_STORE_FILE=/absolute/path/to/release.keystore
+RELEASE_STORE_PASSWORD=...
+RELEASE_KEY_ALIAS=...
+RELEASE_KEY_PASSWORD=...
+```
+
+Либо те же значения — переменными окружения `CORRIENTE_RELEASE_STORE_FILE`,
+`CORRIENTE_RELEASE_STORE_PASSWORD`, `CORRIENTE_RELEASE_KEY_ALIAS`,
+`CORRIENTE_RELEASE_KEY_PASSWORD` (`local.properties` в приоритете, если задано и там,
+и там). Если не задано ни то, ни другое — `./gradlew assembleRelease` падает с понятной
+ошибкой ещё до сборки; отката на debug-подпись нет намеренно (I-24 по духу — раз уж
+ничего не уходит в сеть, то и подписанный чем попало APK ставить некому, кроме
+вас самих, но путать «релизный» и «debug»-ключ всё равно не стоит). Обычные задачи
+(`check`, `assembleDebug`, юнит-тесты) ключа не требуют — проверка привязана только к
+задачам вида `*Release` в `:app`.
+
+```
+./gradlew assembleRelease         # подписанный, минифицированный APK (требует ключ выше)
+```
+
+**Размер APK.** Не измерен в этой сессии — песочница не имеет доступа к Google Maven,
+поэтому `./gradlew assembleRelease` здесь не запускался ни разу (см. также раздел
+«Известные ограничения» в конце этого файла). Ориентир для Compose-приложения такого
+размера (без картинок/шрифтов, один экран на модуль) — обычно единицы МБ после R8 и
+shrinkResources; при первой реальной сборке вне песочницы впишите фактическое число сюда.
+
+**`material-icons-extended`.** Каждая иконка в этой библиотеке — отдельный top-level
+`val` в своём файле (не Android-ресурс), поэтому `isShrinkResources` (он про `res/`) её не
+трогает — тримминг делает R8 обычным удалением недостижимого кода (`isMinifyEnabled`) на
+уровне обычных Kotlin-свойств. Это должно работать «из коробки» без дополнительных keep-
+правил, но не проверено реальной сборкой; если после первого `assembleRelease` вне
+песочницы иконки заметно раздувают APK — см. `-printusage`/APK Analyzer и, при необходимости,
+замену на `-core` + горстку точечных иконок.
+
 ### Инструментальные тесты
 
 `AppDatabaseMigrationTest` (`core/data/src/androidTest`) требует подключённого
