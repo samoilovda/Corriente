@@ -162,6 +162,15 @@ fun ReportScreen(
                                 Text("${row.sharePercent}%", style = MaterialTheme.typography.bodySmall)
                                 Text(row.amountText)
                             }
+                            // R3.1: изменение к тому же периоду раньше — «+18 % к прошлому месяцу»,
+                            // прочерк вместо 0 % при отсутствии данных за прошлый период.
+                            row.changeText?.let {
+                                Text(
+                                    it,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
                             // R2.3: полоса «потрачено из бюджета» — только когда бюджет задан.
                             row.categoryId?.let { state.categoryBudgetBars[it] }?.let { bar -> BudgetProgressBar(bar) }
                         }

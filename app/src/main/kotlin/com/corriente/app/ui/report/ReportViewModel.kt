@@ -14,6 +14,7 @@ import com.corriente.data.usecase.ReportKind
 import com.corriente.data.usecase.budgetProgress
 import com.corriente.data.usecase.categoryReport
 import com.corriente.data.usecase.monthlySeries
+import com.corriente.data.usecase.periodOverPeriodChange
 import com.corriente.money.Currency
 import com.corriente.money.CurrencyCode
 import com.corriente.money.MoneyFormatter
@@ -35,6 +36,12 @@ data class ReportRow(
     val amountText: String,
     val sharePercent: Int,
     val color: Int = 0,
+    /**
+     * R3.1: «+18 % к прошлому месяцу» и т.п. `null` — сравнение неприменимо (режим CUSTOM,
+     * у произвольного диапазона нет естественного «того же периода раньше»). Прочерк при
+     * отсутствии данных за прошлый период уже вшит в текст (не 0 %, I-8/критерий приёмки).
+     */
+    val changeText: String? = null,
 )
 
 /** T5.3: столбец графика «по месяцам» — значение уже посчитано (I-1), Float только в Canvas. */
@@ -86,6 +93,10 @@ internal fun withShares(
     names: Map<String, String>,
     colors: Map<String, Int>,
     currency: Currency,
+    /** R3.1: категория → процент изменения к прошлому периоду; `null` значение — прочерк. */
+    changes: Map<String?, Int?> = emptyMap(),
+    /** R3.1: «к прошлому месяцу» / «к прошлому кварталу» / «к прошлому году»; `null` — сравнение неприменимо (CUSTOM). */
+    changeSuffix: String? = null,
 ): List<ReportRow> {
     val grand = report.sumOf { it.total.amount.raw }
     // F3.6: доли по методу наибольших остатков — их сумма ровно 100 при непустом отчёте, а не 97–99.
@@ -97,6 +108,11 @@ internal fun withShares(
             amountText = MoneyFormatter.format(total.total, currency),
             sharePercent = shares[i],
             color = total.categoryId?.let { colors[it] } ?: 0,
+            changeText = changeSuffix?.let { suffix ->
+                val percent = changes[total.categoryId]
+                val percentText = percent?.let { "%+d %%".format(it) } ?: "—"
+                "$percentText $suffix"
+            },
         )
     }
 }
@@ -139,11 +155,21 @@ class ReportViewModel(
 
     private val form = MutableStateFlow(today().let { Form(anchor = it, customStart = it.withDayOfMonth(1), customEnd = it) })
 
-    /** F2.1: диапазон, который реально нужен экрану — период отчёта плюс 6 месяцев назад для графика. */
+    /** R3.1: диапазон «того же периода раньше» — CUSTOM не двигается (у него нет «раньше»). */
+    private fun previousRange(f: Form): ClosedRange<LocalDate>? {
+        if (f.mode == PeriodMode.CUSTOM) return null
+        val previousAnchor = shiftAnchor(f.mode, f.anchor, delta = -1)
+        return periodRange(f.mode, previousAnchor)
+    }
+
+    /** F2.1/R3.1: диапазон, который реально нужен экрану — период отчёта, 6 месяцев назад для
+     * графика по месяцам (T5.3) и предыдущий период того же вида для сравнения (R3.1). */
     private fun queryRange(f: Form): Pair<LocalDate, LocalDate> {
         val range = periodRange(f.mode, f.anchor, f.customStart, f.customEnd)
         val monthlyStart = f.anchor.minusMonths(MONTHLY_SERIES_MONTHS).withDayOfMonth(1)
-        return minOf(range.start, monthlyStart) to maxOf(range.endInclusive, today())
+        val previousStart = previousRange(f)?.start
+        val start = listOfNotNull(range.start, monthlyStart, previousStart).min()
+        return start to maxOf(range.endInclusive, today())
     }
 
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
@@ -174,7 +200,22 @@ class ReportViewModel(
 
         val report = if (selected == null) emptyList() else
             categoryReport(allTxns, CurrencyCode(selected), range, f.kind)
-        val rows = if (currency == null) emptyList() else withShares(report, names, colors, currency)
+
+        // R3.1: сравнение с тем же периодом раньше — только внутри одной валюты (I-8), и только
+        // там, где у периода вообще есть естественное «раньше» (CUSTOM не двигается).
+        val previous = previousRange(f)
+        val previousReport = if (selected == null || previous == null) emptyList() else
+            categoryReport(allTxns, CurrencyCode(selected), previous, f.kind)
+        val changes = periodOverPeriodChange(report, previousReport)
+        val changeSuffix = when (f.mode) {
+            PeriodMode.MONTH -> "к прошлому месяцу"
+            PeriodMode.QUARTER -> "к прошлому кварталу"
+            PeriodMode.YEAR -> "к прошлому году"
+            PeriodMode.CUSTOM -> null
+        }
+
+        val rows = if (currency == null) emptyList() else
+            withShares(report, names, colors, currency, changes, changeSuffix)
         val total = if (report.isEmpty() || currency == null) null else
             MoneyFormatter.format(report.map { it.total }.reduce { a, b -> a + b }, currency)
 
