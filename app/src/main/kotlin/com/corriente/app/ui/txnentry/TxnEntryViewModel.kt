@@ -5,7 +5,9 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.createSavedStateHandle
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import com.corriente.app.R
 import com.corriente.app.ui.common.WritingViewModel
+import com.corriente.app.ui.common.uiMessage
 import com.corriente.data.db.entity.CategoryKind
 import com.corriente.data.model.Account
 import com.corriente.data.model.Category
@@ -413,7 +415,7 @@ class TxnEntryViewModel(
         val money = Money(state.resolvedMinor()!!, currency.code)
         val note = state.note.trim().ifBlank { null }
         launchWrite(
-            onError = { "Не удалось сохранить операцию" },
+            onError = { uiMessage(R.string.txn_entry_error_save) },
             onSuccess = { _finished.value = true },
         ) {
             if (editingTxnId != null) {
@@ -436,7 +438,7 @@ class TxnEntryViewModel(
      */
     fun deleteEditing() {
         val id = editingTxnId ?: return
-        launchWrite(onError = { "Не удалось удалить операцию" }) {
+        launchWrite(onError = { uiMessage(R.string.txn_entry_error_delete) }) {
             val existing = txns.getById(id) ?: return@launchWrite
             txns.deleteById(id)
             _pendingUndo.value = existing
@@ -455,7 +457,7 @@ class TxnEntryViewModel(
         undoJob?.cancel()
         _pendingUndo.value = null
         launchWrite(
-            onError = { "Не удалось восстановить операцию" },
+            onError = { uiMessage(R.string.txn_entry_error_restore) },
             onSuccess = { _finished.value = true },
         ) {
             txns.restore(txn)

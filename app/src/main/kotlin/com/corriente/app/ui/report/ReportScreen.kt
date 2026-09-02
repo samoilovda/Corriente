@@ -177,7 +177,7 @@ fun ReportScreen(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                             ) {
-                                Text(row.name, Modifier.weight(1f))
+                                Text(row.name ?: stringResource(R.string.report_no_category), Modifier.weight(1f))
                                 Text("${row.sharePercent}%", style = MaterialTheme.typography.bodySmall)
                                 Text(row.amountText)
                             }
@@ -224,7 +224,7 @@ fun ReportScreen(
     state.drilldown?.let { drilldown ->
         ModalBottomSheet(onDismissRequest = viewModel::closeDrilldown) {
             Text(
-                drilldown.categoryName,
+                drilldown.categoryName ?: stringResource(R.string.report_no_category),
                 Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                 style = MaterialTheme.typography.titleMedium,
             )

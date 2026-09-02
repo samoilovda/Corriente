@@ -3,7 +3,9 @@ package com.corriente.app.ui.transfer
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import com.corriente.app.R
 import com.corriente.app.ui.common.WritingViewModel
+import com.corriente.app.ui.common.uiMessage
 import com.corriente.data.model.Txn
 import com.corriente.data.repository.AccountRepository
 import com.corriente.data.repository.CurrencyRepository
@@ -214,7 +216,7 @@ class TransferEntryViewModel(
         val toMoney = Money(s.toMinor ?: return false, toCur.code)
         val note = s.note.trim().ifBlank { null }
         launchWrite(
-            onError = { "Не удалось сохранить перевод" },
+            onError = { uiMessage(R.string.transfer_error_save) },
             onSuccess = { _finished.value = true },
         ) {
             if (editingTxnId != null) {
@@ -229,7 +231,7 @@ class TransferEntryViewModel(
     /** R5.3: см. TxnEntryViewModel.deleteEditing — тот же снекбар-таймер, тот же I-22. */
     fun deleteEditing() {
         val id = editingTxnId ?: return
-        launchWrite(onError = { "Не удалось удалить перевод" }) {
+        launchWrite(onError = { uiMessage(R.string.transfer_error_delete) }) {
             val existing = txns.getById(id) ?: return@launchWrite
             txns.deleteById(id)
             _pendingUndo.value = existing
@@ -247,7 +249,7 @@ class TransferEntryViewModel(
         undoJob?.cancel()
         _pendingUndo.value = null
         launchWrite(
-            onError = { "Не удалось восстановить перевод" },
+            onError = { uiMessage(R.string.transfer_error_restore) },
             onSuccess = { _finished.value = true },
         ) {
             txns.restore(txn)

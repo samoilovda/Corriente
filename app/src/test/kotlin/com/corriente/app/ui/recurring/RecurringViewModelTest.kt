@@ -13,6 +13,7 @@ import com.corriente.data.db.entity.TxnKind
 import com.corriente.data.repository.AccountRepository
 import com.corriente.data.repository.CategoryRepository
 import com.corriente.data.repository.CurrencyRepository
+import com.corriente.data.recurrence.RecurrenceRule
 import com.corriente.data.repository.RecurrenceRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -78,9 +79,9 @@ class RecurringViewModelTest {
         advanceUntilIdle()
 
         val row = model.uiState.value.rows.single()
-        assertTrue(row.title.contains("Аренда"))
+        assertEquals("Аренда", row.categoryName)
         assertEquals("5 000.00 ₽", row.amountText)
-        assertEquals("1-го числа каждого месяца", row.ruleText)
+        assertEquals(RecurrenceRule.DayOfMonth(1), row.rule)
         assertEquals(null, model.uiState.value.editor)
     }
 
@@ -100,8 +101,8 @@ class RecurringViewModelTest {
         advanceUntilIdle()
 
         val row = model.uiState.value.rows.single()
-        assertTrue(row.title.startsWith("Доход"))
-        assertEquals("Каждые 14 дн.", row.ruleText)
+        assertEquals(TxnKind.INCOME, row.kind)
+        assertEquals(RecurrenceRule.EveryNDays(14), row.rule)
     }
 
     @Test

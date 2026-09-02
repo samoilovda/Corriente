@@ -3,7 +3,9 @@ package com.corriente.app.ui.currencies
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import com.corriente.app.R
 import com.corriente.app.ui.common.WritingViewModel
+import com.corriente.app.ui.common.uiMessage
 import com.corriente.data.model.ManagedCurrency
 import com.corriente.data.repository.CurrencyRepository
 import com.corriente.money.CurrencyCode
@@ -55,7 +57,7 @@ class CurrenciesViewModel(private val repository: CurrencyRepository) : WritingV
     }
 
     fun setActive(code: CurrencyCode, active: Boolean) {
-        launchWrite(onError = { "Не удалось изменить список валют" }) { repository.setActive(code, active) }
+        launchWrite(onError = { uiMessage(R.string.currencies_error_set_active) }) { repository.setActive(code, active) }
     }
 
     /**
@@ -64,7 +66,7 @@ class CurrenciesViewModel(private val repository: CurrencyRepository) : WritingV
      */
     fun updateDisplay(code: CurrencyCode, symbol: String, displayScale: Int, minorUnits: Int) {
         if (!isValidDisplayScale(minorUnits, displayScale)) return
-        launchWrite(onError = { "Не удалось сохранить валюту" }) { repository.updateDisplay(code, symbol, displayScale) }
+        launchWrite(onError = { uiMessage(R.string.currencies_error_save) }) { repository.updateDisplay(code, symbol, displayScale) }
     }
 
     companion object {

@@ -3,7 +3,9 @@ package com.corriente.app.ui.widgetsettings
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import com.corriente.app.R
 import com.corriente.app.ui.common.WritingViewModel
+import com.corriente.app.ui.common.uiMessage
 import com.corriente.data.model.Account
 import com.corriente.data.model.Category
 import com.corriente.data.model.Txn
@@ -103,7 +105,7 @@ class WidgetSettingsViewModel(
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), WidgetSettingsUiState())
 
     fun toggleCurrency(code: String) {
-        launchWrite(onError = { "Не удалось сохранить настройки виджета" }) {
+        launchWrite(onError = { uiMessage(R.string.widget_settings_error_save) }) {
             val current = uiState.value.currencies.filter { it.pinned }.map { it.code }
             configStore.setPinnedCurrencies(nextPinnedCurrencies(current, code))
         }
@@ -111,18 +113,18 @@ class WidgetSettingsViewModel(
 
     /** R4.3: закрепление категории — до [com.corriente.data.widget.MAX_QUICK_CATEGORIES]. */
     fun toggleCategory(categoryId: String) {
-        launchWrite(onError = { "Не удалось сохранить настройки виджета" }) {
+        launchWrite(onError = { uiMessage(R.string.widget_settings_error_save) }) {
             val current = uiState.value.categories.filter { it.pinned }.map { it.id }
             configStore.setPinnedCategories(nextPinnedCategories(current, categoryId))
         }
     }
 
     fun setActiveAccount(id: String) {
-        launchWrite(onError = { "Не удалось сохранить настройки виджета" }) { configStore.setActiveAccount(id) }
+        launchWrite(onError = { uiMessage(R.string.widget_settings_error_save) }) { configStore.setActiveAccount(id) }
     }
 
     fun resetToDefaults() {
-        launchWrite(onError = { "Не удалось сбросить настройки виджета" }) { configStore.reset() }
+        launchWrite(onError = { uiMessage(R.string.widget_settings_error_reset) }) { configStore.reset() }
     }
 
     companion object {

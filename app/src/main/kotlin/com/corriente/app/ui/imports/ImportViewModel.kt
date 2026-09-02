@@ -4,11 +4,14 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import com.corriente.app.R
+import com.corriente.data.imports.AccountCurrencyConflictException
 import com.corriente.data.imports.MonefyCsvParser
 import com.corriente.data.imports.MonefyImportPlan
 import com.corriente.data.imports.MonefyImportPlanner
 import com.corriente.data.imports.MonefyImportReport
 import com.corriente.data.imports.MonefyImportRepository
+import com.corriente.data.imports.MonefyRowError
 import com.corriente.data.imports.ReviewDecision
 import com.corriente.data.imports.ReviewReason
 import com.corriente.data.imports.ReviewRef
@@ -30,19 +33,31 @@ data class ImportSummary(
     val transfers: Int,
     val unpairedHalves: Int,
     val reviews: List<ReviewLine>,
-    val errors: List<String>,
+    val errors: List<MonefyRowError>,
 )
 
-data class ReviewLine(val reason: ReviewReason, val message: String)
+/** Текст под конкретную позицию строит экран (R6.3) — здесь только причина и номера строк. */
+data class ReviewLine(val reason: ReviewReason, val lines: List<Int>)
 
 /**
- * Карточка NEEDS_REVIEW для экрана dry-run: текст планировщика + текущее решение пользователя
- * ([decision] == null — вариант планировщика по умолчанию) + суммы перевода для полей ввода.
+ * Карточка NEEDS_REVIEW для экрана dry-run: структурные данные планировщика (текст под них
+ * строит `ImportScreen.kt` через `stringResource`, R6.3, ROADMAP.md §8) + текущее решение
+ * пользователя ([decision] == null — вариант планировщика по умолчанию) + суммы перевода для
+ * полей ввода.
  */
 data class ReviewCard(
     val ref: ReviewRef,
     val reason: ReviewReason,
-    val message: String,
+    val account: String?,
+    val currencyChoices: List<String>,
+    /** Валюта, в которой счёт уже ведётся в приложении — только у EXISTING_ACCOUNT_CURRENCY_MISMATCH. */
+    val existingCurrency: String?,
+    /** Счета/дата перевода — только у AMBIGUOUS_PAIRING/ANOMALOUS_CURRENCY/EXCESS_PRECISION. */
+    val transferFromAccount: String?,
+    val transferToAccount: String?,
+    val transferDate: String?,
+    /** Сколько неоднозначных пар в группе — только у AMBIGUOUS_PAIRING. */
+    val pairCount: Int,
     val decision: ReviewDecision?,
     val fromAmountMinor: Long?,
     val fromCurrency: String?,
@@ -50,15 +65,26 @@ data class ReviewCard(
     val toAmountMinor: Long?,
     val toCurrency: String?,
     val toMinorUnits: Int,
-    val currencyChoices: List<String>,
 )
+
+/**
+ * Причина отказа импорта — структурная (R6.3): [Localized] строит текст экран через
+ * `stringResource`, [Raw] — уже готовый текст исключения нижнего уровня (как правило,
+ * на английском — сообщения `IOException`/`MonefyAmountParser` локализации не требуют).
+ */
+sealed interface ImportFailureReason {
+    data class Raw(val text: String) : ImportFailureReason
+    data class Localized(val resId: Int, val args: List<Any> = emptyList()) : ImportFailureReason
+}
+
+private fun localizedFailure(resId: Int, vararg args: Any) = ImportFailureReason.Localized(resId, args.toList())
 
 sealed interface ImportUiState {
     data object Idle : ImportUiState
     data object Working : ImportUiState
     data class Ready(val summary: ImportSummary, val reviews: List<ReviewCard>) : ImportUiState
     data class Done(val inserted: Int, val skipped: Int) : ImportUiState
-    data class Failed(val message: String) : ImportUiState
+    data class Failed(val reason: ImportFailureReason) : ImportUiState
 }
 
 /**
@@ -87,7 +113,11 @@ class ImportViewModel(private val importer: MonefyImportRepository) : ViewModel(
                 this@ImportViewModel.fileName = fileName
                 decisions.clear()
                 readyState()
-            }.getOrElse { ImportUiState.Failed(it.message ?: "не удалось разобрать файл") }
+            }.getOrElse { e ->
+                ImportUiState.Failed(
+                    e.message?.let { ImportFailureReason.Raw(it) } ?: localizedFailure(R.string.import_error_parse_failed),
+                )
+            }
         }
     }
 
@@ -115,7 +145,17 @@ class ImportViewModel(private val importer: MonefyImportRepository) : ViewModel(
                 )
                 val result = importer.import(finalPlan, fileName, report.encode())
                 ImportUiState.Done(result.inserted, result.skipped)
-            }.getOrElse { ImportUiState.Failed(it.message ?: "ошибка записи") }
+            }.getOrElse { e ->
+                ImportUiState.Failed(
+                    when (e) {
+                        is AccountCurrencyConflictException -> localizedFailure(
+                            R.string.import_error_account_currency_conflict,
+                            e.accountName, e.existingCurrency.code, e.fileCurrency.code,
+                        )
+                        else -> e.message?.let { ImportFailureReason.Raw(it) } ?: localizedFailure(R.string.import_error_write_failed)
+                    },
+                )
+            }
         }
     }
 
@@ -150,8 +190,8 @@ internal fun MonefyImportPlan.toImportSummary() = ImportSummary(
     operations = plainTxns.count { !it.unpairedHalf },
     transfers = transfers.size,
     unpairedHalves = plainTxns.count { it.unpairedHalf },
-    reviews = reviews.map { ReviewLine(it.reason, it.message) },
-    errors = errors.map { "строка ${it.line}: ${it.reason}" },
+    reviews = reviews.map { ReviewLine(it.reason, it.lines) },
+    errors = errors,
 )
 
 /** Карточки для интерактивного разрешения NEEDS_REVIEW — над ИСХОДНЫМ планом (список стабилен). */
@@ -164,7 +204,13 @@ internal fun reviewCards(plan: MonefyImportPlan, decisions: Map<ReviewRef, Revie
         ReviewCard(
             ref = ref,
             reason = item.reason,
-            message = item.message,
+            account = item.account,
+            currencyChoices = item.currencyChoices.map { it.code },
+            existingCurrency = item.existingCurrency?.code,
+            transferFromAccount = tx?.fromAccount,
+            transferToAccount = tx?.toAccount,
+            transferDate = tx?.date?.toString(),
+            pairCount = item.lines.size / 2,
             decision = decisions[ref],
             fromAmountMinor = tx?.fromAmountMinor,
             fromCurrency = tx?.fromCurrency?.code,
@@ -172,7 +218,6 @@ internal fun reviewCards(plan: MonefyImportPlan, decisions: Map<ReviewRef, Revie
             toAmountMinor = tx?.toAmountMinor,
             toCurrency = tx?.toCurrency?.code,
             toMinorUnits = minorUnits(tx?.toCurrency?.code),
-            currencyChoices = item.currencyChoices.map { it.code },
         )
     }
 }

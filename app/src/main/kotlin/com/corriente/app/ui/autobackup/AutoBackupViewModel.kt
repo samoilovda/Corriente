@@ -11,6 +11,7 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
 import androidx.room.Room
 import com.corriente.app.CorrienteApplication
+import com.corriente.app.R
 import com.corriente.app.backup.AutoBackupScheduler
 import com.corriente.app.backup.SafBackupFile
 import com.corriente.app.backup.SafBackupFolder
@@ -85,7 +86,7 @@ class AutoBackupViewModel(
 
     /** Поток файла из папки автобэкапа для восстановления/проверки (R1.3/R1.4). */
     fun openBackupFile(file: SafBackupFile) =
-        SafBackupFolder(app, currentTreeUri ?: error("папка автобэкапа не выбрана")).openInputStream(file.documentId)
+        SafBackupFolder(app, currentTreeUri ?: error(app.getString(R.string.autobackup_error_no_folder))).openInputStream(file.documentId)
 
     private val _verifying = MutableStateFlow(false)
     val verifying: StateFlow<Boolean> = _verifying

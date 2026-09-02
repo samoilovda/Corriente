@@ -47,6 +47,7 @@ import com.corriente.app.corrienteContainer
 import com.corriente.app.ui.common.rememberMessageSnackbarState
 import com.corriente.data.db.entity.RecurrenceRuleType
 import com.corriente.data.db.entity.TxnKind
+import com.corriente.data.recurrence.RecurrenceRule
 
 /** R2.4: экран «Повторяющиеся» из «Настроек» — список + создание/правка/удаление правил. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -92,10 +93,10 @@ fun RecurringScreen(
             LazyColumn(Modifier.fillMaxSize().padding(padding)) {
                 items(state.rows, key = { it.id }) { row ->
                     ListItem(
-                        headlineContent = { Text(row.title) },
+                        headlineContent = { Text(recurringRowTitle(row)) },
                         supportingContent = {
                             Column {
-                                Text("${row.amountText} — ${row.ruleText}")
+                                Text("${row.amountText} — ${recurringRuleText(row.rule)}")
                                 Text(
                                     stringResource(R.string.recurring_next_run, row.nextRunText),
                                     style = MaterialTheme.typography.bodySmall,
@@ -144,6 +145,26 @@ fun RecurringScreen(
             dismissButton = { TextButton(onClick = { pendingDeleteId = null }) { Text(stringResource(R.string.cancel)) } },
         )
     }
+}
+
+/**
+ * Заголовок строки списка (R6.3): вид и «без категории» — UI-текст из ресурсов, имя счёта/
+ * категории — данные пользователя, не локализуются.
+ */
+@Composable
+private fun recurringRowTitle(row: RecurringRow): String {
+    val kindLabel = stringResource(
+        if (row.kind == TxnKind.INCOME) R.string.recurring_kind_income else R.string.recurring_kind_expense,
+    )
+    val categoryLabel = row.categoryName ?: stringResource(R.string.txn_entry_no_category)
+    val accountLabel = row.accountName ?: "?"
+    return "$kindLabel: $categoryLabel · $accountLabel"
+}
+
+@Composable
+private fun recurringRuleText(rule: RecurrenceRule): String = when (rule) {
+    is RecurrenceRule.DayOfMonth -> stringResource(R.string.recurring_row_rule_day_of_month, rule.day)
+    is RecurrenceRule.EveryNDays -> stringResource(R.string.recurring_row_rule_every_n_days, rule.intervalDays)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

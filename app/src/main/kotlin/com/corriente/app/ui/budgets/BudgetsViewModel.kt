@@ -3,7 +3,9 @@ package com.corriente.app.ui.budgets
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import com.corriente.app.R
 import com.corriente.app.ui.common.WritingViewModel
+import com.corriente.app.ui.common.uiMessage
 import com.corriente.data.db.entity.CategoryKind
 import com.corriente.data.model.Category
 import com.corriente.data.repository.BudgetRepository
@@ -26,7 +28,8 @@ import java.time.LocalDate
 /** Строка списка на экране «Бюджеты» (R2.3). */
 data class BudgetRow(
     val id: String,
-    val categoryLabel: String,
+    /** null — бюджет «На всё» (без категории); текст ресурса подставляет экран. */
+    val categoryName: String?,
     val amountText: String,
 )
 
@@ -86,11 +89,13 @@ class BudgetsViewModel(
                 val currency = byCode[b.amount.currency.code] ?: fallbackCurrency(b.amount.currency.code)
                 BudgetRow(
                     id = b.id,
-                    categoryLabel = b.categoryId?.let { namesById[it] } ?: "На всё",
+                    categoryName = b.categoryId?.let { namesById[it] },
                     amountText = MoneyFormatter.format(b.amount, currency),
                 )
             }
-            .sortedBy { it.categoryLabel }
+            // R6.3: "На всё"/"For everything" — UI-текст ресурса, а не значение для сортировки;
+            // сортируем по сырому имени категории, бюджет без категории — первым.
+            .sortedBy { it.categoryName ?: "" }
         BudgetsUiState(
             rows = rows,
             expenseCategories = allCategories.filter { it.kind == CategoryKind.EXPENSE },
@@ -129,7 +134,7 @@ class BudgetsViewModel(
 
     fun save() {
         val editor = editorState.value ?: return
-        launchWrite(onError = { "Не удалось сохранить бюджет" }, onSuccess = { editorState.value = null }) {
+        launchWrite(onError = { uiMessage(R.string.budgets_error_save) }, onSuccess = { editorState.value = null }) {
             val currencyMeta = currencyRepository.getByCode(CurrencyCode(editor.currencyCode)) ?: fallbackCurrency(editor.currencyCode)
             val minor = AmountInput.fromText(editor.amountText, currencyMeta).toMinorOrNull(currencyMeta) ?: return@launchWrite
             val money = Money(minor, CurrencyCode(editor.currencyCode))
@@ -142,7 +147,7 @@ class BudgetsViewModel(
     }
 
     fun delete(id: String) {
-        launchWrite(onError = { "Не удалось удалить бюджет" }) { budgetRepository.delete(id) }
+        launchWrite(onError = { uiMessage(R.string.budgets_error_delete) }) { budgetRepository.delete(id) }
     }
 
     companion object {

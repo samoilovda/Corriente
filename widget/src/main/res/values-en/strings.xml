@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="widget_description">Balances and quick expense entry</string>
+    <string name="widget_month_expenses">Expenses this month</string>
+    <string name="widget_locked">Unlock your phone to see balances</string>
+    <string name="widget_empty">No data yet</string>
+</resources>

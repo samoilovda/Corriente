@@ -3,7 +3,9 @@ package com.corriente.app.ui.recurring
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import com.corriente.app.R
 import com.corriente.app.ui.common.WritingViewModel
+import com.corriente.app.ui.common.uiMessage
 import com.corriente.data.db.entity.CategoryKind
 import com.corriente.data.db.entity.RecurrenceRuleType
 import com.corriente.data.db.entity.TxnKind
@@ -28,12 +30,20 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 
-/** Строка списка на экране «Повторяющиеся» (R2.4). */
+/**
+ * Строка списка на экране «Повторяющиеся» (R2.4). Название категории/счёта — данные
+ * пользователя (не локализуются), но вид/категория-по-умолчанию/правило — UI-текст,
+ * поэтому строка отдаёт вызывающему сырые значения, а не готовую фразу: собирает её
+ * Composable через `stringResource` (R6.3, ROADMAP.md §8 — ViewModel ничего не знает
+ * про текущую локаль).
+ */
 data class RecurringRow(
     val id: String,
-    val title: String,
+    val kind: TxnKind,
+    val categoryName: String?,
+    val accountName: String?,
     val amountText: String,
-    val ruleText: String,
+    val rule: RecurrenceRule,
     val nextRunText: String,
 )
 
@@ -58,11 +68,6 @@ data class RecurringUiState(
 )
 
 private fun fallbackCurrency(code: String): Currency = Currency(CurrencyCode(code), minorUnits = 2, displayScale = 2, symbol = code)
-
-private fun ruleText(rule: RecurrenceRule): String = when (rule) {
-    is RecurrenceRule.DayOfMonth -> "${rule.day}-го числа каждого месяца"
-    is RecurrenceRule.EveryNDays -> "Каждые ${rule.intervalDays} дн."
-}
 
 /**
  * Повторяющиеся операции (R2.4). Перевод не поддерживается (см. [RecurrenceRepository]) — форма
@@ -90,13 +95,13 @@ class RecurringViewModel(
         val categoryNames = allCategories.associate { it.id to it.name }
         val rows = allRecurrences.map { r ->
             val currency = byCode[r.amount.currency.code] ?: fallbackCurrency(r.amount.currency.code)
-            val kindLabel = if (r.kind == TxnKind.INCOME) "Доход" else "Расход"
-            val categoryLabel = r.categoryId?.let { categoryNames[it] } ?: "Без категории"
             RecurringRow(
                 id = r.id,
-                title = "$kindLabel: $categoryLabel · ${accountNames[r.accountId] ?: "?"}",
+                kind = r.kind,
+                categoryName = r.categoryId?.let { categoryNames[it] },
+                accountName = accountNames[r.accountId],
                 amountText = MoneyFormatter.format(r.amount, currency),
-                ruleText = ruleText(r.rule),
+                rule = r.rule,
                 nextRunText = r.nextRunOn.toString(),
             )
         }
@@ -163,7 +168,7 @@ class RecurringViewModel(
     fun save() {
         val editor = editorState.value ?: return
         val accountId = editor.accountId ?: return
-        launchWrite(onError = { "Не удалось сохранить правило" }, onSuccess = { editorState.value = null }) {
+        launchWrite(onError = { uiMessage(R.string.recurring_error_save) }, onSuccess = { editorState.value = null }) {
             val account = requireNotNull(accountRepository.getById(accountId)) { "Account $accountId not found" }
             val currencyMeta = currencyRepository.getByCode(account.currency) ?: fallbackCurrency(account.currency.code)
             val minor = AmountInput.fromText(editor.amountText, currencyMeta).toMinorOrNull(currencyMeta) ?: return@launchWrite
@@ -184,7 +189,7 @@ class RecurringViewModel(
     }
 
     fun delete(id: String) {
-        launchWrite(onError = { "Не удалось удалить правило" }) { recurrenceRepository.delete(id) }
+        launchWrite(onError = { uiMessage(R.string.recurring_error_delete) }) { recurrenceRepository.delete(id) }
     }
 
     companion object {

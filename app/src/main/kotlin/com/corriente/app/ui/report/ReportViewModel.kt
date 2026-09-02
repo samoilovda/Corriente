@@ -30,9 +30,13 @@ import java.time.LocalDate
 /** F2.1: сколько месяцев назад от «якоря» строится график «по месяцам». */
 private const val MONTHLY_SERIES_MONTHS = 6L
 
+/** R6.3: только для CSV-экспорта (см. [ReportViewModel.exportCsv]) — экран использует ресурс. */
+private const val NO_CATEGORY_CSV_LABEL = "Без категории"
+
 data class ReportRow(
     val categoryId: String?,
-    val name: String,
+    /** null — «Без категории» (R6.3, ROADMAP.md §8): текст ресурса подставляет экран. */
+    val name: String?,
     val amountText: String,
     val sharePercent: Int,
     val color: Int = 0,
@@ -47,12 +51,13 @@ data class ReportRow(
 /** T5.3: столбец графика «по месяцам» — значение уже посчитано (I-1), Float только в Canvas. */
 data class MonthlyBar(val label: String, val valueMinor: Long, val amountText: String)
 
-/** T5.3: доля категории для кольцевой диаграммы. */
-data class CategorySlice(val name: String, val valueMinor: Long, val color: Int, val amountText: String)
+/** T5.3: доля категории для кольцевой диаграммы. null у [name] — «Без категории» (R6.3). */
+data class CategorySlice(val name: String?, val valueMinor: Long, val color: Int, val amountText: String)
 
 data class TxnBrief(val id: String, val date: LocalDate, val amountText: String, val note: String?)
 
-data class Drilldown(val categoryName: String, val txns: List<TxnBrief>)
+/** null у [categoryName] — «Без категории» (R6.3): текст ресурса подставляет экран. */
+data class Drilldown(val categoryName: String?, val txns: List<TxnBrief>)
 
 /**
  * R2.3: полоса «потрачено из бюджета» под строкой категории. [percentClamped] уже зажат в
@@ -104,7 +109,7 @@ internal fun withShares(
     return report.mapIndexed { i, total ->
         ReportRow(
             categoryId = total.categoryId,
-            name = total.categoryId?.let { names[it] } ?: "Без категории",
+            name = total.categoryId?.let { names[it] },
             amountText = MoneyFormatter.format(total.total, currency),
             sharePercent = shares[i],
             color = total.categoryId?.let { colors[it] } ?: 0,
@@ -257,7 +262,7 @@ class ReportViewModel(
         val wholeCurrencyBudgetBar = budgetBars.firstOrNull { it.categoryId == null }
 
         val drilldown = if (f.drilldownActive && selected != null && currency != null) {
-            val catName = f.drilldownCategoryId?.let { names[it] } ?: "Без категории"
+            val catName = f.drilldownCategoryId?.let { names[it] }
             val briefs = inPeriod
                 .filter { txnMatches(it, f.kind, selected, f.drilldownCategoryId) }
                 .sortedByDescending { it.date }
@@ -315,11 +320,17 @@ class ReportViewModel(
      * R3.3: CSV текущего отчёта — ровно то, что видно на экране сейчас (те же строки, суммы,
      * доли, сравнение с прошлым периодом из R3.1), суммы уже отформатированы [MoneyFormatter]
      * (I-25 — то же самое число, что на экране, независимо от локали устройства).
+     *
+     * R6.3 (ROADMAP.md §8): содержимое CSV-файла (заголовки колонок, «Без категории», текст
+     * сравнения с прошлым периодом) сознательно не локализуется в этом проходе — это данные
+     * экспорта, а не текст экрана, который видит Lint (`HardcodedText` смотрит на Composable),
+     * и `docs/CHANGELOG.md`/итоговый отчёт сессии фиксируют это явным пробелом, а не тихим
+     * упущением.
      */
     fun exportCsv(): String {
         val rows = uiState.value.rows.map { row ->
             com.corriente.data.export.ReportCsvRow(
-                category = row.name,
+                category = row.name ?: NO_CATEGORY_CSV_LABEL,
                 amountText = row.amountText,
                 sharePercent = row.sharePercent,
                 changeText = row.changeText ?: "",

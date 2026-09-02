@@ -5,6 +5,7 @@ import android.net.Uri
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.corriente.app.CorrienteApplication
+import com.corriente.app.R
 import java.util.Date
 
 /**
@@ -32,13 +33,13 @@ class AutoBackupWorker(
         } catch (e: SecurityException) {
             // потеряли доступ к папке (пользователь отозвал разрешение) — не долбимся повторно
             settings.setEnabled(false)
-            settings.recordRun(System.currentTimeMillis(), "Нет доступа к папке — автобэкап выключен")
+            settings.recordRun(System.currentTimeMillis(), applicationContext.getString(R.string.autobackup_error_folder_access_lost))
             Result.failure()
         } catch (e: Exception) {
             if (runAttemptCount < MAX_ATTEMPTS) {
                 Result.retry()
             } else {
-                settings.recordRun(System.currentTimeMillis(), e.message ?: "Не удалось сделать бэкап")
+                settings.recordRun(System.currentTimeMillis(), e.message ?: applicationContext.getString(R.string.autobackup_error_failed))
                 Result.failure()
             }
         }

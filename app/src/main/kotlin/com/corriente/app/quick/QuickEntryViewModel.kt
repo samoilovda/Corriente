@@ -3,7 +3,9 @@ package com.corriente.app.quick
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import com.corriente.app.R
 import com.corriente.app.ui.common.WritingViewModel
+import com.corriente.app.ui.common.uiMessage
 import com.corriente.app.ui.txnentry.EntryKind
 import com.corriente.data.repository.AccountRepository
 import com.corriente.data.repository.CurrencyRepository
@@ -142,7 +144,7 @@ class QuickEntryViewModel(
         val kind = state.kind
         form.update { it.copy(saving = true) }
         launchWrite(
-            onError = { form.update { f -> f.copy(saving = false) }; "Не удалось сохранить операцию" },
+            onError = { form.update { f -> f.copy(saving = false) }; uiMessage(R.string.quick_expense_save_failed) },
             onSuccess = { _finished.value = true },
         ) {
             when (kind) {

@@ -3,6 +3,7 @@ package com.corriente.app.backup
 import android.content.Context
 import android.net.Uri
 import android.provider.DocumentsContract
+import com.corriente.app.R
 import com.corriente.data.backup.AUTO_BACKUP_PREFIX
 import com.corriente.data.backup.AUTO_BACKUP_SUFFIX
 import com.corriente.data.backup.namesToPrune
@@ -36,8 +37,8 @@ class SafBackupFolder(private val context: Context, private val treeUri: Uri) {
         val dirUri = DocumentsContract.buildDocumentUriUsingTree(treeUri, treeDocId)
         val name = "$AUTO_BACKUP_PREFIX${stamp.format(now)}$AUTO_BACKUP_SUFFIX"
         val fileUri = DocumentsContract.createDocument(context.contentResolver, dirUri, "application/json", name)
-            ?: error("не удалось создать файл в выбранной папке")
-        val out = context.contentResolver.openOutputStream(fileUri) ?: error("не удалось открыть файл на запись")
+            ?: error(context.getString(R.string.safbackup_error_create_file))
+        val out = context.contentResolver.openOutputStream(fileUri) ?: error(context.getString(R.string.safbackup_error_open_for_write))
         out.use { write(it) }
     }
 
@@ -74,7 +75,7 @@ class SafBackupFolder(private val context: Context, private val treeUri: Uri) {
     /** Открывает файл из этой папки на чтение (R1.3/R1.4) — для восстановления и проверки. */
     fun openInputStream(documentId: String): InputStream {
         val uri = DocumentsContract.buildDocumentUriUsingTree(treeUri, documentId)
-        return context.contentResolver.openInputStream(uri) ?: error("не удалось открыть файл на чтение")
+        return context.contentResolver.openInputStream(uri) ?: error(context.getString(R.string.safbackup_error_open_for_read))
     }
 
     /** Удаляет самые старые файлы автобэкапа, оставляя [keep] последних. */

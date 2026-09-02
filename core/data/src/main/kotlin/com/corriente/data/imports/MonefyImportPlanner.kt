@@ -68,15 +68,23 @@ data class PlannedTransfer(
 )
 
 /**
- * @param account имя счёта — только у [ReviewReason.ACCOUNT_CURRENCY_CONFLICT], для ручного выбора валюты.
- * @param currencyChoices валюты, встреченные у этого счёта в файле (для того же случая).
+ * Позиция NEEDS_REVIEW — только структурные данные, без готового текста (R6.3, ROADMAP.md §8):
+ * текст под конкретную локаль строит экран (`ImportViewModel`/`ImportScreen`) через
+ * `stringResource`, подставляя [reason] и остальные поля в шаблон, а для переводов ещё и
+ * находя сам [PlannedTransfer] по [lines] (там же — даты и имена счетов).
+ *
+ * @param account имя счёта — у [ReviewReason.ACCOUNT_CURRENCY_CONFLICT] и
+ *   [ReviewReason.EXISTING_ACCOUNT_CURRENCY_MISMATCH], для ручного выбора валюты/имени.
+ * @param currencyChoices валюты, встреченные у этого счёта в файле (для тех же причин).
+ * @param existingCurrency валюта, в которой счёт уже ведётся в приложении — только у
+ *   [ReviewReason.EXISTING_ACCOUNT_CURRENCY_MISMATCH].
  */
 data class ReviewItem(
     val reason: ReviewReason,
     val lines: List<Int>,
-    val message: String,
     val account: String? = null,
     val currencyChoices: List<CurrencyCode> = emptyList(),
+    val existingCurrency: CurrencyCode? = null,
 )
 
 data class MonefyImportPlan(
@@ -133,7 +141,6 @@ object MonefyImportPlanner {
             } else if (existing != row.currency) {
                 reviews += ReviewItem(
                     ReviewReason.ACCOUNT_CURRENCY_CONFLICT, listOf(row.line),
-                    "счёт «${row.account}» встречается с разными валютами: $existing и ${row.currency}",
                     account = row.account,
                     currencyChoices = listOf(existing, row.currency),
                 )
@@ -230,23 +237,13 @@ object MonefyImportPlanner {
                 reviews += ReviewItem(
                     ReviewReason.AMBIGUOUS_PAIRING,
                     group.flatMap { listOf(it.fromLine, it.toLine) }.sorted(),
-                    "${group.size} одинаковых перевода ${group.first().fromAccount} → ${group.first().toAccount} " +
-                        "за ${group.first().date} — пары построены по порядку строк, подтвердите",
                 )
             }
         transfers.filter { it.review == ReviewReason.ANOMALOUS_CURRENCY }.forEach {
-            reviews += ReviewItem(
-                ReviewReason.ANOMALOUS_CURRENCY, listOf(it.fromLine, it.toLine),
-                "перевод ${it.fromAccount} → ${it.toAccount} за ${it.date}: неявный курс 1.0 при разных " +
-                    "валютах — выберите валюту суммы-приёмника",
-            )
+            reviews += ReviewItem(ReviewReason.ANOMALOUS_CURRENCY, listOf(it.fromLine, it.toLine))
         }
         transfers.filter { it.review == ReviewReason.EXCESS_PRECISION }.forEach {
-            reviews += ReviewItem(
-                ReviewReason.EXCESS_PRECISION, listOf(it.fromLine, it.toLine),
-                "перевод ${it.fromAccount} → ${it.toAccount} за ${it.date}: сумма округлена до точности " +
-                    "валюты — подтвердите или введите точную",
-            )
+            reviews += ReviewItem(ReviewReason.EXCESS_PRECISION, listOf(it.fromLine, it.toLine))
         }
 
         val accounts = accountCurrencies.map { (name, currency) ->
@@ -260,9 +257,9 @@ object MonefyImportPlanner {
                 reviews += ReviewItem(
                     ReviewReason.EXISTING_ACCOUNT_CURRENCY_MISMATCH,
                     listOf(firstLineByAccount[planned.name] ?: 0),
-                    "счёт «${planned.name}» уже ведётся в валюте $existing, а в файле — ${planned.currency}",
                     account = planned.name,
                     currencyChoices = listOf(planned.currency),
+                    existingCurrency = existing,
                 )
             }
         }

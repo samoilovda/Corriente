@@ -43,6 +43,15 @@
     <string name="autobackup_drive_note">Если вы выбрали папку внутри «Google Диска» и запись не срабатывает — это известное ограничение: клиент Диска исторически не отдаёт себя как дерево для автобэкапа. Работают локальная папка + сторонний синхронизатор (Autosync, FolderSync, Syncthing) или ручная отправка бэкапа в Диск через «Отправить бэкап» в настройках. Подробности — в README, раздел «Как складывать бэкапы в облако».</string>
     <string name="autobackup_files_title">Файлы в папке</string>
     <string name="autobackup_files_empty">Пока нет ни одного файла</string>
+    <string name="autobackup_error_no_folder">Папка автобэкапа не выбрана</string>
+    <string name="autobackup_size_mb">%1$.1f МБ</string>
+    <string name="autobackup_size_kb">%1$.1f КБ</string>
+    <string name="autobackup_size_bytes">%1$d Б</string>
+    <string name="autobackup_error_folder_access_lost">Нет доступа к папке — автобэкап выключен</string>
+    <string name="autobackup_error_failed">Не удалось сделать бэкап</string>
+    <string name="safbackup_error_create_file">Не удалось создать файл в выбранной папке</string>
+    <string name="safbackup_error_open_for_write">Не удалось открыть файл на запись</string>
+    <string name="safbackup_error_open_for_read">Не удалось открыть файл на чтение</string>
     <string name="backup_restore_action">Восстановить</string>
     <string name="backup_verify_action">Проверить файл</string>
     <string name="backup_verify_title">Проверка файла</string>
@@ -64,6 +73,8 @@
     <string name="quick_expense_no_category">Без категории</string>
     <string name="quick_change_account_failed">Не удалось сменить счёт. Попробуйте ещё раз.</string>
     <string name="widget_reset_defaults">Сбросить к значениям по умолчанию</string>
+    <string name="widget_settings_error_save">Не удалось сохранить настройки виджета</string>
+    <string name="widget_settings_error_reset">Не удалось сбросить настройки виджета</string>
 
     <string name="import_monefy">Импорт из Monefy</string>
     <string name="import_monefy_hint">Загрузить CSV-экспорт из Monefy</string>
@@ -72,6 +83,7 @@
     <string name="import_history_empty">Импортов ещё не было</string>
     <string name="import_history_summary">Операций: %1$d · переводов: %2$d · категорий: %3$d</string>
     <string name="import_history_rollback">Откатить</string>
+    <string name="import_history_error_rollback">Не удалось откатить импорт</string>
     <string name="import_history_rollback_confirm">Удалить все операции и созданные категории импорта «%1$s»? Операции и категории прошлых импортов не тронутся.</string>
     <string name="import_title">Импорт из Monefy</string>
     <string name="import_pick_file">Выбрать CSV-файл</string>
@@ -99,11 +111,26 @@
     <string name="import_done">Добавлено операций: %1$d, пропущено (уже есть): %2$d.</string>
     <string name="import_failed">Не удалось: %1$s</string>
     <string name="import_restart">Импортировать другой файл</string>
+    <string name="import_error_parse_failed">не удалось разобрать файл</string>
+    <string name="import_error_write_failed">ошибка записи</string>
+    <string name="import_error_account_currency_conflict">Счёт «%1$s» уже ведётся в валюте %2$s, а в файле — %3$s. Выберите вариант в предпросмотре импорта.</string>
+    <string name="import_error_row_prefix">строка %1$d: %2$s</string>
+    <string name="import_error_wrong_field_count">ожидалось %1$d полей, получено %2$d</string>
+    <string name="import_error_unparseable_date">нераспознанная дата \'%1$s\'</string>
+    <string name="import_error_unparseable_amount">сумма \'%1$s\': %2$s</string>
+    <string name="import_error_unparseable_converted_amount">converted amount \'%1$s\': %2$s</string>
+    <string name="import_review_account_currency_conflict">счёт «%1$s» встречается с разными валютами: %2$s и %3$s</string>
+    <string name="import_review_existing_account_mismatch">счёт «%1$s» уже ведётся в валюте %2$s, а в файле — %3$s</string>
+    <string name="import_review_ambiguous_pairing">%1$d одинаковых перевода %2$s → %3$s за %4$s — пары построены по порядку строк, подтвердите</string>
+    <string name="import_review_anomalous_currency">перевод %1$s → %2$s за %3$s: неявный курс 1.0 при разных валютах — выберите валюту суммы-приёмника</string>
+    <string name="import_review_excess_precision">перевод %1$s → %2$s за %3$s: сумма округлена до точности валюты — подтвердите или введите точную</string>
 
     <string name="currencies_title">Валюты</string>
     <string name="currencies_search_hint">Поиск по коду или названию</string>
     <string name="currencies_symbol">Символ</string>
     <string name="currencies_display_scale">Знаков после запятой</string>
+    <string name="currencies_error_set_active">Не удалось изменить список валют</string>
+    <string name="currencies_error_save">Не удалось сохранить валюту</string>
 
     <string name="accounts_add">Добавить счёт</string>
     <string name="accounts_new">Новый счёт</string>
@@ -121,6 +148,11 @@
     <string name="accounts_archived">Архив</string>
     <string name="accounts_unarchive">Вернуть из архива</string>
     <string name="accounts_empty">Счетов пока нет. Добавьте первый по кнопке «+».</string>
+    <string name="accounts_error_save">Не удалось сохранить счёт</string>
+    <string name="accounts_error_currency_fixed">Валюта уже зафиксирована первой операцией</string>
+    <string name="accounts_error_archive">Не удалось заархивировать счёт</string>
+    <string name="accounts_error_unarchive">Не удалось вернуть счёт из архива</string>
+    <string name="accounts_error_delete">Не удалось удалить счёт</string>
 
     <string name="account_kind_cash">Наличные</string>
     <string name="account_kind_card">Карта</string>
@@ -145,6 +177,12 @@
     <string name="categories_merge">Объединить…</string>
     <string name="categories_merge_title">Объединить «%1$s»</string>
     <string name="categories_merge_hint">Операции переедут в выбранную категорию, а «%1$s» исчезнет. Выберите категорию:</string>
+    <string name="categories_error_name_exists">Категория «%1$s» уже есть</string>
+    <string name="categories_error_save">Не удалось сохранить категорию</string>
+    <string name="categories_error_archive">Не удалось заархивировать категорию</string>
+    <string name="categories_error_unarchive">Не удалось вернуть категорию из архива</string>
+    <string name="categories_error_delete">Не удалось удалить категорию</string>
+    <string name="categories_error_merge">Не удалось слить категории</string>
 
     <string name="category_kind_expense">Расход</string>
     <string name="category_kind_income">Доход</string>
@@ -163,6 +201,9 @@
     <string name="transfer_received">Зачислено</string>
     <string name="transfer_rate_manual">Курс (необязательно)</string>
     <string name="transfer_need_two_accounts">Для перевода нужно минимум два счёта.</string>
+    <string name="transfer_error_save">Не удалось сохранить перевод</string>
+    <string name="transfer_error_delete">Не удалось удалить перевод</string>
+    <string name="transfer_error_restore">Не удалось восстановить перевод</string>
     <string name="txn_entry_account">Счёт</string>
     <string name="txn_entry_frequent">Частые</string>
     <string name="txn_entry_category">Категория</string>
@@ -176,6 +217,9 @@
     <string name="txn_entry_amount_must_be_positive">Сумма должна быть больше нуля</string>
     <string name="txn_entry_edit">Редактировать операцию</string>
     <string name="txn_entry_delete">Удалить</string>
+    <string name="txn_entry_error_save">Не удалось сохранить операцию</string>
+    <string name="txn_entry_error_delete">Не удалось удалить операцию</string>
+    <string name="txn_entry_error_restore">Не удалось восстановить операцию</string>
 
     <string name="txn_list_all_accounts">Все счета</string>
     <string name="txn_list_all_currencies">Все валюты</string>
@@ -202,6 +246,7 @@
     <string name="report_next">Следующий период</string>
     <string name="report_total">Итого</string>
     <string name="report_empty">За этот период операций с категориями нет.</string>
+    <string name="report_no_category">Без категории</string>
     <string name="report_chart_monthly">По месяцам</string>
     <string name="report_chart_structure">Структура категорий</string>
     <string name="report_open_fx">Курсы обмена</string>
@@ -228,6 +273,8 @@
     <string name="budgets_amount">Сумма</string>
     <string name="budgets_delete_confirm_title">Удалить этот бюджет?</string>
     <string name="report_budget_over">Перерасход</string>
+    <string name="budgets_error_save">Не удалось сохранить бюджет</string>
+    <string name="budgets_error_delete">Не удалось удалить бюджет</string>
 
     <string name="recurring_title">Повторяющиеся</string>
     <string name="recurring_hint">Аренда, подписки, зарплата — создаются автоматически по расписанию</string>
@@ -247,6 +294,10 @@
     <string name="recurring_next_run">Следующая операция: %1$s</string>
     <string name="recurring_auto_created_note">Создано автоматически по повторяющемуся правилу</string>
     <string name="recurring_delete_confirm_title">Удалить это правило?</string>
+    <string name="recurring_row_rule_day_of_month">%1$d-го числа каждого месяца</string>
+    <string name="recurring_row_rule_every_n_days">Каждые %1$d дн.</string>
+    <string name="recurring_error_save">Не удалось сохранить правило</string>
+    <string name="recurring_error_delete">Не удалось удалить правило</string>
 
     <!-- R5.2: блокировка приложения. -->
     <string name="app_lock_title">Блокировка приложения</string>

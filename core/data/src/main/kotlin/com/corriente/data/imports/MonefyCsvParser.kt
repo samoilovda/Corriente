@@ -32,7 +32,20 @@ data class MonefyRow(
     val amountRoundedFromExcess: Boolean,
 )
 
-data class MonefyRowError(val line: Int, val raw: String, val reason: String)
+/**
+ * Почему строка не разобралась — структурно, а не готовой русской фразой (R6.3, ROADMAP.md §8):
+ * текст для экрана строит вызывающий (`ImportScreen.kt`) через `stringResource`, чтобы
+ * английская локаль тоже получала понятную ошибку, а не русский текст из core/data.
+ */
+sealed interface MonefyRowIssue {
+    data class WrongFieldCount(val expected: Int, val actual: Int) : MonefyRowIssue
+    data class UnparseableDate(val raw: String) : MonefyRowIssue
+    /** [detail] — сообщение [MonefyAmountParser], уже на английском (не требует локализации). */
+    data class UnparseableAmount(val raw: String, val detail: String?) : MonefyRowIssue
+    data class UnparseableConvertedAmount(val raw: String, val detail: String?) : MonefyRowIssue
+}
+
+data class MonefyRowError(val line: Int, val raw: String, val issue: MonefyRowIssue)
 
 data class MonefyCsvResult(val rows: List<MonefyRow>, val errors: List<MonefyRowError>)
 
@@ -62,24 +75,24 @@ object MonefyCsvParser {
             if (fields.all { it.isBlank() }) return@forEachIndexed
             val raw = fields.joinToString(",")
             if (fields.size != 8) {
-                errors += MonefyRowError(line, raw, "ожидалось 8 полей, получено ${fields.size}")
+                errors += MonefyRowError(line, raw, MonefyRowIssue.WrongFieldCount(8, fields.size))
                 return@forEachIndexed
             }
             val date = runCatching { LocalDate.parse(fields[0].trim(), DATE) }.getOrNull()
             if (date == null) {
-                errors += MonefyRowError(line, raw, "нераспознанная дата '${fields[0]}'")
+                errors += MonefyRowError(line, raw, MonefyRowIssue.UnparseableDate(fields[0]))
                 return@forEachIndexed
             }
             val currency = CurrencyCode(fields[4].trim())
             val baseCurrency = CurrencyCode(fields[6].trim())
             val amount = runCatching { MonefyAmountParser.parseLenient(fields[3], currencyOf(currency.code)) }
                 .getOrElse {
-                    errors += MonefyRowError(line, raw, "сумма '${fields[3]}': ${it.message}")
+                    errors += MonefyRowError(line, raw, MonefyRowIssue.UnparseableAmount(fields[3], it.message))
                     return@forEachIndexed
                 }
             val converted = runCatching { MonefyAmountParser.parseLenient(fields[5], currencyOf(baseCurrency.code)) }
                 .getOrElse {
-                    errors += MonefyRowError(line, raw, "converted amount '${fields[5]}': ${it.message}")
+                    errors += MonefyRowError(line, raw, MonefyRowIssue.UnparseableConvertedAmount(fields[5], it.message))
                     return@forEachIndexed
                 }
 

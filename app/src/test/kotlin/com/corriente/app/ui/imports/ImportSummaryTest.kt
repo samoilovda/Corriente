@@ -39,11 +39,11 @@ class ImportSummaryTest {
             ),
             summary.reviews.map { it.reason }.toSet(),
         )
-        summary.reviews.forEach { assertEquals(true, it.message.isNotBlank()) }
+        summary.reviews.forEach { assertEquals(true, it.lines.isNotEmpty()) }
     }
 
     @Test
     fun `sample file has no unparsed rows`() {
-        assertEquals(emptyList<String>(), summary.errors)
+        assertEquals(emptyList<com.corriente.data.imports.MonefyRowError>(), summary.errors)
     }
 }

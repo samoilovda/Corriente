@@ -276,10 +276,11 @@ private fun formatFileDate(epochMs: Long): String =
     DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM, FormatStyle.SHORT)
         .format(Instant.ofEpochMilli(epochMs).atZone(ZoneId.systemDefault()))
 
+@Composable
 private fun formatFileSize(bytes: Long): String = when {
-    bytes >= 1_000_000 -> "%.1f МБ".format(bytes / 1_000_000.0)
-    bytes >= 1_000 -> "%.1f КБ".format(bytes / 1_000.0)
-    else -> "$bytes Б"
+    bytes >= 1_000_000 -> stringResource(R.string.autobackup_size_mb, bytes / 1_000_000.0)
+    bytes >= 1_000 -> stringResource(R.string.autobackup_size_kb, bytes / 1_000.0)
+    else -> stringResource(R.string.autobackup_size_bytes, bytes)
 }
 
 @Composable

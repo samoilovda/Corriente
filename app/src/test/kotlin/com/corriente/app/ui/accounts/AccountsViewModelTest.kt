@@ -227,7 +227,7 @@ class AccountsViewModelTest {
         val saved = vm.uiState.value.groups.flatMap { it.rows }.single().account
         assertEquals("RUB", saved.currency.code)   // валюта не сменилась
         assertEquals("Карта+", saved.name)          // имя — сменилось
-        assertEquals("Валюта уже зафиксирована первой операцией", vm.messages.value?.text)
+        assertEquals(com.corriente.app.R.string.accounts_error_currency_fixed, vm.messages.value?.resId)
     }
 
     @Test

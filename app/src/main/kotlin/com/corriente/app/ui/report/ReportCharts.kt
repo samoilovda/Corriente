@@ -137,7 +137,7 @@ fun CategoryDonut(slices: List<CategorySlice>, modifier: Modifier = Modifier) {
                             drawCircle(sliceColor(slice.color, i))
                         }
                         Text(
-                            "  ${slice.name} — ${slice.amountText}",
+                            "  ${slice.name ?: stringResourceNoCategory()} — ${slice.amountText}",
                             style = MaterialTheme.typography.labelSmall,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
@@ -156,3 +156,7 @@ private fun stringResourceMonthly() =
 @Composable
 private fun stringResourceStructure() =
     androidx.compose.ui.res.stringResource(com.corriente.app.R.string.report_chart_structure)
+
+@Composable
+private fun stringResourceNoCategory() =
+    androidx.compose.ui.res.stringResource(com.corriente.app.R.string.report_no_category)

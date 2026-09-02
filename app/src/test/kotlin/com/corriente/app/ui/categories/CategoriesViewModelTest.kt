@@ -88,7 +88,8 @@ class CategoriesViewModelTest {
         assertTrue(vm.save(CategoryForm("Еда", CategoryKind.EXPENSE, null, 1, null)))
         advanceUntilIdle()
 
-        assertEquals("Категория «Еда» уже есть", vm.messages.value?.text)
+        assertEquals(com.corriente.app.R.string.categories_error_name_exists, vm.messages.value?.resId)
+        assertEquals(listOf("Еда"), vm.messages.value?.args)
         assertNotNull(vm.editor.value)
         assertTrue(vm.uiState.value.expense.isEmpty())
     }
