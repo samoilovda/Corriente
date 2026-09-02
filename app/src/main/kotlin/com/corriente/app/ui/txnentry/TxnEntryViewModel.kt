@@ -8,6 +8,10 @@ import com.corriente.data.db.entity.CategoryKind
 import com.corriente.data.model.Account
 import com.corriente.data.model.Category
 import com.corriente.data.model.Txn
+import com.corriente.data.quickentry.FREQUENT_ENTRY_SUGGESTIONS_LIMIT
+import com.corriente.data.quickentry.FrequentEntry
+import com.corriente.data.quickentry.FrequentEntryKind
+import com.corriente.data.quickentry.frequentEntries
 import com.corriente.data.repository.AccountRepository
 import com.corriente.data.repository.CategoryRepository
 import com.corriente.data.repository.CurrencyRepository
@@ -15,8 +19,10 @@ import com.corriente.data.repository.TxnRepository
 import com.corriente.money.AmountInput
 import com.corriente.money.CalcOp
 import com.corriente.money.Currency
+import com.corriente.money.CurrencyCode
 import com.corriente.money.Minor
 import com.corriente.money.Money
+import com.corriente.money.MoneyFormatter
 import com.corriente.money.applyCalc
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -33,6 +39,16 @@ enum class EntryKind { EXPENSE, INCOME }
 /** Счёт как вариант выбора в форме — с уже разрешённой [Currency] для клавиатуры и показа. */
 data class AccountOption(val id: String, val name: String, val currency: Currency, val isArchived: Boolean = false)
 
+/**
+ * R2.2: шаблон быстрого ввода для строки «частые» — с уже разрешёнными для показа именем
+ * категории/счёта и отформатированной суммой (I-1: деньги в UI-state — строка).
+ */
+data class FrequentOption(
+    val entry: FrequentEntry,
+    val label: String,
+    val amountText: String,
+)
+
 data class TxnEntryUiState(
     val kind: EntryKind = EntryKind.EXPENSE,
     val amount: AmountInput = AmountInput.empty(),
@@ -46,6 +62,8 @@ data class TxnEntryUiState(
     val note: String = "",
     /** F2.5: false до первой эмиссии репозиториев — экран не показывает ни форму, ни «нет счетов». */
     val loaded: Boolean = false,
+    /** R2.2: строка «частые» над клавиатурой — пусто при редактировании существующей операции. */
+    val frequentOptions: List<FrequentOption> = emptyList(),
 ) {
     val selectedAccount: AccountOption? get() = accounts.firstOrNull { it.id == selectedAccountId }
     val currency: Currency? get() = selectedAccount?.currency
@@ -162,7 +180,9 @@ class TxnEntryViewModel(
         accounts.observeAll(),
         currencies.observeAll(),
         categories.observeAllForLookup(),
-    ) { f, allAccounts, allCurrencies, allCategories ->
+        // R2.2: только для нового ввода — при редактировании строка «частые» не нужна.
+        if (editingTxnId == null) txns.observeAll() else kotlinx.coroutines.flow.flowOf<List<Txn>>(emptyList()),
+    ) { f, allAccounts, allCurrencies, allCategories, allTxns ->
         val byCode = allCurrencies.associateBy { it.code.code }
         fun option(account: Account) = AccountOption(
             id = account.id,
@@ -189,6 +209,20 @@ class TxnEntryViewModel(
         val kindCategories = allCategories.filter {
             it.kind == entryKindToCategoryKind(f.kind) && (!it.isArchived || it.id == editingCategoryId)
         }
+        val activeAccountsById = allAccounts.filterNot { it.isArchived }.associateBy { it.id }
+        val categoryNamesById = allCategories.associate { it.id to it.name }
+        val frequentOptions = frequentEntries(allTxns, today(), FREQUENT_ENTRY_SUGGESTIONS_LIMIT)
+            .mapNotNull { entry ->
+                val account = activeAccountsById[entry.accountId] ?: return@mapNotNull null
+                val currencyMeta = byCode[entry.currencyCode]
+                    ?: Currency(CurrencyCode(entry.currencyCode), minorUnits = 2, displayScale = 2, symbol = entry.currencyCode)
+                val categoryName = entry.categoryId?.let(categoryNamesById::get)
+                FrequentOption(
+                    entry = entry,
+                    label = categoryName?.let { "$it · ${account.name}" } ?: account.name,
+                    amountText = MoneyFormatter.format(Money(Minor(entry.amountMinor), CurrencyCode(entry.currencyCode)), currencyMeta),
+                )
+            }
         TxnEntryUiState(
             kind = f.kind,
             amount = f.amount,
@@ -201,10 +235,34 @@ class TxnEntryViewModel(
             date = f.date,
             note = f.note,
             loaded = true,
+            frequentOptions = frequentOptions,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), TxnEntryUiState(date = form.value.date))
 
     fun setKind(kind: EntryKind) = form.update { it.copy(kind = kind, selectedCategoryId = null) }
+
+    /**
+     * R2.2: тап по «частым» — подставляет вид/счёт/категорию/сумму целиком, остаётся нажать
+     * «Сохранить». Молча ничего не делает, если счёт шаблона уже недоступен (архивирован/удалён).
+     */
+    fun applyFrequent(option: FrequentOption) {
+        val entry = option.entry
+        val account = uiState.value.accounts.firstOrNull { it.id == entry.accountId } ?: return
+        val kind = when (entry.kind) {
+            FrequentEntryKind.EXPENSE -> EntryKind.EXPENSE
+            FrequentEntryKind.INCOME -> EntryKind.INCOME
+        }
+        form.update {
+            it.copy(
+                kind = kind,
+                selectedAccountId = entry.accountId,
+                selectedCategoryId = entry.categoryId,
+                amount = AmountInput.fromMinor(Minor(entry.amountMinor), account.currency),
+                calcAcc = null,
+                calcOp = null,
+            )
+        }
+    }
 
     /** F2.8: набор новой цифры после удержанного результата ≤ 0 начинает ввод заново. */
     private fun Form.clearHeldResult(): Form =

@@ -8,6 +8,7 @@ import com.corriente.data.db.entity.AccountKind
 import com.corriente.data.db.entity.CategoryEntity
 import com.corriente.data.db.entity.CategoryKind
 import com.corriente.data.db.entity.CurrencyEntity
+import com.corriente.data.db.entity.TxnEntity
 import com.corriente.data.db.entity.TxnKind
 import com.corriente.data.repository.AccountRepository
 import com.corriente.data.repository.CategoryRepository
@@ -419,5 +420,59 @@ class TxnEntryViewModelTest {
         advanceUntilIdle()
         assertEquals(7L, fakes.txnDao.rows.value.single().amountMinor)
         assertEquals("CLP", fakes.txnDao.rows.value.single().currencyCode)
+    }
+
+    // R2.2 — «частые»: строка над клавиатурой на экране нового ввода, тап заполняет форму целиком.
+    @Test
+    fun `frequent templates surface after repeated entries and fill the form on tap`() = runTest(dispatcher) {
+        val fakes = Fakes().apply {
+            seed()
+            repeat(3) { i ->
+                txnDao.insert(
+                    TxnEntity(
+                        "coffee-$i", TxnKind.EXPENSE, today.minusDays(i.toLong()).toString(), 0, 0,
+                        "acc-rub", 300_00, "RUB", categoryId = "cat-food",
+                    ),
+                )
+            }
+        }
+        val model = vm(fakes)
+        backgroundScope.observe(model)
+        advanceUntilIdle()
+
+        assertEquals(1, model.uiState.value.frequentOptions.size)
+        val option = model.uiState.value.frequentOptions.single()
+        assertEquals(300_00, option.entry.amountMinor)
+
+        // Форма ещё пустая
+        assertEquals("", model.uiState.value.amount.displayText())
+
+        model.applyFrequent(option)
+        advanceUntilIdle()
+
+        assertEquals("acc-rub", model.uiState.value.selectedAccountId)
+        assertEquals("cat-food", model.uiState.value.selectedCategoryId)
+        assertTrue(model.uiState.value.canSave)
+    }
+
+    // R2.2: строка «частые» не показывается при редактировании существующей операции.
+    @Test
+    fun `frequent templates are hidden while editing an existing transaction`() = runTest(dispatcher) {
+        val fakes = Fakes().apply {
+            seed()
+            repeat(3) { i ->
+                txnDao.insert(
+                    TxnEntity(
+                        "coffee-$i", TxnKind.EXPENSE, today.minusDays(i.toLong()).toString(), 0, 0,
+                        "acc-rub", 300_00, "RUB", categoryId = "cat-food",
+                    ),
+                )
+            }
+        }
+        val model = vm(fakes, editingTxnId = "coffee-0")
+        backgroundScope.observe(model)
+        advanceUntilIdle()
+
+        assertTrue(model.uiState.value.frequentOptions.isEmpty())
     }
 }

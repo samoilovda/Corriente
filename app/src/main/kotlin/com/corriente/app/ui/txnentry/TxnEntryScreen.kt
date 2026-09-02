@@ -194,6 +194,18 @@ fun TxnEntryScreen(
             }
 
             if (state.accounts.isNotEmpty()) {
+                // R2.2: «частые» — тап заполняет вид/счёт/категорию/сумму целиком.
+                if (state.frequentOptions.isNotEmpty()) {
+                    ChipRow(stringResource(R.string.txn_entry_frequent)) {
+                        state.frequentOptions.forEach { option ->
+                            FilterChip(
+                                selected = false,
+                                onClick = { viewModel.applyFrequent(option) },
+                                label = { Text("${option.label} · ${option.amountText}") },
+                            )
+                        }
+                    }
+                }
                 Spacer(Modifier.height(8.dp))
                 Keypad(
                     onDigit = viewModel::pressDigit,

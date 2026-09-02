@@ -157,6 +157,7 @@
     <string name="transfer_rate_manual">Курс (необязательно)</string>
     <string name="transfer_need_two_accounts">Для перевода нужно минимум два счёта.</string>
     <string name="txn_entry_account">Счёт</string>
+    <string name="txn_entry_frequent">Частые</string>
     <string name="txn_entry_category">Категория</string>
     <string name="txn_entry_no_category">Без категории</string>
     <string name="entry_archived_suffix">%1$s (архив)</string>
