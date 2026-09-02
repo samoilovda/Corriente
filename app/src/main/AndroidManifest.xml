@@ -24,12 +24,12 @@
         </activity>
         <activity
             android:name=".quick.QuickExpenseActivity"
-            android:exported="true"
+            android:exported="false"
             android:excludeFromRecents="true"
             android:theme="@style/Theme.Corriente.Translucent" />
         <activity
             android:name=".quick.ChangeActiveAccountActivity"
-            android:exported="true"
+            android:exported="false"
             android:excludeFromRecents="true"
             android:theme="@style/Theme.Corriente.Translucent" />
     </application>

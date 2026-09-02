@@ -58,19 +58,18 @@ class CorrienteWidget : GlanceAppWidget() {
     }
 }
 
-private const val APP_PACKAGE = "com.corriente.app"
-
-private fun quickExpenseIntent(categoryId: String, categoryName: String) =
+// F3.5: пакет берём у контекста — applicationIdSuffix в будущих типах сборки не сломает виджет.
+private fun quickExpenseIntent(appPackage: String, categoryId: String, categoryName: String) =
     Intent().apply {
-        component = ComponentName(APP_PACKAGE, "$APP_PACKAGE.quick.QuickExpenseActivity")
+        component = ComponentName(appPackage, "com.corriente.app.quick.QuickExpenseActivity")
         putExtra("category_id", categoryId)
         putExtra("category_name", categoryName)
         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
     }
 
-private fun changeActiveAccountIntent() =
+private fun changeActiveAccountIntent(appPackage: String) =
     Intent().apply {
-        component = ComponentName(APP_PACKAGE, "$APP_PACKAGE.quick.ChangeActiveAccountActivity")
+        component = ComponentName(appPackage, "com.corriente.app.quick.ChangeActiveAccountActivity")
         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
     }
 
@@ -95,7 +94,9 @@ private fun WidgetBody(snapshot: WidgetSnapshot, locked: Boolean) {
                     Text(
                         text = snapshot.activeAccountName,
                         style = captionStyle(),
-                        modifier = GlanceModifier.clickable(actionStartActivity(changeActiveAccountIntent())),
+                        modifier = GlanceModifier.clickable(
+                            actionStartActivity(changeActiveAccountIntent(context.packageName)),
+                        ),
                     )
                     Spacer(GlanceModifier.height(4.dp))
                 }
@@ -117,7 +118,9 @@ private fun WidgetBody(snapshot: WidgetSnapshot, locked: Boolean) {
                                 modifier = GlanceModifier
                                     .padding(horizontal = 6.dp, vertical = 4.dp)
                                     .clickable(
-                                        actionStartActivity(quickExpenseIntent(category.id, category.name)),
+                                        actionStartActivity(
+                                            quickExpenseIntent(context.packageName, category.id, category.name),
+                                        ),
                                     ),
                             )
                             Spacer(GlanceModifier.width(4.dp))
