@@ -37,6 +37,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -190,7 +191,7 @@ private fun CategoryEditorDialog(
 ) {
     var name by rememberSaveable(editor) { mutableStateOf(editor.name) }
     var parentId by rememberSaveable(editor) { mutableStateOf(editor.parentId) }
-    var color by rememberSaveable(editor) { mutableStateOf(editor.color) }
+    var color by rememberSaveable(editor) { mutableIntStateOf(editor.color) }
     var icon by rememberSaveable(editor) { mutableStateOf(editor.icon) }
 
     AlertDialog(

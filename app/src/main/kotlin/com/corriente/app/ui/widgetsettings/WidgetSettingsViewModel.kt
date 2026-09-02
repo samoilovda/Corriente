@@ -86,6 +86,10 @@ class WidgetSettingsViewModel(
         launchWrite(onError = { "Не удалось сохранить настройки виджета" }) { configStore.setActiveAccount(id) }
     }
 
+    fun resetToDefaults() {
+        launchWrite(onError = { "Не удалось сбросить настройки виджета" }) { configStore.reset() }
+    }
+
     companion object {
         fun factory(
             accountRepository: AccountRepository,

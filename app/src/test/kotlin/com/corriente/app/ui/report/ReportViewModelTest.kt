@@ -110,17 +110,6 @@ class ReportViewModelTest {
         assertEquals(listOf(0, 0), largestRemainderShares(listOf(1L, 1L), 0L))
     }
 
-    @Test
-    fun `dominantCurrency picks the currency with the most category transactions`() {
-        val txns = listOf(
-            com.corriente.data.model.Txn.Expense("1", today, 0, 0, "a", Money(Minor(1), rub), "c"),
-            com.corriente.data.model.Txn.Expense("2", today, 0, 0, "a", Money(Minor(1), rub), "c"),
-            com.corriente.data.model.Txn.Expense("3", today, 0, 0, "a", Money(Minor(1), CurrencyCode("USD")), "c"),
-        )
-        assertEquals("RUB", dominantCurrency(txns))
-        assertNull(dominantCurrency(emptyList()))
-    }
-
     // --- ViewModel ---
 
     @Test

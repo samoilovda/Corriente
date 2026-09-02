@@ -3,6 +3,7 @@ package com.corriente.app.ui.autobackup
 import android.app.Application
 import android.content.Intent
 import android.net.Uri
+import androidx.core.net.toUri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
@@ -65,7 +66,7 @@ class AutoBackupViewModel(
 
     private fun AutoBackupConfig.toUi() = AutoBackupUiState(
         enabled = enabled,
-        folderLabel = treeUri?.let { Uri.parse(it).lastPathSegment },
+        folderLabel = treeUri?.let { it.toUri().lastPathSegment },
         retention = retention,
         lastRunAt = lastRunAt,
         lastResult = lastResult,

@@ -58,18 +58,6 @@ data class ReportUiState(
     val slices: List<CategorySlice> = emptyList(),
 )
 
-/** Валюта с наибольшим числом операций-с-категорией за период (значение по умолчанию, T1.8). */
-internal fun dominantCurrency(txns: List<Txn>): String? = txns
-    .mapNotNull {
-        when (it) {
-            is Txn.Expense -> it.amount.currency.code
-            is Txn.Income -> it.amount.currency.code
-            is Txn.Transfer -> null
-        }
-    }
-    .groupingBy { it }.eachCount()
-    .maxByOrNull { it.value }?.key
-
 internal fun withShares(
     report: List<CategoryTotal>,
     names: Map<String, String>,

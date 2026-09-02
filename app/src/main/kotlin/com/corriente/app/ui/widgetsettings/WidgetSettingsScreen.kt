@@ -16,6 +16,7 @@ import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -102,6 +103,12 @@ fun WidgetSettingsScreen(
                     modifier = Modifier.clickable { viewModel.setActiveAccount(row.id) },
                 )
             }
+
+            HorizontalDivider()
+            TextButton(
+                onClick = viewModel::resetToDefaults,
+                modifier = Modifier.padding(8.dp),
+            ) { Text(stringResource(R.string.widget_reset_defaults)) }
         }
     }
 }

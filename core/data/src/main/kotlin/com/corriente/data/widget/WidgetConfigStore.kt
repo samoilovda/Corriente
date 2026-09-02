@@ -40,4 +40,9 @@ class WidgetConfigStore(private val context: Context) {
     suspend fun setActiveAccount(accountId: String) {
         context.widgetConfigDataStore.edit { it[activeKey] = accountId }
     }
+
+    /** Сброс к значениям по умолчанию (F3.4): снять закреплённые валюты и выбор счёта. */
+    suspend fun reset() {
+        context.widgetConfigDataStore.edit { it.remove(pinnedKey); it.remove(activeKey) }
+    }
 }

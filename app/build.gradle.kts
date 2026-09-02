@@ -46,13 +46,13 @@ dependencies {
     implementation(project(":widget"))
 
     implementation(platform(libs.compose.bom))
-    implementation("androidx.compose.material3:material3")
-    implementation("androidx.compose.ui:ui")
-    implementation("androidx.compose.ui:ui-tooling-preview")
-    debugImplementation("androidx.compose.ui:ui-tooling")
+    implementation(libs.compose.material3)
+    implementation(libs.compose.ui)
+    implementation(libs.compose.ui.tooling.preview)
+    debugImplementation(libs.compose.ui.tooling)
     // -extended, не -core: нужны AccountBalanceWallet/PieChart для нижней навигации,
     // их нет в куцем наборе -core (см. итоговое сообщение сессии - решение задокументировано).
-    implementation("androidx.compose.material:material-icons-extended")
+    implementation(libs.compose.material.icons.extended)
 
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.navigation.compose)

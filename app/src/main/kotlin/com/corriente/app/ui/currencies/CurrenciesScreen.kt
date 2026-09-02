@@ -27,6 +27,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -134,7 +135,7 @@ private fun CurrencyEditDialog(
     onConfirm: (symbol: String, displayScale: Int) -> Unit,
 ) {
     var symbol by remember(currency) { mutableStateOf(currency.symbol) }
-    var displayScale by remember(currency) { mutableStateOf(currency.displayScale) }
+    var displayScale by remember(currency) { mutableIntStateOf(currency.displayScale) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
