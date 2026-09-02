@@ -317,13 +317,50 @@ private fun TxnRowItem(row: TxnRow, onClick: () -> Unit) {
                 MaterialTheme.colorScheme.surfaceVariant
             }
             androidx.compose.foundation.layout.Box(
-                Modifier
-                    .size(28.dp)
-                    .background(dotColor, androidx.compose.foundation.shape.CircleShape),
+                Modifier.size(28.dp),
                 contentAlignment = Alignment.Center,
             ) {
-                row.icon?.takeIf { it.isNotBlank() }?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
+                androidx.compose.foundation.layout.Box(
+                    Modifier
+                        .size(28.dp)
+                        .background(dotColor, androidx.compose.foundation.shape.CircleShape),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    row.icon?.takeIf { it.isNotBlank() }?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
+                }
+                // R3.0: маркер счёта — маленькая точка поверх иконки категории, чтобы по цвету
+                // было видно, с какого счёта операция, не занимая отдельного столбца в строке.
+                if (row.accountColor != 0) {
+                    androidx.compose.foundation.layout.Box(
+                        Modifier
+                            .align(Alignment.BottomEnd)
+                            .size(10.dp)
+                            .background(
+                                MaterialTheme.colorScheme.surface,
+                                androidx.compose.foundation.shape.CircleShape,
+                            ),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        androidx.compose.foundation.layout.Box(
+                            Modifier
+                                .size(8.dp)
+                                .background(
+                                    androidx.compose.ui.graphics.Color(row.accountColor),
+                                    androidx.compose.foundation.shape.CircleShape,
+                                ),
+                        )
+                    }
+                }
             }
+        } else if (row.accountColor != 0) {
+            androidx.compose.foundation.layout.Box(
+                Modifier
+                    .size(10.dp)
+                    .background(
+                        androidx.compose.ui.graphics.Color(row.accountColor),
+                        androidx.compose.foundation.shape.CircleShape,
+                    ),
+            )
         }
         Column(Modifier.weight(1f)) {
             Text(row.title)

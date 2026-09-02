@@ -62,6 +62,8 @@ data class TxnRow(
     val icon: String? = null,
     /** Цвет категории (ARGB); 0 — нет цвета. */
     val color: Int = 0,
+    /** R3.0: цвет счёта (ARGB), с которого/на который прошла операция; 0 — нет цвета. */
+    val accountColor: Int = 0,
 )
 
 /** Итог дня считается по каждой валюте отдельно (I-8) — сложение разных валют невозможно. */
@@ -173,6 +175,8 @@ internal fun buildDaySections(
     currenciesByCode: Map<String, Currency>,
     categoryIcons: Map<String, String?> = emptyMap(),
     categoryColors: Map<String, Int> = emptyMap(),
+    /** R3.0: цвет счёта (ARGB), 0/отсутствие — «нет цвета». */
+    accountColors: Map<String, Int> = emptyMap(),
     /** R2.1: true, когда [txns] уже пришли из [com.corriente.data.repository.TxnRepository.search]. */
     querySatisfiedExternally: Boolean = false,
 ): List<DaySection> {
@@ -187,7 +191,7 @@ internal fun buildDaySections(
                 date = date,
                 totals = dayTotals(dayTxns, currenciesByCode),
                 rows = dayTxns.map { txn ->
-                    row(txn, accountNames, categoryNames, currenciesByCode, categoryIcons, categoryColors)
+                    row(txn, accountNames, categoryNames, currenciesByCode, categoryIcons, categoryColors, accountColors)
                 },
             )
         }
@@ -216,6 +220,7 @@ private fun row(
     byCode: Map<String, Currency>,
     categoryIcons: Map<String, String?>,
     categoryColors: Map<String, Int>,
+    accountColors: Map<String, Int> = emptyMap(),
 ): TxnRow = when (txn) {
     is Txn.Expense -> {
         val currency = currencyOrFallback(txn.amount.currency, byCode)
@@ -227,6 +232,7 @@ private fun row(
             editable = true,
             icon = txn.categoryId?.let { categoryIcons[it] },
             color = txn.categoryId?.let { categoryColors[it] } ?: 0,
+            accountColor = accountColors[txn.accountId] ?: 0,
         )
     }
     is Txn.Income -> {
@@ -239,6 +245,7 @@ private fun row(
             editable = true,
             icon = txn.categoryId?.let { categoryIcons[it] },
             color = txn.categoryId?.let { categoryColors[it] } ?: 0,
+            accountColor = accountColors[txn.accountId] ?: 0,
         )
     }
     is Txn.Transfer -> {
@@ -251,6 +258,8 @@ private fun row(
             amountText = "${MoneyFormatter.format(txn.fromAmount, from)} → ${MoneyFormatter.format(txn.toAmount, to)}",
             editable = false,
             isTransfer = true,
+            // R3.0: у перевода два счёта — маркер красим цветом счёта-источника.
+            accountColor = accountColors[txn.fromAccountId] ?: 0,
         )
     }
 }
@@ -316,6 +325,7 @@ class TransactionsViewModel(
             currenciesByCode = byCode,
             categoryIcons = allCategories.associate { it.id to it.icon },
             categoryColors = allCategories.associate { it.id to it.color },
+            accountColors = allAccounts.associate { it.id to it.color },
         )
         // Окно «полное снизу» — самая старая загруженная операция дошла до его начала:
         // вероятно, за границей есть ещё. Поиск (R2.1) уже смотрит во всю историю — «показать
