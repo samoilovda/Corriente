@@ -278,6 +278,35 @@ class TxnEntryViewModelTest {
         assertNull(row.categoryId)
     }
 
+    // F2.8 — «5 − 10 =» показывает «−5», сохранение недоступно; «+ 20 =» даёт «15».
+    @Test
+    fun `a non-positive calculator result is shown and blocks save, then continues`() = runTest(dispatcher) {
+        val fakes = Fakes().apply { seed() }
+        val model = vm(fakes)
+        backgroundScope.observe(model)
+        advanceUntilIdle()
+
+        model.pressDigit('5')
+        model.pressOp(com.corriente.money.CalcOp.MINUS)
+        model.pressDigit('1'); model.pressDigit('0')
+        model.pressEquals()
+        advanceUntilIdle()
+        assertEquals("−5", model.uiState.value.amountText)
+        assertFalse(model.uiState.value.canSave)
+        assertTrue(model.uiState.value.nonPositiveResult)
+
+        model.pressOp(com.corriente.money.CalcOp.PLUS)
+        model.pressDigit('2'); model.pressDigit('0')
+        model.pressEquals()
+        advanceUntilIdle()
+        assertEquals("15", model.uiState.value.amountText)
+        assertFalse(model.uiState.value.nonPositiveResult)
+        assertTrue(model.uiState.value.canSave)
+        assertTrue(model.save())
+        advanceUntilIdle()
+        assertEquals(1500L, fakes.txnDao.rows.value.single().amountMinor)
+    }
+
     // F2.5 — экран не должен мигать «нет счетов» до загрузки.
     @Test
     fun `uiState starts not loaded and flips to loaded after repositories emit`() = runTest(dispatcher) {

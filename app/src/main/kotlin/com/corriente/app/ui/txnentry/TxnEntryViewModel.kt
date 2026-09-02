@@ -50,12 +50,16 @@ data class TxnEntryUiState(
     val selectedAccount: AccountOption? get() = accounts.firstOrNull { it.id == selectedAccountId }
     val currency: Currency? get() = selectedAccount?.currency
 
+    /** F2.8: калькулятор посчитал результат ≤ 0 — держим его, не обнуляем молча. */
+    val heldResult: Long? get() = if (calcOp == null && calcAcc != null && amount.isEmpty) calcAcc else null
+
     /** Показ поля суммы: «1250 + 320», пока операция не завершена. */
     val amountText: String
         get() {
-            val currency = currency
+            val currency = currency ?: return amount.displayText()
+            heldResult?.let { return majorText(it, currency) }
             val operand = amount.displayText()
-            if (calcAcc == null || calcOp == null || currency == null) return operand
+            if (calcAcc == null || calcOp == null) return operand
             return "${majorText(calcAcc, currency)} ${calcOp.symbol} $operand"
         }
 
@@ -74,6 +78,7 @@ data class TxnEntryUiState(
     /** Итоговая сумма с учётом незавершённой операции калькулятора. */
     fun resolvedMinor(): Minor? {
         val currency = currency ?: return null
+        heldResult?.let { return Minor(it) }
         val operand = amount.toMinorOrNull(currency) ?: if (hasPendingCalc) Minor(0) else return null
         return if (calcAcc != null && calcOp != null) applyCalc(Minor(calcAcc), calcOp, operand) else operand
     }
@@ -84,6 +89,9 @@ data class TxnEntryUiState(
             if (currency == null) return false
             return (resolvedMinor()?.raw ?: 0) > 0
         }
+
+    /** F2.8: показать подсказку «сумма должна быть больше нуля», когда результат ≤ 0. */
+    val nonPositiveResult: Boolean get() = resolvedMinor()?.let { it.raw <= 0 } == true
 }
 
 private fun entryKindToCategoryKind(kind: EntryKind): CategoryKind = when (kind) {
@@ -198,17 +206,21 @@ class TxnEntryViewModel(
 
     fun setKind(kind: EntryKind) = form.update { it.copy(kind = kind, selectedCategoryId = null) }
 
+    /** F2.8: набор новой цифры после удержанного результата ≤ 0 начинает ввод заново. */
+    private fun Form.clearHeldResult(): Form =
+        if (calcOp == null && calcAcc != null) copy(calcAcc = null) else this
+
     fun pressDigit(digit: Char) {
         val currency = uiState.value.currency ?: return
-        form.update { it.copy(amount = it.amount.appendDigit(digit, currency)) }
+        form.update { it.clearHeldResult().let { f -> f.copy(amount = f.amount.appendDigit(digit, currency)) } }
     }
 
     fun pressDecimalPoint() {
         val currency = uiState.value.currency ?: return
-        form.update { it.copy(amount = it.amount.appendDecimalPoint(currency)) }
+        form.update { it.clearHeldResult().let { f -> f.copy(amount = f.amount.appendDecimalPoint(currency)) } }
     }
 
-    fun pressBackspace() = form.update { it.copy(amount = it.amount.backspace()) }
+    fun pressBackspace() = form.update { it.clearHeldResult().let { f -> f.copy(amount = f.amount.backspace()) } }
 
     /** T5.5: калькулятор — «+»/«−». Завершает текущий операнд и начинает новый. */
     fun pressOp(op: CalcOp) {
@@ -230,8 +242,13 @@ class TxnEntryViewModel(
             if (f.calcAcc == null || f.calcOp == null) return@update f
             val operand = f.amount.toMinorOrNull(currency) ?: Minor(0)
             val result = applyCalc(Minor(f.calcAcc), f.calcOp, operand)
-            val amount = if (result.raw > 0) AmountInput.fromMinor(result, currency) else AmountInput.empty()
-            f.copy(amount = amount, calcAcc = null, calcOp = null)
+            // F2.8: результат ≤ 0 — держим как calcAcc без операции, показываем «−5» и блокируем
+            // «Сохранить» с подсказкой; продолжение «+ 20 =» даёт «15».
+            if (result.raw > 0) {
+                f.copy(amount = AmountInput.fromMinor(result, currency), calcAcc = null, calcOp = null)
+            } else {
+                f.copy(amount = AmountInput.empty(), calcAcc = result.raw, calcOp = null)
+            }
         }
     }
 

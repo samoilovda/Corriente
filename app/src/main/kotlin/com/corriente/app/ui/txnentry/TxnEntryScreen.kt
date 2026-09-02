@@ -146,6 +146,15 @@ fun TxnEntryScreen(
                         textAlign = TextAlign.End,
                         modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
                     )
+                    if (state.nonPositiveResult) {
+                        Text(
+                            stringResource(R.string.txn_entry_amount_must_be_positive),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error,
+                            textAlign = TextAlign.End,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
 
                     ChipRow(stringResource(R.string.txn_entry_account)) {
                         state.accounts.forEach { option ->
