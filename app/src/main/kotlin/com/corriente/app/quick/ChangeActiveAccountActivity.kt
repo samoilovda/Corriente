@@ -20,12 +20,12 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.lifecycleScope
 import com.corriente.app.CorrienteApplication
 import com.corriente.app.R
 import com.corriente.app.ui.theme.CorrienteTheme
@@ -47,7 +47,8 @@ class ChangeActiveAccountActivity : ComponentActivity() {
         setContent {
             CorrienteTheme {
                 var accounts by remember { mutableStateOf<List<Account>>(emptyList()) }
-                val scope = rememberCoroutineScope()
+                var busy by remember { mutableStateOf(false) }
+                var error by remember { mutableStateOf(false) }
 
                 LaunchedEffect(Unit) {
                     accounts = container.accountRepository.observeActive().first()
@@ -61,14 +62,26 @@ class ChangeActiveAccountActivity : ComponentActivity() {
                                 style = MaterialTheme.typography.titleMedium,
                                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
                             )
+                            if (error) {
+                                Text(
+                                    stringResource(R.string.quick_change_account_failed),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.error,
+                                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
+                                )
+                            }
                             accounts.forEach { account ->
                                 ListItem(
                                     headlineContent = { Text(account.name) },
                                     supportingContent = { Text(account.currency.code) },
-                                    modifier = Modifier.fillMaxWidth().clickable {
-                                        scope.launch {
-                                            container.widgetConfigStore.setActiveAccount(account.id)
-                                            finish()
+                                    modifier = Modifier.fillMaxWidth().clickable(enabled = !busy) {
+                                        busy = true
+                                        error = false
+                                        // lifecycleScope: запись переживает пересоздание Activity (F0.6).
+                                        lifecycleScope.launch {
+                                            changeActiveAccount(container.widgetConfigStore, account.id)
+                                                .onSuccess { finish() }
+                                                .onFailure { busy = false; error = true }
                                         }
                                     },
                                 )

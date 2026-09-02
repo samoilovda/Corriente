@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -21,11 +22,11 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.lifecycleScope
 import com.corriente.app.CorrienteApplication
 import com.corriente.app.R
 import com.corriente.app.ui.theme.CorrienteTheme
@@ -34,7 +35,6 @@ import com.corriente.money.Currency
 import com.corriente.money.Money
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-import java.time.LocalDate
 
 /**
  * T4.3: быстрый ввод расхода из виджета. Полупрозрачная Activity с цифровой клавиатурой:
@@ -59,7 +59,7 @@ class QuickExpenseActivity : ComponentActivity() {
                 var accountName by remember { mutableStateOf("") }
                 var input by remember { mutableStateOf(AmountInput.empty()) }
                 var saving by remember { mutableStateOf(false) }
-                val scope = rememberCoroutineScope()
+                var error by remember { mutableStateOf(false) }
 
                 LaunchedEffect(Unit) {
                     val config = container.widgetConfigStore.config.first()
@@ -90,6 +90,13 @@ class QuickExpenseActivity : ComponentActivity() {
                                 text = input.displayText() + (currency?.let { " ${it.symbol}" } ?: ""),
                                 style = MaterialTheme.typography.headlineMedium,
                             )
+                            if (error) {
+                                Text(
+                                    androidx.compose.ui.res.stringResource(R.string.quick_expense_save_failed),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.error,
+                                )
+                            }
                             val cur = currency
                             QuickKeypad(
                                 enabled = cur != null && !saving,
@@ -104,16 +111,28 @@ class QuickExpenseActivity : ComponentActivity() {
                                     val minor = input.toMinorOrNull(c) ?: return@Button
                                     if (minor.raw <= 0L) return@Button
                                     saving = true
-                                    scope.launch {
-                                        container.txnRepository.addExpense(
-                                            acc, Money(minor, c.code), categoryId, LocalDate.now(),
-                                        )
-                                        finish()
+                                    error = false
+                                    // lifecycleScope, а не скоуп композиции: запись переживает
+                                    // пересоздание Activity (F0.6). finish() — только после успеха.
+                                    lifecycleScope.launch {
+                                        addQuickExpense(container.txnRepository, acc, Money(minor, c.code), categoryId)
+                                            .onSuccess { finish() }
+                                            .onFailure { saving = false; error = true }
                                     }
                                 },
                                 enabled = currency != null && !input.isEmpty && !saving,
                                 modifier = Modifier.fillMaxWidth(),
-                            ) { Text(androidx.compose.ui.res.stringResource(R.string.save)) }
+                            ) {
+                                if (saving) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.height(20.dp),
+                                        strokeWidth = 2.dp,
+                                        color = MaterialTheme.colorScheme.onPrimary,
+                                    )
+                                } else {
+                                    Text(androidx.compose.ui.res.stringResource(R.string.save))
+                                }
+                            }
                         }
                     }
                 }
