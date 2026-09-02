@@ -32,5 +32,19 @@
             android:exported="false"
             android:excludeFromRecents="true"
             android:theme="@style/Theme.Corriente.Translucent" />
+
+        <!-- R1.2: «Отправить бэкап» — временный файл в cache/share отдаётся системному шерингу
+             через FileProvider (часть androidx.core, отдельной зависимости не требует).
+             Не экспортирован, доступ только по разовому URI-гранту (FLAG_GRANT_READ_URI_PERMISSION),
+             без разрешений (I-24) — сеть, если она вообще случится, трогает чужое приложение. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
     </application>
 </manifest>

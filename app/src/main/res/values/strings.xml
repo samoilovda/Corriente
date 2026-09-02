@@ -24,6 +24,8 @@
     <string name="backup_result_failed">Не удалось прочитать файл бэкапа.</string>
     <string name="backup_result_invalid">Файл бэкапа повреждён, текущие данные не тронуты:</string>
     <string name="backup_result_invalid_more">…и ещё %1$d</string>
+    <string name="backup_share">Отправить бэкап</string>
+    <string name="backup_share_hint">Через системный шеринг — Диск, почта, что угодно</string>
 
     <string name="autobackup_title">Автобэкап</string>
     <string name="autobackup_hint">Регулярно сохранять базу в папку</string>

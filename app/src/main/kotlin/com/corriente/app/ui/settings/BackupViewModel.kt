@@ -11,6 +11,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.File
+import java.io.FileOutputStream
 import java.io.InputStream
 import java.io.OutputStream
 import kotlin.coroutines.CoroutineContext
@@ -65,6 +68,21 @@ class BackupViewModel(
                 },
             )
             _busy.value = false
+        }
+    }
+
+    /**
+     * R1.2: экспорт во временный файл для системного шеринга. Отдельно от [export], потому что
+     * получатель — не поток, открытый экраном на SAF-документ, а локальный файл, который потом
+     * читает `FileProvider`. При успехе зовёт [onReady] с готовым файлом (экран строит
+     * `ACTION_SEND`); при ошибке — обычный [BackupResult.Failed], как и у обычного экспорта.
+     */
+    fun exportForShare(file: File, onReady: (File) -> Unit) {
+        _busy.value = true
+        viewModelScope.launch(io) {
+            val ok = runCatching { FileOutputStream(file).use { backup.export(it) } }.isSuccess
+            _busy.value = false
+            if (ok) withContext(Dispatchers.Main) { onReady(file) } else _result.value = BackupResult.Failed
         }
     }
 

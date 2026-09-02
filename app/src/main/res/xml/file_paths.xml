@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  R1.2: FileProvider отдаёт наружу только `cacheDir/share/` — временные копии бэкапа для
+  системного шеринга (ACTION_SEND). Больше никаких путей не открыто, старые файлы чистятся
+  при следующем запуске (ShareBackupCache.cleanOldFiles).
+-->
+<paths>
+    <cache-path name="share" path="share/" />
+</paths>

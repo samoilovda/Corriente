@@ -1,5 +1,6 @@
 package com.corriente.app.ui.settings
 
+import android.content.Intent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
@@ -25,9 +26,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.core.content.FileProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.corriente.app.R
+import com.corriente.app.backup.ShareBackupCache
 import com.corriente.app.corrienteContainer
+import java.io.File
 
 /** Настройки (T1.2 — валюты; T1.4 — категории; T1.9 — экспорт/восстановление бэкапа). */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -97,6 +101,26 @@ fun SettingsScreen(
                 headlineContent = { Text(stringResource(R.string.backup_import)) },
                 supportingContent = { Text(stringResource(R.string.backup_import_hint)) },
                 modifier = Modifier.clickable(enabled = !busy) { importLauncher.launch(arrayOf("application/json")) },
+            )
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.backup_share)) },
+                supportingContent = { Text(stringResource(R.string.backup_share_hint)) },
+                modifier = Modifier.clickable(enabled = !busy) {
+                    // R1.2: временный файл в cache/share, отдаётся системному шерингу через
+                    // FileProvider — своей сети приложение не заводит (I-24), сеть трогает
+                    // то приложение, которое пользователь выберет в системном листе.
+                    val dir = ShareBackupCache.dir(context).apply { mkdirs() }
+                    val file = File(dir, "corriente-backup-${System.currentTimeMillis()}.json")
+                    backupViewModel.exportForShare(file) { shared ->
+                        val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", shared)
+                        val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                            type = "application/json"
+                            putExtra(Intent.EXTRA_STREAM, uri)
+                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        }
+                        context.startActivity(Intent.createChooser(sendIntent, context.getString(R.string.backup_share)))
+                    }
+                },
             )
             if (busy) {
                 LinearProgressIndicator(Modifier.fillMaxWidth())
