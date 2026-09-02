@@ -1,16 +1,28 @@
 package com.corriente.app.ui.txnentry
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -40,6 +52,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -47,6 +60,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.corriente.app.R
 import com.corriente.app.corrienteContainer
 import com.corriente.app.ui.common.rememberMessageSnackbarState
+import com.corriente.data.model.Category
 import java.time.Instant
 import java.time.ZoneOffset
 
@@ -148,25 +162,12 @@ fun TxnEntryScreen(
                         }
                     }
 
-                    ChipRow(stringResource(R.string.txn_entry_category)) {
-                        FilterChip(
-                            selected = state.selectedCategoryId == null,
-                            onClick = { viewModel.selectCategory(null) },
-                            label = { Text(stringResource(R.string.txn_entry_no_category)) },
-                        )
-                        state.categories.forEach { category ->
-                            val catLabel = if (category.isArchived) {
-                                stringResource(R.string.entry_archived_suffix, category.name)
-                            } else {
-                                category.name
-                            }
-                            FilterChip(
-                                selected = state.selectedCategoryId == category.id,
-                                onClick = { viewModel.selectCategory(category.id) },
-                                label = { Text(catLabel) },
-                            )
-                        }
-                    }
+                    CategoryGrid(
+                        label = stringResource(R.string.txn_entry_category),
+                        categories = state.categories,
+                        selectedId = state.selectedCategoryId,
+                        onSelect = viewModel::selectCategory,
+                    )
 
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(stringResource(R.string.txn_entry_date), Modifier.weight(1f))
@@ -219,6 +220,88 @@ fun TxnEntryScreen(
             },
             dismissButton = { TextButton(onClick = { datePickerOpen = false }) { Text(stringResource(R.string.cancel)) } },
         ) { DatePicker(state = pickerState) }
+    }
+}
+
+/** F2.6: категории — сетка «иконка + подпись + цвет» (4 колонки), а не горизонтальная лента. */
+@Composable
+private fun CategoryGrid(
+    label: String,
+    categories: List<Category>,
+    selectedId: String?,
+    onSelect: (String?) -> Unit,
+) {
+    val archivedFmt = stringResource(R.string.entry_archived_suffix, "%s")
+    Column {
+        Text(label, style = MaterialTheme.typography.labelMedium)
+        LazyVerticalGrid(
+            columns = GridCells.Fixed(4),
+            modifier = Modifier.fillMaxWidth().heightIn(max = 200.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            contentPadding = PaddingValues(vertical = 4.dp),
+        ) {
+            item(key = "none") {
+                CategoryCell(
+                    text = stringResource(R.string.txn_entry_no_category),
+                    icon = null,
+                    color = 0,
+                    selected = selectedId == null,
+                    onClick = { onSelect(null) },
+                )
+            }
+            items(categories, key = { it.id }) { category ->
+                CategoryCell(
+                    text = if (category.isArchived) archivedFmt.format(category.name) else category.name,
+                    icon = category.icon?.takeIf { it.isNotBlank() },
+                    color = category.color,
+                    selected = selectedId == category.id,
+                    onClick = { onSelect(category.id) },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun CategoryCell(
+    text: String,
+    icon: String?,
+    color: Int,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    val borderColor = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(
+                width = if (selected) 2.dp else 1.dp,
+                color = borderColor,
+                shape = RoundedCornerShape(10.dp),
+            )
+            .clickable(onClick = onClick)
+            .padding(vertical = 8.dp, horizontal = 4.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        Box(
+            Modifier
+                .size(20.dp)
+                .background(
+                    if (color != 0) Color(color) else MaterialTheme.colorScheme.surfaceVariant,
+                    CircleShape,
+                ),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (icon != null) Text(icon, style = MaterialTheme.typography.bodySmall)
+        }
+        Text(
+            text,
+            style = MaterialTheme.typography.labelSmall,
+            maxLines = 2,
+            textAlign = TextAlign.Center,
+        )
     }
 }
 
