@@ -154,6 +154,7 @@
     <string name="txn_list_all_currencies">Все валюты</string>
     <string name="txn_list_empty">Операций пока нет. Добавьте расход кнопкой «−» или доход кнопкой «+».</string>
     <string name="txn_list_no_match">Под фильтр ничего не подходит.</string>
+    <string name="txn_list_load_earlier">Показать более ранние</string>
     <string name="txn_search_hint">Поиск по заметке и категории</string>
     <string name="txn_filters">Фильтры</string>
     <string name="txn_filter_all_categories">Все категории</string>

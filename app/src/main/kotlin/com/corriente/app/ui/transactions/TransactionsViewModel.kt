@@ -19,9 +19,15 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import java.time.LocalDate
+
+/** F2.1: сколько месяцев истории показываем по умолчанию и на сколько расширяем по «показать ещё». */
+private const val DEFAULT_WINDOW_MONTHS = 3L
 
 /**
  * Фильтры списка операций (T5.2). [query] ищет по заметке и названию категории без учёта
@@ -74,6 +80,8 @@ data class TransactionsUiState(
     val empty: Boolean = true,
     /** true — есть операции, но под активный фильтр ничего не подошло. */
     val noMatch: Boolean = false,
+    /** F2.1: можно подгрузить более старые операции — окно не покрывает всю историю. */
+    val canLoadEarlier: Boolean = false,
 )
 
 private fun matchesAccount(txn: Txn, accountId: String): Boolean = when (txn) {
@@ -223,17 +231,34 @@ class TransactionsViewModel(
     accounts: AccountRepository,
     categories: CategoryRepository,
     currencies: CurrencyRepository,
+    private val today: () -> LocalDate = LocalDate::now,
 ) : ViewModel() {
 
     private val filter = MutableStateFlow(TxnFilter())
 
+    /** F2.1: сколько месяцев истории подгружено. Растёт по «показать ещё». */
+    private val windowMonths = MutableStateFlow(DEFAULT_WINDOW_MONTHS)
+
+    /** Начало окна с учётом фильтра по дате (если он уходит глубже — грузим глубже). */
+    private fun windowStart(months: Long, f: TxnFilter): LocalDate {
+        val base = today().minusMonths(months)
+        return f.from?.let { minOf(it, base) } ?: base
+    }
+
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    private val rangeTxns: kotlinx.coroutines.flow.Flow<Pair<LocalDate, List<Txn>>> =
+        combine(windowMonths, filter) { m, f -> windowStart(m, f) }
+            .distinctUntilChanged()
+            .flatMapLatest { start -> txns.observeRange(start, today().plusDays(1)).map { start to it } }
+
     val uiState: StateFlow<TransactionsUiState> = combine(
-        txns.observeAll(),
+        rangeTxns,
         accounts.observeAll(),
         categories.observeAllForLookup(),
         currencies.observeAll(),
-        filter,
-    ) { allTxns, allAccounts, allCategories, allCurrencies, currentFilter ->
+        combine(filter, txns.observeAnyExist()) { f, any -> f to any },
+    ) { (windowStart, windowTxns), allAccounts, allCategories, allCurrencies, filterAndAny ->
+        val (currentFilter, anyExist) = filterAndAny
         val byCode = allCurrencies.associateBy { it.code.code }
         val sanitizedFilter = currentFilter.copy(
             accountId = currentFilter.accountId?.takeIf { id -> allAccounts.any { it.id == id } },
@@ -241,7 +266,7 @@ class TransactionsViewModel(
             categoryId = currentFilter.categoryId?.takeIf { id -> allCategories.any { it.id == id } },
         )
         val sections = buildDaySections(
-            txns = allTxns,
+            txns = windowTxns,
             filter = sanitizedFilter,
             accountNames = allAccounts.associate { it.id to it.name },
             categoryNames = allCategories.associate { it.id to it.name },
@@ -249,16 +274,24 @@ class TransactionsViewModel(
             categoryIcons = allCategories.associate { it.id to it.icon },
             categoryColors = allCategories.associate { it.id to it.color },
         )
+        // Окно «полное снизу» — самая старая загруженная операция дошла до его начала:
+        // вероятно, за границей есть ещё.
+        val canLoadEarlier = windowTxns.isNotEmpty() &&
+            windowTxns.minOf { it.date } <= windowStart &&
+            sanitizedFilter.from == null
         TransactionsUiState(
             sections = sections,
             accounts = allAccounts.filterNot { it.isArchived },
             categories = allCategories.filterNot { it.isArchived },
-            currencyCodes = allTxns.flatMap { currenciesOf(it) }.distinct().sorted(),
+            currencyCodes = allAccounts.map { it.currency.code }.distinct().sorted(),
             filter = sanitizedFilter,
-            empty = allTxns.isEmpty(),
-            noMatch = allTxns.isNotEmpty() && sections.isEmpty(),
+            empty = !anyExist,
+            noMatch = anyExist && sections.isEmpty(),
+            canLoadEarlier = canLoadEarlier,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), TransactionsUiState())
+
+    fun loadEarlier() = windowMonths.update { it + DEFAULT_WINDOW_MONTHS }
 
     fun setAccountFilter(accountId: String?) = filter.update { it.copy(accountId = accountId) }
 

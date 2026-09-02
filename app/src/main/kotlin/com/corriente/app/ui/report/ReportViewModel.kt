@@ -19,9 +19,13 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import java.time.LocalDate
+
+/** F2.1: сколько месяцев назад от «якоря» строится график «по месяцам». */
+private const val MONTHLY_SERIES_MONTHS = 6L
 
 data class ReportRow(
     val categoryId: String?,
@@ -89,7 +93,7 @@ class ReportViewModel(
     private val txns: TxnRepository,
     private val categories: CategoryRepository,
     private val currencies: CurrencyRepository,
-    today: () -> LocalDate = LocalDate::now,
+    private val today: () -> LocalDate = LocalDate::now,
 ) : ViewModel() {
 
     private data class Form(
@@ -105,12 +109,21 @@ class ReportViewModel(
 
     private val form = MutableStateFlow(today().let { Form(anchor = it, customStart = it.withDayOfMonth(1), customEnd = it) })
 
-    val uiState: StateFlow<ReportUiState> = combine(
-        form,
-        txns.observeAll(),
-        categories.observeAllForLookup(),
-        currencies.observeAll(),
-    ) { f, allTxns, allCategories, allCurrencies ->
+    /** F2.1: диапазон, который реально нужен экрану — период отчёта плюс 6 месяцев назад для графика. */
+    private fun queryRange(f: Form): Pair<LocalDate, LocalDate> {
+        val range = periodRange(f.mode, f.anchor, f.customStart, f.customEnd)
+        val monthlyStart = f.anchor.minusMonths(MONTHLY_SERIES_MONTHS).withDayOfMonth(1)
+        return minOf(range.start, monthlyStart) to maxOf(range.endInclusive, today())
+    }
+
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    val uiState: StateFlow<ReportUiState> = form.flatMapLatest { f ->
+        val (from, to) = queryRange(f)
+        combine(
+            txns.observeRange(from, to),
+            categories.observeAllForLookup(),
+            currencies.observeAll(),
+        ) { allTxns, allCategories, allCurrencies ->
         val range = periodRange(f.mode, f.anchor, f.customStart, f.customEnd)
         val byCode = allCurrencies.associateBy { it.code.code }
         val names = allCategories.associate { it.id to it.name }
@@ -183,6 +196,7 @@ class ReportViewModel(
             monthly = monthly,
             slices = slices,
         )
+        }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ReportUiState())
 
     fun setKind(kind: ReportKind) = form.update { it.copy(kind = kind, drilldownActive = false) }

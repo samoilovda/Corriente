@@ -5,6 +5,7 @@ import com.corriente.data.model.Txn
 import com.corriente.data.repository.AccountRepository
 import com.corriente.data.repository.TxnRepository
 import com.corriente.money.CurrencyCode
+import com.corriente.money.Minor
 import com.corriente.money.Money
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
@@ -45,9 +46,18 @@ class AccountBalanceUseCase(
     private val accountRepository: AccountRepository,
     private val txnRepository: TxnRepository,
 ) {
+    /**
+     * F2.1: баланс = `opening + delta`, где `delta` — агрегат из SQL. Раньше на каждую эмиссию
+     * перегонялась вся таблица `txn` и для каждого счёта проходилась целиком (O(счета × операции)).
+     * Чистая [accountBalance] осталась — на ней держатся тесты и офлайн-снимок виджета.
+     */
     fun observeBalances(): Flow<List<AccountBalance>> =
-        combine(accountRepository.observeActive(), txnRepository.observeAll()) { accounts, txns ->
-            accounts.map { account -> AccountBalance(account, accountBalance(account, txns)) }
+        combine(accountRepository.observeActive(), txnRepository.observeAccountDeltas()) { accounts, deltas ->
+            accounts.map { account ->
+                val delta = deltas[account.id] ?: 0L
+                val raw = Math.addExact(account.openingBalance.amount.raw, delta) // I-3
+                AccountBalance(account, Money(Minor(raw), account.currency))
+            }
         }
 
     fun observeTotalsByCurrency(): Flow<Map<CurrencyCode, Money>> =

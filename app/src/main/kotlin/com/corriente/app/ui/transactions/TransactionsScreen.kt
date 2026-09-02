@@ -146,6 +146,15 @@ fun TransactionsScreen(
                             HorizontalDivider()
                         }
                     }
+                    if (state.canLoadEarlier) {
+                        item(key = "load-earlier") {
+                            Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.Center) {
+                                TextButton(onClick = viewModel::loadEarlier) {
+                                    Text(stringResource(R.string.txn_list_load_earlier))
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }

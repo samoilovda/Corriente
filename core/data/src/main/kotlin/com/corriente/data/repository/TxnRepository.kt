@@ -29,6 +29,17 @@ class TxnRepository(
 ) {
     fun observeAll(): Flow<List<Txn>> = txnDao.observeAll().map { list -> list.map { it.toDomain() } }
 
+    /** Операции за период (F2.1). [from]/[to] включительно. */
+    fun observeRange(from: LocalDate, to: LocalDate): Flow<List<Txn>> =
+        txnDao.observeRange(from.toString(), to.toString()).map { list -> list.map { it.toDomain() } }
+
+    /** Сумма движений по каждому счёту (F2.1) — агрегат из SQL, не скан всей таблицы. */
+    fun observeAccountDeltas(): Flow<Map<String, Long>> =
+        txnDao.observeAccountDeltas().map { rows -> rows.associate { it.accountId to it.deltaMinor } }
+
+    /** Есть ли в БД хоть одна операция (F2.1/F2.5). */
+    fun observeAnyExist(): Flow<Boolean> = txnDao.observeAnyExist()
+
     fun observeForAccount(accountId: String): Flow<List<Txn>> =
         txnDao.observeForAccount(accountId).map { list -> list.map { it.toDomain() } }
 

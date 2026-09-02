@@ -99,6 +99,12 @@ fun buildWidgetSnapshot(
     activeAccountId: String,
     today: LocalDate,
     computedAt: Long,
+    /**
+     * F2.1: сумма движений по счёту в его валюте, посчитанная в SQL. Когда задана — баланс =
+     * `opening + delta`, а [transactions] может быть ограничен недавним окном. Когда null —
+     * баланс считается полным сканом [transactions] (офлайн-снимок, тесты).
+     */
+    accountDeltas: Map<String, Long>? = null,
 ): WidgetSnapshot {
     val currencyByCode = currencies.associateBy { it.code }
     val activeAccounts = accounts.filterNot { it.isArchived }
@@ -108,7 +114,13 @@ fun buildWidgetSnapshot(
         val inTotal = activeAccounts.filter { it.currency == code && it.includeInTotal }
         if (inTotal.isEmpty()) return@mapNotNull null
         val sum = inTotal
-            .map { accountBalance(it, transactions) }
+            .map { acc ->
+                if (accountDeltas != null) {
+                    Money(Minor(Math.addExact(acc.openingBalance.amount.raw, accountDeltas[acc.id] ?: 0L)), code)
+                } else {
+                    accountBalance(acc, transactions)
+                }
+            }
             .reduce { a, b -> a + b }
         CurrencyLine(code.code, MoneyFormatter.format(sum, meta))
     }

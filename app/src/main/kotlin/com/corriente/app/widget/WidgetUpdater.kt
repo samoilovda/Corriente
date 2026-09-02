@@ -1,8 +1,13 @@
 package com.corriente.app.widget
 
 import android.content.Context
+import androidx.glance.appwidget.GlanceAppWidgetManager
 import androidx.glance.appwidget.updateAll
 import com.corriente.app.AppContainer
+import com.corriente.data.model.Account
+import com.corriente.data.model.Category
+import com.corriente.data.model.Txn
+import com.corriente.money.Currency
 import com.corriente.data.widget.WidgetConfigStore
 import com.corriente.data.widget.WidgetSnapshotStore
 import com.corriente.data.widget.buildWidgetSnapshot
@@ -11,18 +16,27 @@ import com.corriente.money.CurrencyCode
 import com.corriente.widget.CorrienteWidget
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.conflate
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
 import java.time.LocalDate
 
 /**
  * T4.2/T4.4: пересчитывает [com.corriente.data.widget.WidgetSnapshot] после любой записи в БД
- * (или смены настроек виджета) и пушит его в виджет. На периодическое обновление платформы
- * полагаться нельзя (ARCHITECTURE.md §4.4 п.1) — единственный надёжный путь `updateAll`.
+ * (или смены настроек виджета) и пушит его в виджет.
+ *
+ * F2.1: не работает, пока виджет не размещён (проверка [GlanceAppWidgetManager]); балансы —
+ * агрегат из SQL, а список операций — только недавнее окно (для месячных трат и частых категорий),
+ * а не вся таблица `txn`.
  */
+@OptIn(ExperimentalCoroutinesApi::class)
 class WidgetUpdater(
     private val appContext: Context,
     private val container: AppContainer,
@@ -32,37 +46,69 @@ class WidgetUpdater(
     private val store = WidgetSnapshotStore(appContext)
     private val configStore = WidgetConfigStore(appContext)
 
+    private suspend fun widgetPlaced(): Boolean =
+        GlanceAppWidgetManager(appContext).getGlanceIds(CorrienteWidget::class.java).isNotEmpty()
+
     fun start() {
-        combine(
-            container.accountRepository.observeActive(),
-            container.txnRepository.observeAll(),
-            container.currencyRepository.observeAll(),
-            container.categoryRepository.observeActive(),
-            configStore.config,
-        ) { accounts, txns, currencies, categories, config ->
-            val now = today()
-            val pinned = config.pinnedCurrencyCodes
-                .mapNotNull { runCatching { CurrencyCode(it) }.getOrNull() }
-                .ifEmpty { defaultPinnedCurrencies(accounts, txns, now) }
-            val activeAccountId = config.activeAccountId?.takeIf { id -> accounts.any { it.id == id } }
-                ?: accounts.firstOrNull()?.id
-                ?: ""
-            buildWidgetSnapshot(
-                accounts = accounts,
-                transactions = txns,
-                currencies = currencies,
-                categories = categories,
-                pinnedCurrencies = pinned,
-                activeAccountId = activeAccountId,
-                today = now,
-                computedAt = System.currentTimeMillis(),
-            )
-        }
+        // Пере-проверяем размещение при каждой смене настроек виджета и на старте (config
+        // отдаёт начальное значение сразу). Пока виджета нет — тяжёлые подписки не открываются.
+        configStore.config
+            .map { widgetPlaced() }
+            .distinctUntilChanged()
+            .flatMapLatest { placed ->
+                if (!placed) {
+                    emptyFlow()
+                } else {
+                    val now = today()
+                    val windowStart = now.minusDays(RECENT_WINDOW_DAYS)
+                    val dbInputs = combine(
+                        container.accountRepository.observeActive(),
+                        container.txnRepository.observeRange(windowStart, now),
+                        container.txnRepository.observeAccountDeltas(),
+                        container.currencyRepository.observeAll(),
+                        container.categoryRepository.observeActive(),
+                    ) { accounts, recentTxns, deltas, currencies, categories ->
+                        DbInputs(accounts, recentTxns, deltas, currencies, categories)
+                    }
+                    combine(dbInputs, configStore.config) { d, config ->
+                        val pinned = config.pinnedCurrencyCodes
+                            .mapNotNull { runCatching { CurrencyCode(it) }.getOrNull() }
+                            .ifEmpty { defaultPinnedCurrencies(d.accounts, d.recentTxns, now) }
+                        val activeAccountId = config.activeAccountId?.takeIf { id -> d.accounts.any { it.id == id } }
+                            ?: d.accounts.firstOrNull()?.id
+                            ?: ""
+                        buildWidgetSnapshot(
+                            accounts = d.accounts,
+                            transactions = d.recentTxns,
+                            currencies = d.currencies,
+                            categories = d.categories,
+                            pinnedCurrencies = pinned,
+                            activeAccountId = activeAccountId,
+                            today = now,
+                            computedAt = System.currentTimeMillis(),
+                            accountDeltas = d.deltas,
+                        )
+                    }
+                }
+            }
             .conflate()
             .onEach { snapshot ->
                 store.save(snapshot)
                 CorrienteWidget().updateAll(appContext)
             }
             .launchIn(scope)
+    }
+
+    private data class DbInputs(
+        val accounts: List<Account>,
+        val recentTxns: List<Txn>,
+        val deltas: Map<String, Long>,
+        val currencies: List<Currency>,
+        val categories: List<Category>,
+    )
+
+    private companion object {
+        /** Покрывает окно месячных трат и 60-дневное окно частых категорий. */
+        const val RECENT_WINDOW_DAYS = 62L
     }
 }

@@ -155,6 +155,7 @@ class TransactionsViewModelTest {
 
         val vm = TransactionsViewModel(
             txns, AccountRepository(accountDao), CategoryRepository(categoryDao), CurrencyRepository(currencyDao),
+            today = { d2.plusDays(1) },
         )
         backgroundScope.observe(vm)
         advanceUntilIdle()

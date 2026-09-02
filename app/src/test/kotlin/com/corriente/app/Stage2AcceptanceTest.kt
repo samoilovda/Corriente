@@ -105,6 +105,7 @@ class Stage2AcceptanceTest {
             // 4. итог дня в списке операций — только расход −1 000 ₽, перевод не считается
             val listVm = TransactionsViewModel(
                 txns, accounts, CategoryRepository(categoryDao), CurrencyRepository(currencyDao),
+                today = { march.plusDays(1) },
             )
             val j2 = launch { listVm.uiState.collect {} }
             advanceUntilIdle()
