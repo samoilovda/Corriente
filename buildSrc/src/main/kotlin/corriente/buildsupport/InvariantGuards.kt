@@ -18,11 +18,14 @@ object InvariantGuards {
 
     /**
      * Пути (от корня репозитория, разделитель `/`), где `Float`/`Double` допустимы.
-     * I-1 / ARCHITECTURE.md §2.1: деньги приходят в график уже посчитанными (Long минорных
-     * единиц); `Float`/`Double` там — только координаты и угол сектора при отрисовке на Canvas.
+     * I-1 / ARCHITECTURE.md §2.1: деньги приходят уже посчитанными (Long минорных единиц);
+     * `Float`/`Double` там — только на границе с системным API, которому Float нужен буквально
+     * (координаты и угол сектора при отрисовке на Canvas; R2.3 — `LinearProgressIndicator`
+     * принимает прогресс только как `Float`, целые проценты считает `ReportViewModel`).
      */
     val floatAllowlist: Set<String> = setOf(
         "app/src/main/kotlin/com/corriente/app/ui/report/ReportCharts.kt",
+        "app/src/main/kotlin/com/corriente/app/ui/report/ReportScreen.kt",
     )
 
     private data class Rule(val regex: Regex, val reason: String)

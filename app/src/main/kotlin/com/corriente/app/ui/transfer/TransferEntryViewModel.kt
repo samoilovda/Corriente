@@ -3,7 +3,9 @@ package com.corriente.app.ui.transfer
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import com.corriente.app.R
 import com.corriente.app.ui.common.WritingViewModel
+import com.corriente.app.ui.common.uiMessage
 import com.corriente.data.model.Txn
 import com.corriente.data.repository.AccountRepository
 import com.corriente.data.repository.CurrencyRepository
@@ -14,6 +16,8 @@ import com.corriente.money.CurrencyCode
 import com.corriente.money.DealRate
 import com.corriente.money.Minor
 import com.corriente.money.Money
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -103,6 +107,11 @@ class TransferEntryViewModel(
     private val _finished = MutableStateFlow(false)
     val finished: StateFlow<Boolean> = _finished
     val isEditing: Boolean get() = editingTxnId != null
+
+    /** R5.3: как в TxnEntryViewModel — копия удалённого перевода на время снекбара «Отменить». */
+    private val _pendingUndo = MutableStateFlow<Txn?>(null)
+    val pendingUndo: StateFlow<Txn?> = _pendingUndo
+    private var undoJob: Job? = null
 
     init {
         if (editingTxnId != null) {
@@ -207,7 +216,7 @@ class TransferEntryViewModel(
         val toMoney = Money(s.toMinor ?: return false, toCur.code)
         val note = s.note.trim().ifBlank { null }
         launchWrite(
-            onError = { "Не удалось сохранить перевод" },
+            onError = { uiMessage(R.string.transfer_error_save) },
             onSuccess = { _finished.value = true },
         ) {
             if (editingTxnId != null) {
@@ -219,17 +228,37 @@ class TransferEntryViewModel(
         return true
     }
 
+    /** R5.3: см. TxnEntryViewModel.deleteEditing — тот же снекбар-таймер, тот же I-22. */
     fun deleteEditing() {
         val id = editingTxnId ?: return
+        launchWrite(onError = { uiMessage(R.string.transfer_error_delete) }) {
+            val existing = txns.getById(id) ?: return@launchWrite
+            txns.deleteById(id)
+            _pendingUndo.value = existing
+            undoJob?.cancel()
+            undoJob = viewModelScope.launch {
+                delay(UNDO_WINDOW_MS)
+                _pendingUndo.value = null
+                _finished.value = true
+            }
+        }
+    }
+
+    fun undoDelete() {
+        val txn = _pendingUndo.value ?: return
+        undoJob?.cancel()
+        _pendingUndo.value = null
         launchWrite(
-            onError = { "Не удалось удалить перевод" },
+            onError = { uiMessage(R.string.transfer_error_restore) },
             onSuccess = { _finished.value = true },
         ) {
-            txns.deleteById(id)
+            txns.restore(txn)
         }
     }
 
     companion object {
+        const val UNDO_WINDOW_MS = 5_000L
+
         private fun fallback(code: CurrencyCode) = Currency(code, minorUnits = 2, displayScale = 2, symbol = code.code)
 
         fun factory(

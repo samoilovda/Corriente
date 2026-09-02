@@ -2,6 +2,7 @@ package com.corriente.app
 
 import android.content.Context
 import androidx.room.Room
+import com.corriente.data.applock.AppLockSettings
 import com.corriente.data.backup.AutoBackupSettings
 import com.corriente.data.backup.BackupRepository
 import com.corriente.data.db.AppDatabase
@@ -9,8 +10,10 @@ import com.corriente.data.db.PreMigrationBackup
 import com.corriente.data.imports.MonefyImportRepository
 import com.corriente.data.widget.WidgetConfigStore
 import com.corriente.data.repository.AccountRepository
+import com.corriente.data.repository.BudgetRepository
 import com.corriente.data.repository.CategoryRepository
 import com.corriente.data.repository.CurrencyRepository
+import com.corriente.data.repository.RecurrenceRepository
 import com.corriente.data.repository.TxnRepository
 import com.corriente.data.usecase.AccountBalanceUseCase
 import com.corriente.data.usecase.CategoryReportUseCase
@@ -43,7 +46,11 @@ class AppContainer(context: Context) {
     val txnRepository: TxnRepository by lazy { TxnRepository(database.txnDao(), database.accountDao()) }
     val backupRepository: BackupRepository by lazy { BackupRepository(database) }
     val autoBackupSettings: AutoBackupSettings by lazy { AutoBackupSettings(database.appSettingDao()) }
+    /** R5.2: настройка блокировки приложения (не шифрование — см. AppLockScreen.kt). */
+    val appLockSettings: AppLockSettings by lazy { AppLockSettings(database.appSettingDao()) }
     val monefyImportRepository: MonefyImportRepository by lazy { MonefyImportRepository(database) }
+    val budgetRepository: BudgetRepository by lazy { BudgetRepository(database.budgetDao()) }
+    val recurrenceRepository: RecurrenceRepository by lazy { RecurrenceRepository(database.recurrenceDao()) }
     val widgetConfigStore: WidgetConfigStore by lazy { WidgetConfigStore(appContext) }
 
     val accountBalanceUseCase: AccountBalanceUseCase by lazy {

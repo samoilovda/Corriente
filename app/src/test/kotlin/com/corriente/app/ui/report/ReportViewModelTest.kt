@@ -1,15 +1,18 @@
 package com.corriente.app.ui.report
 
 import com.corriente.app.ui.accounts.FakeAccountDao
+import com.corriente.app.ui.budgets.FakeBudgetDao
 import com.corriente.app.ui.categories.FakeCategoryDao
 import com.corriente.app.ui.currencies.FakeCurrencyDao
 import com.corriente.app.ui.txnentry.FakeTxnDao
 import com.corriente.data.db.entity.AccountEntity
 import com.corriente.data.db.entity.AccountKind
+import com.corriente.data.db.entity.BudgetPeriod
 import com.corriente.data.db.entity.CategoryEntity
 import com.corriente.data.db.entity.CategoryKind
 import com.corriente.data.db.entity.CurrencyEntity
 import com.corriente.data.repository.AccountRepository
+import com.corriente.data.repository.BudgetRepository
 import com.corriente.data.repository.CategoryRepository
 import com.corriente.data.repository.CurrencyRepository
 import com.corriente.data.repository.TxnRepository
@@ -48,6 +51,7 @@ class ReportViewModelTest {
             listOf(CurrencyEntity("RUB", 2, 2, "₽", true, 0), CurrencyEntity("USD", 2, 2, "$", true, 1)),
         )
         val categoryDao = FakeCategoryDao()
+        val budgetDao = FakeBudgetDao()
     }
 
     private suspend fun Fakes.seed() {
@@ -61,6 +65,7 @@ class ReportViewModelTest {
         txns = TxnRepository(fakes.txnDao, fakes.accountDao),
         categories = CategoryRepository(fakes.categoryDao),
         currencies = CurrencyRepository(fakes.currencyDao),
+        budgets = BudgetRepository(fakes.budgetDao),
         today = { today },
     )
 
@@ -148,6 +153,40 @@ class ReportViewModelTest {
         assertTrue(model.uiState.value.rows.isEmpty())
     }
 
+    // R3.1 — сравнение с прошлым месяцем: показано изменение, для новой категории — прочерк.
+    @Test
+    fun `each row shows the change against the same period last month, dash when there is no prior data`() = runTest(dispatcher) {
+        val fakes = Fakes().apply { seed() }
+        val r = repo(fakes)
+        r.addExpense("acc", Money(Minor(10_000_00), rub), "food", LocalDate.of(2026, 4, 3), null)
+        r.addExpense("acc", Money(Minor(11_800_00), rub), "food", LocalDate.of(2026, 5, 3), null)
+        // "fun" появилась только в этом месяце — нет данных за апрель.
+        r.addExpense("acc", Money(Minor(5_000_00), rub), "fun", LocalDate.of(2026, 5, 4), null)
+
+        val model = vm(fakes)
+        backgroundScope.observe(model)
+        advanceUntilIdle()
+
+        val byName = model.uiState.value.rows.associateBy { it.name }
+        assertEquals("+18 % к прошлому месяцу", byName.getValue("Еда").changeText)
+        assertEquals("— к прошлому месяцу", byName.getValue("Развлечения").changeText)
+    }
+
+    // R3.1 — период CUSTOM не двигается, сравнивать не с чем: сравнение не показывается вовсе.
+    @Test
+    fun `a custom range has no natural previous period, so the comparison is not shown`() = runTest(dispatcher) {
+        val fakes = Fakes().apply { seed() }
+        repo(fakes).addExpense("acc", Money(Minor(1_000_00), rub), "food", LocalDate.of(2026, 5, 3), null)
+
+        val model = vm(fakes)
+        backgroundScope.observe(model)
+        advanceUntilIdle()
+        model.setCustomRange(LocalDate.of(2026, 5, 1), LocalDate.of(2026, 5, 31))
+        advanceUntilIdle()
+
+        assertNull(model.uiState.value.rows.single().changeText)
+    }
+
     @Test
     fun `drilldown lists the transactions behind a category`() = runTest(dispatcher) {
         val fakes = Fakes().apply { seed() }
@@ -169,5 +208,38 @@ class ReportViewModelTest {
         model.closeDrilldown()
         advanceUntilIdle()
         assertNull(model.uiState.value.drilldown)
+    }
+
+    // R2.3 — полоса бюджета появляется в отчёте расходов и отсутствует в отчёте доходов.
+    @Test
+    fun `category budget bar reflects spending, whole-currency budget is separate from a null category row`() = runTest(dispatcher) {
+        val fakes = Fakes().apply {
+            seed()
+            budgetDao.insert(
+                com.corriente.data.db.entity.BudgetEntity("b-food", "food", "RUB", 20_000, BudgetPeriod.MONTH, "2026-05-01"),
+            )
+            budgetDao.insert(
+                com.corriente.data.db.entity.BudgetEntity("b-all", null, "RUB", 50_000, BudgetPeriod.MONTH, "2026-05-01"),
+            )
+        }
+        val r = repo(fakes)
+        r.addExpense("acc", Money(Minor(10_000), rub), "food", LocalDate.of(2026, 5, 3), null)
+        r.addExpense("acc", Money(Minor(10_000), rub), "fun", LocalDate.of(2026, 5, 9), null)
+
+        val model = vm(fakes)
+        backgroundScope.observe(model)
+        advanceUntilIdle()
+
+        val foodBar = model.uiState.value.categoryBudgetBars.getValue("food")
+        assertEquals(false, foodBar.isOverBudget)
+
+        val wholeBar = model.uiState.value.wholeCurrencyBudgetBar!!
+        assertEquals(false, wholeBar.isOverBudget)
+
+        // Доход — бюджеты не показываются вовсе (R2.3: только расходы).
+        model.setKind(ReportKind.INCOME)
+        advanceUntilIdle()
+        assertTrue(model.uiState.value.categoryBudgetBars.isEmpty())
+        assertNull(model.uiState.value.wholeCurrencyBudgetBar)
     }
 }

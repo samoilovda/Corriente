@@ -63,4 +63,139 @@ class AppDatabaseMigrationTest {
         }
         db.close()
     }
+
+    // R2.1 — миграция v2 → v3 создаёт `txn_fts`, наполняет её существующими операциями и держит
+    // в синхроне через триггеры на будущих вставках/правках/удалениях.
+    @Test
+    fun migration2to3CreatesFtsTableAndBackfillsExistingNotes() {
+        helper.createDatabase(testDbName, 2).apply {
+            execSQL(
+                """
+                INSERT INTO currency(code, minor_units, display_scale, symbol, is_active, display_order)
+                VALUES ('RUB', 2, 2, '₽', 1, 0)
+                """.trimIndent(),
+            )
+            execSQL(
+                """
+                INSERT INTO account(id, name, currency_code, kind, opening_balance_minor, color, display_order, is_archived, include_in_total)
+                VALUES ('a1', 'Наличные', 'RUB', 'CASH', 0, 0, 0, 0, 1)
+                """.trimIndent(),
+            )
+            execSQL(
+                """
+                INSERT INTO txn(id, kind, date, created_at, updated_at, account_id, amount_minor, currency_code, note)
+                VALUES ('t1', 'EXPENSE', '2026-01-01', 0, 0, 'a1', 100, 'RUB', 'кофе с молоком')
+                """.trimIndent(),
+            )
+            close()
+        }
+
+        val db = helper.runMigrationsAndValidate(testDbName, 3, true, AppDatabase.MIGRATION_2_3)
+
+        // Существующая до миграции заметка нашлась поиском (бэкфилл).
+        db.query("SELECT docid FROM txn_fts WHERE txn_fts MATCH 'кофе*'").use { c ->
+            assertEquals(true, c.moveToFirst())
+        }
+
+        // Новая операция синхронизируется в txn_fts автоматически (AFTER INSERT).
+        db.execSQL(
+            """
+            INSERT INTO txn(id, kind, date, created_at, updated_at, account_id, amount_minor, currency_code, note)
+            VALUES ('t2', 'EXPENSE', '2026-01-02', 0, 0, 'a1', 200, 'RUB', 'такси домой')
+            """.trimIndent(),
+        )
+        db.query("SELECT docid FROM txn_fts WHERE txn_fts MATCH 'такси*'").use { c ->
+            assertEquals(true, c.moveToFirst())
+        }
+
+        // Удаление операции убирает её из индекса (BEFORE DELETE).
+        db.execSQL("DELETE FROM txn WHERE id = 't2'")
+        db.query("SELECT docid FROM txn_fts WHERE txn_fts MATCH 'такси*'").use { c ->
+            assertEquals(false, c.moveToFirst())
+        }
+        db.close()
+    }
+
+    // R2.3 — миграция v3 → v4 создаёт таблицу `budget` (бюджеты по категориям).
+    @Test
+    fun migration3to4CreatesBudgetTable() {
+        helper.createDatabase(testDbName, 3).apply {
+            execSQL(
+                """
+                INSERT INTO currency(code, minor_units, display_scale, symbol, is_active, display_order)
+                VALUES ('RUB', 2, 2, '₽', 1, 0)
+                """.trimIndent(),
+            )
+            execSQL(
+                """
+                INSERT INTO category(id, name, kind, parent_id, color, origin, display_order, is_archived)
+                VALUES ('food', 'Еда', 'EXPENSE', NULL, 0, 'USER', 0, 0)
+                """.trimIndent(),
+            )
+            close()
+        }
+
+        val db = helper.runMigrationsAndValidate(testDbName, 4, true, AppDatabase.MIGRATION_3_4)
+
+        db.execSQL(
+            """
+            INSERT INTO budget(id, category_id, currency_code, amount_minor, period, starts_on)
+            VALUES ('b1', 'food', 'RUB', 1000000, 'MONTH', '2026-09-01')
+            """.trimIndent(),
+        )
+        db.query("SELECT category_id, amount_minor FROM budget WHERE id = 'b1'").use { c ->
+            assertEquals(true, c.moveToFirst())
+            assertEquals("food", c.getString(0))
+            assertEquals(1000000, c.getLong(1))
+        }
+
+        // Бюджет «на всё» — category_id может быть NULL.
+        db.execSQL(
+            """
+            INSERT INTO budget(id, category_id, currency_code, amount_minor, period, starts_on)
+            VALUES ('b2', NULL, 'RUB', 5000000, 'MONTH', '2026-09-01')
+            """.trimIndent(),
+        )
+        db.query("SELECT category_id FROM budget WHERE id = 'b2'").use { c ->
+            assertEquals(true, c.moveToFirst())
+            assertEquals(true, c.isNull(0))
+        }
+        db.close()
+    }
+
+    // R2.4 — миграция v4 → v5 создаёт таблицу `recurrence` (повторяющиеся операции).
+    @Test
+    fun migration4to5CreatesRecurrenceTable() {
+        helper.createDatabase(testDbName, 4).apply {
+            execSQL(
+                """
+                INSERT INTO currency(code, minor_units, display_scale, symbol, is_active, display_order)
+                VALUES ('RUB', 2, 2, '₽', 1, 0)
+                """.trimIndent(),
+            )
+            execSQL(
+                """
+                INSERT INTO account(id, name, currency_code, kind, opening_balance_minor, color, display_order, is_archived, include_in_total)
+                VALUES ('a1', 'Карта', 'RUB', 'CARD', 0, 0, 0, 0, 1)
+                """.trimIndent(),
+            )
+            close()
+        }
+
+        val db = helper.runMigrationsAndValidate(testDbName, 5, true, AppDatabase.MIGRATION_4_5)
+
+        db.execSQL(
+            """
+            INSERT INTO recurrence(id, kind, account_id, category_id, amount_minor, currency_code, note, rule_type, day_of_month, interval_days, next_run_on, last_created_txn_id)
+            VALUES ('r1', 'EXPENSE', 'a1', NULL, 5000000, 'RUB', 'Аренда', 'DAY_OF_MONTH', 1, NULL, '2026-10-01', NULL)
+            """.trimIndent(),
+        )
+        db.query("SELECT kind, day_of_month, next_run_on FROM recurrence WHERE id = 'r1'").use { c ->
+            assertEquals(true, c.moveToFirst())
+            assertEquals("EXPENSE", c.getString(0))
+            assertEquals(1, c.getInt(1))
+            assertEquals("2026-10-01", c.getString(2))
+        }
+        db.close()
+    }
 }

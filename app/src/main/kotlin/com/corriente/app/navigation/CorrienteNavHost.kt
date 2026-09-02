@@ -1,5 +1,6 @@
 package com.corriente.app.navigation
 
+import android.content.Intent
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Icon
@@ -8,6 +9,7 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -19,13 +21,18 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import androidx.navigation.navDeepLink
+import com.corriente.app.ui.accountbalance.AccountBalanceScreen
 import com.corriente.app.ui.accounts.AccountsScreen
+import com.corriente.app.ui.applock.AppLockSettingsScreen
+import com.corriente.app.ui.budgets.BudgetsScreen
 import com.corriente.app.ui.categories.CategoriesScreen
 import com.corriente.app.ui.autobackup.AutoBackupScreen
 import com.corriente.app.ui.currencies.CurrenciesScreen
 import com.corriente.app.ui.fxreport.FxReportScreen
 import com.corriente.app.ui.imports.ImportHistoryScreen
 import com.corriente.app.ui.imports.ImportScreen
+import com.corriente.app.ui.recurring.RecurringScreen
 import com.corriente.app.ui.report.ReportScreen
 import com.corriente.app.ui.settings.SettingsScreen
 import com.corriente.app.ui.transactions.TransactionsScreen
@@ -41,21 +48,45 @@ private const val IMPORT_ROUTE = "import_monefy"
 private const val IMPORT_HISTORY_ROUTE = "import_history"
 private const val WIDGET_SETTINGS_ROUTE = "widget_settings"
 private const val AUTOBACKUP_ROUTE = "autobackup"
+private const val APP_LOCK_ROUTE = "app_lock"
+private const val BUDGETS_ROUTE = "budgets"
+private const val RECURRING_ROUTE = "recurring"
 private const val FX_REPORT_ROUTE = "fx_report"
+private const val ACCOUNT_BALANCE_ROUTE = "account_balance"
 private const val TXN_ENTRY_ROUTE = "txn_entry"
 private const val TXN_EDIT_ROUTE = "txn_edit"
 private const val TRANSFER_ROUTE = "transfer"
 private const val TRANSFER_EDIT_ROUTE = "transfer_edit"
 
+/** R4.4: схема deep link'ов для ярлыков приложения — не сетевой URI, чисто internal-routing. */
+private const val DEEP_LINK_SCHEME = "corriente"
+
 /**
  * Каркас навигации (T1.1): нижняя панель с четырьмя разделами. Содержимое разделов
  * наполняется в T1.2–T1.9, каждый в своей задаче/коммите.
+ *
+ * @param deepLinkIntent intent ярлыка приложения (R4.4) — с холодного старта [com.corriente.app.MainActivity.onCreate],
+ *   при уже запущенной Activity — [com.corriente.app.MainActivity.onNewIntent]. `null`, если Activity
+ *   открыта обычным способом (лаунчер/бэкстек).
  */
 @Composable
-fun CorrienteNavHost() {
+fun CorrienteNavHost(deepLinkIntent: Intent? = null, onDeepLinkConsumed: () -> Unit = {}) {
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = backStackEntry?.destination
+
+    // R4.4: intent ярлыка обрабатывается через LaunchedEffect — handleDeepLink требует, чтобы
+    // граф NavHost уже был построен, а эффекты в Compose выполняются уже после того, как вся
+    // функция скомпозилась (в т.ч. NavHost ниже), независимо от места этого вызова в исходнике.
+    LaunchedEffect(deepLinkIntent) {
+        // R4.4: обрабатываем только intent'ы наших ярлыков (схема corriente://…). Обычный
+        // запуск из лаунчера приходит сюда как ACTION_MAIN без data — его отдавать в
+        // handleDeepLink нельзя: в navigation 2.9.0 это роняет NavController (getTopGraph NPE).
+        val uri = deepLinkIntent?.data
+        if (uri == null || uri.scheme != DEEP_LINK_SCHEME) return@LaunchedEffect
+        val handled = runCatching { navController.handleDeepLink(deepLinkIntent) }.getOrDefault(false)
+        if (handled == true) onDeepLinkConsumed()
+    }
 
     Scaffold(
         bottomBar = {
@@ -97,7 +128,21 @@ fun CorrienteNavHost() {
                     onEditTransfer = { id -> navController.navigate("$TRANSFER_EDIT_ROUTE/$id") },
                 )
             }
-            composable(CorrienteDestination.ACCOUNTS.route) { AccountsScreen() }
+            composable(CorrienteDestination.ACCOUNTS.route) {
+                AccountsScreen(
+                    onOpenAutoBackup = { navController.navigate(AUTOBACKUP_ROUTE) },
+                    onOpenAccountBalance = { accountId -> navController.navigate("$ACCOUNT_BALANCE_ROUTE/$accountId") },
+                )
+            }
+            composable(
+                "$ACCOUNT_BALANCE_ROUTE/{accountId}",
+                arguments = listOf(navArgument("accountId") { type = NavType.StringType }),
+            ) { entry ->
+                AccountBalanceScreen(
+                    onBack = { navController.popBackStack() },
+                    initialAccountId = entry.arguments?.getString("accountId"),
+                )
+            }
             composable(CorrienteDestination.REPORT.route) {
                 ReportScreen(
                     onEditTransaction = { id -> navController.navigate("$TXN_EDIT_ROUTE/$id") },
@@ -115,10 +160,22 @@ fun CorrienteNavHost() {
                     onOpenImportHistory = { navController.navigate(IMPORT_HISTORY_ROUTE) },
                     onOpenWidgetSettings = { navController.navigate(WIDGET_SETTINGS_ROUTE) },
                     onOpenAutoBackup = { navController.navigate(AUTOBACKUP_ROUTE) },
+                    onOpenBudgets = { navController.navigate(BUDGETS_ROUTE) },
+                    onOpenRecurring = { navController.navigate(RECURRING_ROUTE) },
+                    onOpenAppLock = { navController.navigate(APP_LOCK_ROUTE) },
                 )
             }
             composable(AUTOBACKUP_ROUTE) {
                 AutoBackupScreen(onBack = { navController.popBackStack() })
+            }
+            composable(APP_LOCK_ROUTE) {
+                AppLockSettingsScreen(onBack = { navController.popBackStack() })
+            }
+            composable(BUDGETS_ROUTE) {
+                BudgetsScreen(onBack = { navController.popBackStack() })
+            }
+            composable(RECURRING_ROUTE) {
+                RecurringScreen(onBack = { navController.popBackStack() })
             }
             composable(IMPORT_ROUTE) {
                 ImportScreen(onBack = { navController.popBackStack() })
@@ -140,6 +197,8 @@ fun CorrienteNavHost() {
                 arguments = listOf(
                     navArgument("kind") { type = NavType.StringType; defaultValue = EntryKind.EXPENSE.name },
                 ),
+                // R4.4: ярлыки «Записать расход»/«Записать доход» ведут сюда через deep link.
+                deepLinks = listOf(navDeepLink { uriPattern = "$DEEP_LINK_SCHEME://entry?kind={kind}" }),
             ) { entry ->
                 TxnEntryScreen(
                     onDone = { navController.popBackStack() },
@@ -160,7 +219,11 @@ fun CorrienteNavHost() {
                     editingTxnId = entry.arguments?.getString("txnId"),
                 )
             }
-            composable(TRANSFER_ROUTE) {
+            composable(
+                TRANSFER_ROUTE,
+                // R4.4: ярлык «Перевод» ведёт сюда через deep link.
+                deepLinks = listOf(navDeepLink { uriPattern = "$DEEP_LINK_SCHEME://transfer" }),
+            ) {
                 TransferEntryScreen(onDone = { navController.popBackStack() })
             }
             composable(

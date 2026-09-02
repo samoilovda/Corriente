@@ -15,6 +15,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ShowChart
 import androidx.compose.material.icons.filled.Unarchive
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenuItem
@@ -51,6 +52,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.corriente.app.R
 import com.corriente.app.corrienteContainer
 import com.corriente.app.ui.categories.CategoryPalette
+import com.corriente.app.ui.common.BackupReminderBanner
 import com.corriente.app.ui.common.rememberMessageSnackbarState
 import com.corriente.data.db.entity.AccountKind
 import com.corriente.money.CurrencyCode
@@ -59,6 +61,8 @@ import com.corriente.money.MoneyFormatter
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AccountsScreen(
+    onOpenAutoBackup: () -> Unit = {},
+    onOpenAccountBalance: (String) -> Unit = {},
     viewModel: AccountsViewModel = viewModel(
         factory = with(corrienteContainer()) {
             AccountsViewModel.factory(accountRepository, currencyRepository, accountBalanceUseCase)
@@ -80,6 +84,8 @@ fun AccountsScreen(
         },
     ) { padding ->
         LazyColumn(Modifier.fillMaxWidth().padding(padding)) {
+            // R1.5: плашка «Последний бэкап: N дней назад» — та же логика, что и на «Настройках».
+            item { BackupReminderBanner(onClick = onOpenAutoBackup) }
             if (state.groups.isEmpty() && state.archived.isEmpty()) {
                 item {
                     Text(
@@ -104,6 +110,7 @@ fun AccountsScreen(
                         color = row.account.color,
                         icon = row.account.icon,
                         onClick = { viewModel.startEdit(row.account) },
+                        onOpenBalanceChart = { onOpenAccountBalance(row.account.id) },
                     )
                     HorizontalDivider()
                 }
@@ -166,9 +173,10 @@ private fun AccountListRow(
     color: Int,
     icon: String?,
     onClick: () -> Unit,
+    onOpenBalanceChart: () -> Unit,
 ) {
     Row(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(16.dp),
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(start = 16.dp, end = 4.dp, top = 16.dp, bottom = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
@@ -188,6 +196,11 @@ private fun AccountListRow(
             Text(subtitle, style = MaterialTheme.typography.bodySmall)
         }
         Text(trailing)
+        // R3.2: график остатка счёта по дням — отдельный тап, не конфликтует с открытием
+        // редактора счёта по тапу на всю строку.
+        IconButton(onClick = onOpenBalanceChart) {
+            Icon(Icons.Filled.ShowChart, contentDescription = stringResource(R.string.account_balance_chart))
+        }
     }
 }
 

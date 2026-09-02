@@ -1,5 +1,7 @@
 package com.corriente.app.ui.report
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -21,6 +23,7 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
@@ -36,6 +39,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -53,18 +57,34 @@ fun ReportScreen(
     onOpenFxReport: () -> Unit,
     viewModel: ReportViewModel = viewModel(
         factory = with(corrienteContainer()) {
-            ReportViewModel.factory(txnRepository, categoryRepository, currencyRepository)
+            ReportViewModel.factory(txnRepository, categoryRepository, currencyRepository, budgetRepository)
         },
     ),
 ) {
     val state by viewModel.uiState.collectAsState()
     var rangePickerOpen by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+
+    // R3.3: экспорт текущего отчёта в CSV через SAF — тот же паттерн, что и экспорт бэкапа
+    // на «Настройках» (ActivityResultContracts.CreateDocument), суммы — MoneyFormatter (I-25).
+    val exportCsvLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("text/csv"),
+    ) { uri ->
+        if (uri != null) {
+            context.contentResolver.openOutputStream(uri)?.use {
+                it.write(viewModel.exportCsv().toByteArray(Charsets.UTF_8))
+            }
+        }
+    }
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.nav_report)) },
                 actions = {
+                    TextButton(onClick = { exportCsvLauncher.launch("corriente-report.csv") }) {
+                        Text(stringResource(R.string.report_export_csv))
+                    }
                     TextButton(onClick = onOpenFxReport) { Text(stringResource(R.string.report_open_fx)) }
                 },
             )
@@ -123,6 +143,12 @@ fun ReportScreen(
                     Text(it, style = MaterialTheme.typography.titleMedium)
                 }
             }
+            // R2.3: бюджет «на всё» — общая полоса над списком категорий.
+            state.wholeCurrencyBudgetBar?.let { bar ->
+                Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
+                    BudgetProgressBar(bar)
+                }
+            }
             HorizontalDivider()
 
             if (state.rows.isEmpty()) {
@@ -141,16 +167,31 @@ fun ReportScreen(
                         item(key = "chart-divider") { HorizontalDivider() }
                     }
                     items(state.rows, key = { it.categoryId ?: "none" }) { row ->
-                        Row(
+                        Column(
                             Modifier.fillMaxWidth()
                                 .clickable { viewModel.openDrilldown(row.categoryId) }
                                 .padding(horizontal = 16.dp, vertical = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
                         ) {
-                            Text(row.name, Modifier.weight(1f))
-                            Text("${row.sharePercent}%", style = MaterialTheme.typography.bodySmall)
-                            Text(row.amountText)
+                            Row(
+                                Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            ) {
+                                Text(row.name ?: stringResource(R.string.report_no_category), Modifier.weight(1f))
+                                Text("${row.sharePercent}%", style = MaterialTheme.typography.bodySmall)
+                                Text(row.amountText)
+                            }
+                            // R3.1: изменение к тому же периоду раньше — «+18 % к прошлому месяцу»,
+                            // прочерк вместо 0 % при отсутствии данных за прошлый период.
+                            row.changeText?.let {
+                                Text(
+                                    it,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                            // R2.3: полоса «потрачено из бюджета» — только когда бюджет задан.
+                            row.categoryId?.let { state.categoryBudgetBars[it] }?.let { bar -> BudgetProgressBar(bar) }
                         }
                         HorizontalDivider()
                     }
@@ -183,7 +224,7 @@ fun ReportScreen(
     state.drilldown?.let { drilldown ->
         ModalBottomSheet(onDismissRequest = viewModel::closeDrilldown) {
             Text(
-                drilldown.categoryName,
+                drilldown.categoryName ?: stringResource(R.string.report_no_category),
                 Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                 style = MaterialTheme.typography.titleMedium,
             )
@@ -222,4 +263,32 @@ private fun ScrollableChips(content: @Composable () -> Unit) {
 @Composable
 private fun PeriodModeChip(current: PeriodMode, mode: PeriodMode, labelRes: Int, onSelect: (PeriodMode) -> Unit) {
     FilterChip(selected = current == mode, onClick = { onSelect(mode) }, label = { Text(stringResource(labelRes)) })
+}
+
+/** R2.3: полоса «потрачено из бюджета» — цвет меняется на error при перерасходе. */
+@Composable
+private fun BudgetProgressBar(bar: BudgetBar) {
+    Column(Modifier.fillMaxWidth().padding(top = 4.dp)) {
+        LinearProgressIndicator(
+            // Float — только на этой границе с Compose (InvariantGuards floatAllowlist);
+            // ViewModel считает и хранит целые проценты (I-1).
+            progress = { bar.percentClamped / 100f },
+            modifier = Modifier.fillMaxWidth(),
+            color = if (bar.isOverBudget) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+        )
+        Row(Modifier.fillMaxWidth().padding(top = 2.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(
+                "${bar.spentText} / ${bar.budgetText}",
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.weight(1f),
+            )
+            if (bar.isOverBudget) {
+                Text(
+                    stringResource(R.string.report_budget_over),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
+        }
+    }
 }

@@ -7,8 +7,16 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 
-/** Одно сообщение пользователю (ошибка записи, подтверждение). Текст уже человекочитаемый. */
-data class UiMessage(val text: String)
+/**
+ * Одно сообщение пользователю (ошибка записи, подтверждение). Текста здесь нет —
+ * только ресурс строки и аргументы форматирования (R6.3, ROADMAP.md §8: ViewModel не
+ * должен склеивать русский текст в коде, `stringResource` резолвится уже в Composable,
+ * который умеет обе локали).
+ */
+data class UiMessage(val resId: Int, val args: List<Any> = emptyList())
+
+/** Короткая форма конструктора [UiMessage] для `onError`/[WritingViewModel.postMessage]. */
+fun uiMessage(resId: Int, vararg args: Any): UiMessage = UiMessage(resId, args.toList())
 
 /**
  * База для ViewModel, которые пишут в репозитории (F0.2). Любая запись идёт через [launchWrite]:
@@ -28,17 +36,17 @@ abstract class WritingViewModel : ViewModel() {
     }
 
     /** Показать сообщение вне пути записи (напр. «валюта уже зафиксирована»). */
-    protected fun postMessage(text: String) {
-        _messages.value = UiMessage(text)
+    protected fun postMessage(resId: Int, vararg args: Any) {
+        _messages.value = uiMessage(resId, *args)
     }
 
     /**
      * Запускает запись в [viewModelScope]. При успехе — [onSuccess] (закрыть форму, выставить
-     * `finished`). При исключении — текст из [onError] в [messages]; [onSuccess] не вызывается,
-     * состояние формы не трогается.
+     * `finished`). При исключении — сообщение из [onError] в [messages]; [onSuccess] не
+     * вызывается, состояние формы не трогается.
      */
     protected fun launchWrite(
-        onError: (Throwable) -> String,
+        onError: (Throwable) -> UiMessage,
         onSuccess: () -> Unit = {},
         block: suspend () -> Unit,
     ) {
@@ -49,7 +57,7 @@ abstract class WritingViewModel : ViewModel() {
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Throwable) {
-                _messages.value = UiMessage(onError(e))
+                _messages.value = onError(e)
             }
         }
     }

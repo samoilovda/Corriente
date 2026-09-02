@@ -39,6 +39,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
+import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -82,10 +85,22 @@ fun TxnEntryScreen(
     val state by viewModel.uiState.collectAsState()
     val finished by viewModel.finished.collectAsState()
     val message by viewModel.messages.collectAsState()
+    val pendingUndo by viewModel.pendingUndo.collectAsState()
     val snackbarState = rememberMessageSnackbarState(message, viewModel::consumeMessage)
     var datePickerOpen by remember { mutableStateOf(false) }
 
     LaunchedEffect(finished) { if (finished) onDone() }
+
+    // R5.3: снекбар «Операция удалена — Отменить» — держит форму на экране, пока не истечёт
+    // таймер ViewModel (UNDO_WINDOW_MS) или пользователь не нажмёт «Отменить»; уход с экрана
+    // раньше отменяет и эту корутину вместе с ViewModel — отмена уже невозможна.
+    val undoMessage = stringResource(R.string.txn_deleted_undo_message)
+    val undoLabel = stringResource(R.string.undo)
+    LaunchedEffect(pendingUndo != null) {
+        if (pendingUndo == null) return@LaunchedEffect
+        val result = snackbarState.showSnackbar(undoMessage, undoLabel, duration = SnackbarDuration.Indefinite)
+        if (result == SnackbarResult.ActionPerformed) viewModel.undoDelete()
+    }
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarState) },
@@ -101,7 +116,7 @@ fun TxnEntryScreen(
                 },
                 actions = {
                     if (viewModel.isEditing) {
-                        TextButton(onClick = viewModel::deleteEditing) {
+                        TextButton(onClick = viewModel::deleteEditing, enabled = pendingUndo == null) {
                             Text(stringResource(R.string.txn_entry_delete))
                         }
                     }
@@ -194,6 +209,18 @@ fun TxnEntryScreen(
             }
 
             if (state.accounts.isNotEmpty()) {
+                // R2.2: «частые» — тап заполняет вид/счёт/категорию/сумму целиком.
+                if (state.frequentOptions.isNotEmpty()) {
+                    ChipRow(stringResource(R.string.txn_entry_frequent)) {
+                        state.frequentOptions.forEach { option ->
+                            FilterChip(
+                                selected = false,
+                                onClick = { viewModel.applyFrequent(option) },
+                                label = { Text("${option.label} · ${option.amountText}") },
+                            )
+                        }
+                    }
+                }
                 Spacer(Modifier.height(8.dp))
                 Keypad(
                     onDigit = viewModel::pressDigit,
@@ -206,7 +233,7 @@ fun TxnEntryScreen(
                 )
                 Button(
                     onClick = { viewModel.save() },
-                    enabled = state.canSave,
+                    enabled = state.canSave && pendingUndo == null,
                     modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
                 ) { Text(stringResource(R.string.save)) }
             }

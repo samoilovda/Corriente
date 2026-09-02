@@ -18,6 +18,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -26,6 +27,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.flow.onEach
 import com.corriente.data.widget.WidgetConfig
 import com.corriente.data.widget.WidgetSnapshot
@@ -38,6 +40,10 @@ import java.time.LocalDate
  * F2.1: не работает, пока виджет не размещён (проверка [GlanceAppWidgetManager]); балансы —
  * агрегат из SQL, а список операций — только недавнее окно (для месячных трат и частых категорий),
  * а не вся таблица `txn`.
+ *
+ * R4.0: размещение перепроверяется не только по эмиссиям [WidgetConfigStore.config], но и по
+ * сигналу [notifyPlacementChanged] — иначе виджет, добавленный при уже запущенном процессе без
+ * захода в настройки, оставался бы на `EMPTY`/старом снимке до следующего запуска приложения.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class WidgetUpdater(
@@ -49,13 +55,23 @@ class WidgetUpdater(
     private val store = WidgetSnapshotStore(appContext)
     private val configStore = WidgetConfigStore(appContext)
 
+    /**
+     * R4.0: сигнал «пере-проверь размещение виджета прямо сейчас» помимо обычных триггеров
+     * (смена настроек, старт процесса). [WidgetRefreshReceiver] дёргает это, когда виджет
+     * добавлен на рабочий стол при уже запущенном процессе — тогда `configStore.config` не
+     * эмиттит ничего нового, и без этого сигнала [widgetPlaced] остался бы false до следующего
+     * запуска приложения или ручной смены настроек.
+     */
+    private val recheckPlacement = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+
     private suspend fun widgetPlaced(): Boolean =
         GlanceAppWidgetManager(appContext).getGlanceIds(CorrienteWidget::class.java).isNotEmpty()
 
     fun start() {
-        // Пере-проверяем размещение при каждой смене настроек виджета и на старте (config
-        // отдаёт начальное значение сразу). Пока виджета нет — тяжёлые подписки не открываются.
-        configStore.config
+        // Пере-проверяем размещение при каждой смене настроек виджета, на старте (config отдаёт
+        // начальное значение сразу) и по внешнему сигналу (R4.0). Пока виджета нет — тяжёлые
+        // подписки не открываются.
+        merge(configStore.config.map { }, recheckPlacement)
             .map { widgetPlaced() }
             .distinctUntilChanged()
             .flatMapLatest { placed ->
@@ -81,6 +97,11 @@ class WidgetUpdater(
             .launchIn(scope)
 
         WidgetMidnightWorker.schedule(appContext) // F2.2: пересчёт на смене суток
+    }
+
+    /** R4.0: вызывается [WidgetRefreshReceiver] при ACTION_APPWIDGET_ENABLED/UPDATE. */
+    fun notifyPlacementChanged() {
+        recheckPlacement.tryEmit(Unit)
     }
 
     /**
@@ -123,6 +144,7 @@ class WidgetUpdater(
             today = now,
             computedAt = System.currentTimeMillis(),
             accountDeltas = d.deltas,
+            pinnedCategoryIds = config.pinnedCategoryIds,
         )
     }
 

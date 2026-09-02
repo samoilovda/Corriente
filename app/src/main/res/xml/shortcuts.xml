@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- R4.4: статические ярлыки приложения (долгое нажатие на иконку). Ведут на MainActivity
+     явным intent'ом (targetPackage/targetClass — не требует отдельного intent-filter в
+     манифесте) с data-URI, который CorrienteNavHost матчит на маршрут через navDeepLink.
+     targetPackage захардкожен: в отличие от Kotlin-кода (F3.5, context.packageName), ресурсный
+     XML не умеет подставить applicationId — если когда-нибудь появится applicationIdSuffix
+     у отладочной сборки, ярлыки в ней не сработают, только в release. -->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="add_expense"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_expense"
+        android:shortcutShortLabel="@string/shortcut_add_expense"
+        android:shortcutLongLabel="@string/shortcut_add_expense">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.corriente.app"
+            android:targetClass="com.corriente.app.MainActivity"
+            android:data="corriente://entry?kind=EXPENSE" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="add_income"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_income"
+        android:shortcutShortLabel="@string/shortcut_add_income"
+        android:shortcutLongLabel="@string/shortcut_add_income">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.corriente.app"
+            android:targetClass="com.corriente.app.MainActivity"
+            android:data="corriente://entry?kind=INCOME" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="transfer"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_transfer"
+        android:shortcutShortLabel="@string/shortcut_transfer"
+        android:shortcutLongLabel="@string/shortcut_transfer">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.corriente.app"
+            android:targetClass="com.corriente.app.MainActivity"
+            android:data="corriente://transfer" />
+    </shortcut>
+</shortcuts>

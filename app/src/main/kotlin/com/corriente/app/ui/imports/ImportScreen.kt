@@ -45,6 +45,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.corriente.app.R
 import com.corriente.app.corrienteContainer
+import com.corriente.data.imports.MonefyRowIssue
 import com.corriente.data.imports.ReviewDecision
 import com.corriente.data.imports.ReviewReason
 import com.corriente.data.imports.ReviewRef
@@ -118,7 +119,7 @@ fun ImportScreen(
 
                 is ImportUiState.Failed -> {
                     Text(
-                        stringResource(R.string.import_failed, s.message),
+                        stringResource(R.string.import_failed, importFailureText(s.reason)),
                         color = MaterialTheme.colorScheme.error,
                     )
                     OutlinedButton(onClick = viewModel::reset) { Text(stringResource(R.string.import_restart)) }
@@ -161,7 +162,9 @@ private fun ReadyBody(
             style = MaterialTheme.typography.titleSmall,
             color = MaterialTheme.colorScheme.error,
         )
-        summary.errors.forEach { Text("• $it", color = MaterialTheme.colorScheme.error) }
+        summary.errors.forEach {
+            Text("• ${stringResource(R.string.import_error_row_prefix, it.line, monefyRowIssueText(it.issue))}", color = MaterialTheme.colorScheme.error)
+        }
     }
 
     HorizontalDivider()
@@ -182,7 +185,7 @@ private fun ReviewCardView(card: ReviewCard, onDecision: (ReviewRef, ReviewDecis
             .padding(12.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Text("• ${card.message}", style = MaterialTheme.typography.bodyMedium)
+        Text("• ${reviewCardMessage(card)}", style = MaterialTheme.typography.bodyMedium)
 
         if (card.decision == null) {
             val hint = if (card.reason == ReviewReason.EXISTING_ACCOUNT_CURRENCY_MISMATCH) {
@@ -305,6 +308,59 @@ private fun ExactAmountsEditor(card: ReviewCard, onDecision: (ReviewRef, ReviewD
             }
         },
     ) { Text(stringResource(R.string.import_review_exact_apply)) }
+}
+
+/** R6.3: текст ошибки импорта из [ImportFailureReason] — `Raw` уже готов, `Localized` строим здесь. */
+@Composable
+private fun importFailureText(reason: ImportFailureReason): String = when (reason) {
+    is ImportFailureReason.Raw -> reason.text
+    is ImportFailureReason.Localized -> stringResource(reason.resId, *reason.args.toTypedArray())
+}
+
+/** R6.3: почему строка CSV не разобралась — текст строит экран, `core/data` отдаёт только структуру. */
+@Composable
+private fun monefyRowIssueText(issue: MonefyRowIssue): String = when (issue) {
+    is MonefyRowIssue.WrongFieldCount -> stringResource(R.string.import_error_wrong_field_count, issue.expected, issue.actual)
+    is MonefyRowIssue.UnparseableDate -> stringResource(R.string.import_error_unparseable_date, issue.raw)
+    is MonefyRowIssue.UnparseableAmount -> stringResource(R.string.import_error_unparseable_amount, issue.raw, issue.detail.orEmpty())
+    is MonefyRowIssue.UnparseableConvertedAmount ->
+        stringResource(R.string.import_error_unparseable_converted_amount, issue.raw, issue.detail.orEmpty())
+}
+
+/** R6.3: текст позиции NEEDS_REVIEW — планировщик отдаёт только причину и структурные поля. */
+@Composable
+private fun reviewCardMessage(card: ReviewCard): String = when (card.reason) {
+    ReviewReason.ACCOUNT_CURRENCY_CONFLICT -> stringResource(
+        R.string.import_review_account_currency_conflict,
+        card.account.orEmpty(),
+        card.currencyChoices.getOrElse(0) { "" },
+        card.currencyChoices.getOrElse(1) { "" },
+    )
+    ReviewReason.EXISTING_ACCOUNT_CURRENCY_MISMATCH -> stringResource(
+        R.string.import_review_existing_account_mismatch,
+        card.account.orEmpty(),
+        card.existingCurrency.orEmpty(),
+        card.currencyChoices.firstOrNull().orEmpty(),
+    )
+    ReviewReason.AMBIGUOUS_PAIRING -> stringResource(
+        R.string.import_review_ambiguous_pairing,
+        card.pairCount,
+        card.transferFromAccount.orEmpty(),
+        card.transferToAccount.orEmpty(),
+        card.transferDate.orEmpty(),
+    )
+    ReviewReason.ANOMALOUS_CURRENCY -> stringResource(
+        R.string.import_review_anomalous_currency,
+        card.transferFromAccount.orEmpty(),
+        card.transferToAccount.orEmpty(),
+        card.transferDate.orEmpty(),
+    )
+    ReviewReason.EXCESS_PRECISION -> stringResource(
+        R.string.import_review_excess_precision,
+        card.transferFromAccount.orEmpty(),
+        card.transferToAccount.orEmpty(),
+        card.transferDate.orEmpty(),
+    )
 }
 
 private fun currencyFor(code: String?, minorUnits: Int): Currency =

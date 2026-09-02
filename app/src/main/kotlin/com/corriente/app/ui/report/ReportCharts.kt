@@ -67,6 +67,42 @@ fun MonthlyBarChart(bars: List<MonthlyBar>, modifier: Modifier = Modifier) {
     }
 }
 
+/**
+ * R3.2: линия остатка счёта по дням за период. Значения уже посчитаны накопительным итогом
+ * ([com.corriente.data.usecase.balanceSeries]) — здесь только координаты (`Float`, как и в
+ * остальных графиках T5.3). Остаток может уходить в минус (овердрафт/долг) — ноль отмечен
+ * отдельной линией, чтобы это было видно, а не терялось в масштабе графика.
+ */
+@Composable
+fun AccountBalanceLineChart(points: List<Long>, modifier: Modifier = Modifier) {
+    if (points.size < 2) return
+    val min = points.min()
+    val max = points.max()
+    val span = (max - min).coerceAtLeast(1L)
+    val lineColor = MaterialTheme.colorScheme.primary
+    val zeroLineColor = MaterialTheme.colorScheme.outlineVariant
+
+    Canvas(modifier.fillMaxWidth().height(140.dp).padding(vertical = 4.dp)) {
+        fun y(value: Long): Float =
+            size.height - ((value - min).toDouble() / span.toDouble() * size.height).toFloat()
+
+        if (min < 0 && max > 0) {
+            val zeroY = y(0L)
+            drawLine(zeroLineColor, Offset(0f, zeroY), Offset(size.width, zeroY), strokeWidth = 2f)
+        }
+
+        val stepX = if (points.size > 1) size.width / (points.size - 1) else 0f
+        for (i in 0 until points.size - 1) {
+            drawLine(
+                color = lineColor,
+                start = Offset(i * stepX, y(points[i])),
+                end = Offset((i + 1) * stepX, y(points[i + 1])),
+                strokeWidth = 4f,
+            )
+        }
+    }
+}
+
 @Composable
 fun CategoryDonut(slices: List<CategorySlice>, modifier: Modifier = Modifier) {
     val positive = slices.filter { it.valueMinor > 0 }
@@ -101,7 +137,7 @@ fun CategoryDonut(slices: List<CategorySlice>, modifier: Modifier = Modifier) {
                             drawCircle(sliceColor(slice.color, i))
                         }
                         Text(
-                            "  ${slice.name} — ${slice.amountText}",
+                            "  ${slice.name ?: stringResourceNoCategory()} — ${slice.amountText}",
                             style = MaterialTheme.typography.labelSmall,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
@@ -120,3 +156,7 @@ private fun stringResourceMonthly() =
 @Composable
 private fun stringResourceStructure() =
     androidx.compose.ui.res.stringResource(com.corriente.app.R.string.report_chart_structure)
+
+@Composable
+private fun stringResourceNoCategory() =
+    androidx.compose.ui.res.stringResource(com.corriente.app.R.string.report_no_category)

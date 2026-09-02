@@ -41,6 +41,12 @@ class TxnFilterTest {
         assertEquals(listOf("i1"), ids(TxnFilter(query = "зарплата")))
     }
 
+    // R2.1: область поиска расширена — заметка/категория/счёт (не только заметка и категория).
+    @Test
+    fun `query also matches account name`() {
+        assertEquals(listOf("e2", "e3"), ids(TxnFilter(query = "card")))
+    }
+
     @Test
     fun `category, account and currency filters`() {
         assertEquals(listOf("e1", "e3"), ids(TxnFilter(categoryId = "food")))
@@ -65,5 +71,23 @@ class TxnFilterTest {
     @Test
     fun `filters combine with AND`() {
         assertEquals(listOf("e1"), ids(TxnFilter(categoryId = "food", currencyCode = "RUB", query = "маг")))
+    }
+
+    // R3.0: маркер счёта в строке операции не зависит от категории — берётся по accountId.
+    @Test
+    fun `row carries account color regardless of category`() {
+        val accountColors = mapOf("cash" to 0x11223344, "card" to 0x55667788)
+        val sections = buildDaySections(
+            txns, TxnFilter(), accountNames, categoryNames, byCode, accountColors = accountColors,
+        )
+        val byId = sections.flatMap { it.rows }.associateBy { it.id }
+        assertEquals(0x11223344.toInt(), byId.getValue("e1").accountColor)
+        assertEquals(0x55667788.toInt(), byId.getValue("e2").accountColor)
+    }
+
+    @Test
+    fun `row without a known account color falls back to zero`() {
+        val sections = buildDaySections(txns, TxnFilter(), accountNames, categoryNames, byCode)
+        assertEquals(0, sections.flatMap { it.rows }.first().accountColor)
     }
 }

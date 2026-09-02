@@ -23,6 +23,10 @@ data class BackupPayload(
     val importBatches: List<ImportBatchBackup>,
     val importAliases: List<ImportAliasBackup>,
     val appSettings: List<AppSettingBackup>,
+    /** Схема v4 (R2.3). Старые файлы без поля → пустой список (I-21). */
+    val budgets: List<BudgetBackup> = emptyList(),
+    /** Схема v5 (R2.4). Старые файлы без поля → пустой список (I-21). */
+    val recurrences: List<RecurrenceBackup> = emptyList(),
 )
 
 @Serializable
@@ -103,3 +107,43 @@ data class ImportAliasBackup(
 
 @Serializable
 data class AppSettingBackup(val key: String, val value: String)
+
+/** R2.3: бюджет по категории — `categoryId == null` значит «на всё» (в своей валюте, ADR-012). */
+@Serializable
+data class BudgetBackup(
+    val id: String,
+    val categoryId: String?,
+    val currencyCode: String,
+    val amountMinor: Long,
+    val period: String,
+    val startsOn: String,
+)
+
+/** R2.4: шаблон повторяющейся операции. `dayOfMonth`/`intervalDays` — ровно одно из двух задано. */
+@Serializable
+data class RecurrenceBackup(
+    val id: String,
+    val kind: String,
+    val accountId: String,
+    val categoryId: String?,
+    val amountMinor: Long,
+    val currencyCode: String,
+    val note: String?,
+    val ruleType: String,
+    val dayOfMonth: Int?,
+    val intervalDays: Int?,
+    val nextRunOn: String,
+    val lastCreatedTxnId: String?,
+)
+
+/**
+ * Контрольные суммы бэкапа (R1.4): счётчики + сумма движений по каждой валюте (без переводов,
+ * I-11). Не `@Serializable` — считается на лету для сравнения «файл vs текущая БД», в файл не
+ * пишется.
+ */
+data class BackupSummary(
+    val accounts: Int,
+    val categories: Int,
+    val transactions: Int,
+    val sumsByCurrency: Map<String, Long>,
+)

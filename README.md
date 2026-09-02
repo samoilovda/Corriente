@@ -1,14 +1,65 @@
 # Corriente
 
+## English
+
+Corriente is a personal, fully offline finance tracker for Android (a Monefy
+replacement): multi-currency accounting with **no currency conversion**
+(each currency is its own closed loop — ADR-012), a home-screen widget,
+Monefy history import, and local backups. Single-user, no server component,
+**no network code at all** — no networking library and no `INTERNET`
+permission anywhere in the manifest (ADR-013/I-24; see
+[`PRIVACY.md`](PRIVACY.md) for what that means for your data).
+
+* **License:** [MIT](LICENSE).
+* **Privacy:** [`PRIVACY.md`](PRIVACY.md) — the app sends nothing anywhere,
+  because it has no way to.
+* **Status:** `BUILD_PLAN.md` stages 1–5, all of `FIX_PLAN.md`, and
+  `ROADMAP.md` stages R1–R6 are closed. All modules (`:core:money`,
+  `:core:data`, `:app`, `:widget`) build and are tested.
+* **Versioning:** `versionCode`/`versionName` live in
+  `gradle/libs.versions.toml`; the rule and history are in the "Версии"
+  section below and in [`CHANGELOG.md`](CHANGELOG.md).
+* **Localization:** the UI ships in Russian (default) and English
+  (`values-en/`); number and date formatting stay locale-independent by
+  design (I-25) — an English-locale device gets English text with the same
+  number formatting as everywhere else.
+* **Dependencies:** Kotlin stdlib/coroutines, AndroidX (Compose, Room,
+  Navigation, Lifecycle, WorkManager, DataStore, Biometric, Glance,
+  ui-test), `kotlinx-serialization`, and `kotlin-csv-jvm` for CSV
+  import/export — all open source (Apache-2.0/MIT-style licenses), none of
+  it Play Services, Firebase, or any other proprietary or networking SDK.
+  The full, current list is `gradle/libs.versions.toml`'s `[libraries]`
+  table; `docs/BUILD_PLAN.md` §1.3 is the policy that keeps it that way (new
+  dependencies need an explicit justification, networking libraries are
+  banned outright).
+* **Building:** see "Сборка" below (the commands are plain `./gradlew`
+  invocations, readable regardless of language) for the standard build, and
+  "Релизная сборка" for a signed, minified release APK — you'll need a
+  keystore of your own; no signing key is or ever will be committed to this
+  repository.
+* **Deliberately out of scope for this pass:** screenshots (needs a running
+  emulator) and F-Droid `fastlane` metadata (only worth adding once F-Droid
+  is an actual target — not decided yet).
+
+The rest of this README, and all of `docs/`, are in Russian — that's the
+project's working language. The documents are thorough and structured
+(headers, tables, code blocks) even if you don't read Russian, and the
+architecture/ADR reasoning in `docs/ARCHITECTURE.md` is worth machine-
+translating if you're evaluating the project seriously.
+
+---
+
 Личный офлайн-трекер финансов для Android (замена Monefy): мультивалютный учёт
 без конвертации между валютами (каждая валюта — свой контур, ADR-012), виджет
 на домашний экран, импорт истории из Monefy, локальные бэкапы. Один пользователь,
 без серверной части и без сети вообще (ADR-013 — в приложении нет ни одной сетевой
 библиотеки и разрешения `INTERNET`).
 
-Статус: все этапы `BUILD_PLAN.md` (1–5) закрыты. Все модули (`:core:money`, `:core:data`,
-`:app`, `:widget`) собираются и тестируются. Дальнейшая работа идёт по `FIX_PLAN.md`
-(исправление найденных дефектов), затем по `ROADMAP.md`.
+Статус: все этапы `BUILD_PLAN.md` (1–5) и `FIX_PLAN.md` закрыты, `ROADMAP.md` — R1–R6
+(R6.5, профиль запуска, отложен: берётся только по факту измерения холодного старта,
+не превентивно). Все модули (`:core:money`, `:core:data`, `:app`, `:widget`) собираются
+и тестируются. Лицензия — [`LICENSE`](LICENSE) (MIT); политика приватности —
+[`PRIVACY.md`](PRIVACY.md).
 
 * [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — архитектурный документ: разбор открытых
   аналогов, ADR по модели денег и валют, схема данных, виджет, слои, риски и этапы работ.
@@ -42,6 +93,91 @@ locale-зависимый разбор, `fallbackToDestructiveMigration`, `uses-
 с диска, поэтому не зависит от того, конфигурируется ли модуль; плагин Detekt к тому же
 отстаёт от версии Kotlin. Логика скана покрыта `InvariantGuardsTest` (buildSrc гоняет его
 на каждой сборке). Подключён к `check`.
+
+### Релизная сборка
+
+`app/build.gradle.kts` объявляет `buildTypes.release` (R6.1, ROADMAP.md §8):
+`isMinifyEnabled = true`, `isShrinkResources = true`, правила R8 в `app/proguard-rules.pro`
+(kotlinx-serialization — явный keep для `BackupPayload` и других `@Serializable`-моделей;
+Room с KSP правил не требует; `androidx.work.ListenableWorker` — явный keep, иначе
+`AutoBackupWorker`/`RecurrenceWorker`/`WidgetMidnightWorker` не поднимутся рефлексией
+WorkManager на реальном устройстве).
+
+**Подпись.** Ключ и пароли в репозиторий не попадают никогда. Источник — `local.properties`
+(гитигнорится) с ключами:
+
+```properties
+RELEASE_STORE_FILE=/absolute/path/to/release.keystore
+RELEASE_STORE_PASSWORD=...
+RELEASE_KEY_ALIAS=...
+RELEASE_KEY_PASSWORD=...
+```
+
+Либо те же значения — переменными окружения `CORRIENTE_RELEASE_STORE_FILE`,
+`CORRIENTE_RELEASE_STORE_PASSWORD`, `CORRIENTE_RELEASE_KEY_ALIAS`,
+`CORRIENTE_RELEASE_KEY_PASSWORD` (`local.properties` в приоритете, если задано и там,
+и там). Если не задано ни то, ни другое — `./gradlew assembleRelease` падает с понятной
+ошибкой ещё до сборки; отката на debug-подпись нет намеренно (I-24 по духу — раз уж
+ничего не уходит в сеть, то и подписанный чем попало APK ставить некому, кроме
+вас самих, но путать «релизный» и «debug»-ключ всё равно не стоит). Обычные задачи
+(`check`, `assembleDebug`, юнит-тесты) ключа не требуют — проверка привязана только к
+задачам вида `*Release` в `:app`.
+
+```
+./gradlew assembleRelease         # подписанный, минифицированный APK (требует ключ выше)
+```
+
+**Размер APK.** Не измерен в этой сессии — песочница не имеет доступа к Google Maven,
+поэтому `./gradlew assembleRelease` здесь не запускался ни разу (см. также раздел
+«Известные ограничения» в конце этого файла). Ориентир для Compose-приложения такого
+размера (без картинок/шрифтов, один экран на модуль) — обычно единицы МБ после R8 и
+shrinkResources; при первой реальной сборке вне песочницы впишите фактическое число сюда.
+
+**`material-icons-extended`.** Каждая иконка в этой библиотеке — отдельный top-level
+`val` в своём файле (не Android-ресурс), поэтому `isShrinkResources` (он про `res/`) её не
+трогает — тримминг делает R8 обычным удалением недостижимого кода (`isMinifyEnabled`) на
+уровне обычных Kotlin-свойств. Это должно работать «из коробки» без дополнительных keep-
+правил, но не проверено реальной сборкой; если после первого `assembleRelease` вне
+песочницы иконки заметно раздувают APK — см. `-printusage`/APK Analyzer и, при необходимости,
+замену на `-core` + горстку точечных иконок.
+
+### Версии
+
+`versionCode`/`versionName` живут в `gradle/libs.versions.toml` (ключи `appVersionCode`,
+`appVersionName`), а не в `app/build.gradle.kts` — вся числовая конфигурация проекта в
+одном месте (R6.2, ROADMAP.md §8). Правило:
+
+* `versionCode` — целое, растёт **на 1 с каждым релизным APK** (в том числе внутренним),
+  никогда не переиспользуется и не уменьшается;
+* `versionName` — семантический `MAJOR.MINOR.PATCH`; `MAJOR` = 0, пока приложение не
+  прошло открытую публикацию (`docs/ROADMAP.md`), `MINOR` — за этап (`R`-серию) с заметными
+  для пользователя изменениями, `PATCH` — за точечные фиксы между этапами.
+
+Первый релиз после закрытия `BUILD_PLAN.md`/`FIX_PLAN.md`/`R1`–`R6` выпущен как
+`versionCode = 2`, `versionName = "0.2.0"` (было `1` / `"0.1"`, ни разу не менявшееся).
+История изменений по коммитам `Tx.y`/`Fx.y`/`Rx.y` — в [`CHANGELOG.md`](CHANGELOG.md).
+
+### Зависимости
+
+Полный список — `gradle/libs.versions.toml`, таблица `[libraries]`; правило добавления
+новых — `docs/BUILD_PLAN.md` §1.3 (явное обоснование каждой строки, сетевые библиотеки
+запрещены категорически, ADR-013). R6.4 (ROADMAP.md §8): по состоянию на этот коммит
+в проекте нет ни одной проприетарной зависимости и ни одной от Play Services/Firebase —
+только открытый код:
+
+* Kotlin stdlib, Coroutines, `kotlinx-serialization` — JetBrains/Kotlin Foundation,
+  Apache-2.0.
+* AndroidX: Compose (BOM, Material3, activity/navigation/lifecycle-compose,
+  ui-test), Room + KSP-компилятор, WorkManager, DataStore, Biometric, Glance
+  (appwidget + material3) — Google, но это открытый Jetpack (Apache-2.0), а не
+  закрытые Play Services/Firebase (тех нет вообще, `com.google.android.gms.*`
+  и `com.google.firebase.*` в зависимостях не встречаются — проверяется чтением
+  `build.gradle.kts` всех модулей и самого `libs.versions.toml`).
+* `kotlin-csv-jvm` (`com.github.doyaaaaaken`) — импорт/экспорт CSV, MIT.
+
+В манифестах (`app/`, `widget/`) нет ни одного `<uses-permission>` (I-24) — само
+отсутствие разрешения `INTERNET` физически не даёт приложению открыть сетевое
+соединение, независимо от того, что попытался бы сделать код.
 
 ### Инструментальные тесты
 
@@ -93,3 +229,56 @@ AGP 9 использует встроенный Kotlin (built-in Kotlin) — п�
 текущих данных; экран показывает первые три причины. Перед фактическим замещением снимается
 копия текущей БД в `databases/pre-migration/` (`PreMigrationBackup.copyDatabaseFile`,
 `reason = "pre-restore"`) — тем же механизмом, что и перед миграцией схемы (F1.4).
+
+Из экрана «Автобэкап» файлы выбранной папки можно перечислить и восстановиться из любого без
+файлового менеджера («Восстановить», с тем же подтверждением, что и в «Настройках»), а также
+проверить файл без риска для текущих данных («Проверить файл» — восстановление во временную
+in-memory БД и сравнение контрольных сумм, реальные данные не трогаются, R1.3/R1.4). Если
+бэкапа не было дольше 14 дней (или автобэкап выключен) при более чем 50 операциях в базе —
+на «Настройках» и «Счетах» появляется плашка-напоминание (`shouldWarnAboutBackup`, R1.5).
+
+### Как складывать бэкапы в облако
+
+Приложение никогда не ходит в сеть само (I-24, ADR-013) — синхронизацию с любым облаком делают
+чужими руками. Два способа, которые не требуют кода в приложении:
+
+1. **Отправить бэкап** («Настройки» → «Отправить бэкап», R1.2) — одноразовая выгрузка через
+   системный лист «Поделиться» (`ACTION_SEND` + `FileProvider`): выбираете Google Диск,
+   Telegram, почту — что угодно, что умеет принимать файл. Сеть используется тем приложением,
+   которому вы отдали файл, а не Corriente.
+2. **Автобэкап в папку + сторонний синхронизатор** («Настройки» → «Автобэкап») — приложение
+   пишет JSON-файлы в папку, выбранную через системный SAF-пикер
+   (`ACTION_OPEN_DOCUMENT_TREE`); наверх в облако её поднимает отдельное приложение:
+   Autosync/FolderSync, Syncthing, или любой другой синхронизатор, которому вы дали доступ
+   к той же локальной папке.
+
+**Про сам Google Диск как источник SAF-дерева — требуется проверка на устройстве.**
+Исторически клиент Google Диска **не** отдавал себя как источник в `ACTION_OPEN_DOCUMENT_TREE`
+(тот пикер отдаёт **дерево** с правом создания/удаления файлов, а не отдельный файл) — Диск
+показывался только в пикерах на **выбор одного файла** (`ACTION_OPEN_DOCUMENT`/`ACTION_GET_CONTENT`,
+т.е. в сценарии «Отправить бэкап», но не «Автобэкап»). Эта работа делалась в песочнице без
+реального устройства с установленным клиентом Google Диска, поэтому явную проверку (появляется
+ли Диск в пикере дерева на актуальной версии приложения; работает ли он там на запись и на
+удаление, что нужно `SafBackupFolder.writeNewBackup`/`prune`) сделать не удалось — при
+сомнениях считайте связку «Автобэкап → сам Google Диск» **неподтверждённой** и используйте
+локальную папку + сторонний синхронизатор, либо ручную отправку через шеринг.
+
+**Что точно работает:**
+* Локальная папка (в том числе на SD-карте) как цель автобэкапа — `SafBackupFolder` умеет
+  только создавать, перечислять и удалять файлы через `DocumentsContract`, никаких
+  специфичных для Диска API не используется.
+* Локальная папка + Autosync/FolderSync/Syncthing, настроенные на ту же папку, — обычная
+  файловая синхронизация, к SAF-дереву приложения отношения не имеет.
+* Ручная отправка отдельного файла бэкапа в Диск через системный шеринг (R1.2).
+
+**Что не работает или не подтверждено:**
+* Выбор самого Google Диска как папки для автобэкапа через `ACTION_OPEN_DOCUMENT_TREE` —
+  исторически недоступно (см. выше); если на конкретном устройстве и версии клиента Диск
+  всё же появился и работает on запись/удаление — обновите этот раздел, приложив версию
+  клиента и модель/версию Android.
+* Реальный Google Drive API — не будет реализован без отдельного ADR (нарушает I-24/ADR-013,
+  см. `docs/ROADMAP.md` §8).
+
+Если на экране «Автобэкап» пользователь выберет через пикер сам Google Диск и это не сработает
+на запись — экран покажет поясняющий текст под выбором папки (см. `autobackup_drive_note`
+в `strings.xml`).

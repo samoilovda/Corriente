@@ -3,8 +3,10 @@ package com.corriente.app.ui.accounts
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import com.corriente.app.R
 import com.corriente.app.ui.categories.CategoryPalette
 import com.corriente.app.ui.common.WritingViewModel
+import com.corriente.app.ui.common.uiMessage
 import com.corriente.data.db.entity.AccountKind
 import com.corriente.data.model.Account
 import com.corriente.data.repository.AccountRepository
@@ -178,7 +180,7 @@ class AccountsViewModel(
         val editor = _editor.value
 
         launchWrite(
-            onError = { "Не удалось сохранить счёт" },
+            onError = { uiMessage(R.string.accounts_error_save) },
             onSuccess = { _editor.value = null },
         ) {
             val currency = currencies.getByCode(form.currency) ?: fallbackCurrency(form.currency)
@@ -201,7 +203,7 @@ class AccountsViewModel(
                     // Гонка: пока редактор был открыт, по счёту могла появиться операция —
                     // тогда валюта уже исторический факт (I-23), меняем только имя и флаги.
                     if (accounts.hasTransactions(id)) {
-                        postMessage("Валюта уже зафиксирована первой операцией")
+                        postMessage(R.string.accounts_error_currency_fixed)
                     } else {
                         accounts.setCurrencyAndOpeningBalanceBeforeFirstUse(id, form.currency, money)
                     }
@@ -212,15 +214,15 @@ class AccountsViewModel(
     }
 
     fun archive(id: String) {
-        launchWrite(onError = { "Не удалось заархивировать счёт" }) { accounts.archive(id) }
+        launchWrite(onError = { uiMessage(R.string.accounts_error_archive) }) { accounts.archive(id) }
     }
 
     fun unarchive(id: String) {
-        launchWrite(onError = { "Не удалось вернуть счёт из архива" }) { accounts.unarchive(id) }
+        launchWrite(onError = { uiMessage(R.string.accounts_error_unarchive) }) { accounts.unarchive(id) }
     }
 
     fun deleteIfUnused(id: String) {
-        launchWrite(onError = { "Не удалось удалить счёт" }) { accounts.deleteIfUnused(id) }
+        launchWrite(onError = { uiMessage(R.string.accounts_error_delete) }) { accounts.deleteIfUnused(id) }
     }
 
     companion object {

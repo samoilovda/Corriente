@@ -21,6 +21,10 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <!-- R4.4: статические ярлыки приложения (долгое нажатие на иконку). -->
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
         </activity>
         <activity
             android:name=".quick.QuickExpenseActivity"
@@ -32,5 +36,30 @@
             android:exported="false"
             android:excludeFromRecents="true"
             android:theme="@style/Theme.Corriente.Translucent" />
+
+        <!-- R4.0: ловит внутреннюю ретрансляцию ACTION_APPWIDGET_ENABLED/UPDATE от
+             CorrienteWidgetReceiver (:widget) — сами эти системные действия приходят явным
+             intent'ом прямо на провайдера, поймать их отдельным receiver'ом здесь нельзя. -->
+        <receiver
+            android:name=".widget.WidgetRefreshReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.corriente.app.action.WIDGET_PLACEMENT_CHANGED" />
+            </intent-filter>
+        </receiver>
+
+        <!-- R1.2: «Отправить бэкап» — временный файл в cache/share отдаётся системному шерингу
+             через FileProvider (часть androidx.core, отдельной зависимости не требует).
+             Не экспортирован, доступ только по разовому URI-гранту (FLAG_GRANT_READ_URI_PERMISSION),
+             без разрешений (I-24) — сеть, если она вообще случится, трогает чужое приложение. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
     </application>
 </manifest>

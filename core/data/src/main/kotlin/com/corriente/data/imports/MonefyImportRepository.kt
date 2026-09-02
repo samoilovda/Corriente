@@ -11,11 +11,23 @@ import com.corriente.data.db.entity.CurrencyEntity
 import com.corriente.data.db.entity.ImportBatchEntity
 import com.corriente.data.db.entity.TxnEntity
 import com.corriente.data.db.entity.TxnKind
+import com.corriente.money.CurrencyCode
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import java.security.MessageDigest
 import java.util.UUID
+
+/**
+ * F0.5: счёт-тёзка уже ведётся в другой валюте — импорт целиком абортится до записи.
+ * Текст для пользователя строит экран (`ImportViewModel`/`ImportScreen`) через `stringResource`
+ * (R6.3, ROADMAP.md §8) — [message] здесь только техническое, для логов/фолбэка.
+ */
+class AccountCurrencyConflictException(
+    val accountName: String,
+    val existingCurrency: CurrencyCode,
+    val fileCurrency: CurrencyCode,
+) : IllegalStateException("Account '$accountName' already tracked in $existingCurrency, file has $fileCurrency")
 
 /**
  * T3.4: запись плана импорта одной транзакцией БД и откат батча (MONEFY_IMPORT.md §5 п.7).
@@ -57,10 +69,7 @@ class MonefyImportRepository(private val db: AppDatabase) {
         plan.accounts.firstOrNull { p -> existingByName[p.name]?.let { it.currencyCode != p.currency.code } == true }
             ?.let { conflict ->
                 val have = existingByName.getValue(conflict.name).currencyCode
-                throw IllegalStateException(
-                    "Счёт «${conflict.name}» уже ведётся в валюте $have, а в файле — ${conflict.currency.code}. " +
-                        "Выберите вариант в предпросмотре импорта.",
-                )
+                throw AccountCurrencyConflictException(conflict.name, CurrencyCode(have), conflict.currency)
             }
 
         db.withTransaction {

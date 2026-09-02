@@ -1,0 +1,13 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <!-- R4.4: ярлык "Записать доход" — плюс в кружке. -->
+    <path
+        android:fillColor="#6750A4"
+        android:pathData="M24,4 A20,20 0 1,0 24,44 A20,20 0 1,0 24,4 Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M22,14 L26,14 L26,22 L34,22 L34,26 L26,26 L26,34 L22,34 L22,26 L14,26 L14,22 L22,22 Z" />
+</vector>

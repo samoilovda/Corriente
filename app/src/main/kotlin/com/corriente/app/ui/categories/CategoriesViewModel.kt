@@ -3,8 +3,10 @@ package com.corriente.app.ui.categories
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import com.corriente.app.R
 import com.corriente.app.ui.common.WritingViewModel
 import com.corriente.app.ui.common.looksLikeConstraintViolation
+import com.corriente.app.ui.common.uiMessage
 import com.corriente.data.db.entity.CategoryKind
 import com.corriente.data.model.Category
 import com.corriente.data.repository.CategoryRepository
@@ -107,7 +109,11 @@ class CategoriesViewModel(private val repository: CategoryRepository) : WritingV
         val name = form.name.trim()
         launchWrite(
             onError = { e ->
-                if (e.looksLikeConstraintViolation()) "Категория «$name» уже есть" else "Не удалось сохранить категорию"
+                if (e.looksLikeConstraintViolation()) {
+                    uiMessage(R.string.categories_error_name_exists, name)
+                } else {
+                    uiMessage(R.string.categories_error_save)
+                }
             },
             onSuccess = { _editor.value = null },
         ) {
@@ -123,15 +129,15 @@ class CategoriesViewModel(private val repository: CategoryRepository) : WritingV
     }
 
     fun archive(id: String) {
-        launchWrite(onError = { "Не удалось заархивировать категорию" }) { repository.archive(id) }
+        launchWrite(onError = { uiMessage(R.string.categories_error_archive) }) { repository.archive(id) }
     }
 
     fun unarchive(id: String) {
-        launchWrite(onError = { "Не удалось вернуть категорию из архива" }) { repository.unarchive(id) }
+        launchWrite(onError = { uiMessage(R.string.categories_error_unarchive) }) { repository.unarchive(id) }
     }
 
     fun deleteIfUnused(id: String) {
-        launchWrite(onError = { "Не удалось удалить категорию" }) { repository.deleteIfUnused(id) }
+        launchWrite(onError = { uiMessage(R.string.categories_error_delete) }) { repository.deleteIfUnused(id) }
     }
 
     /**
@@ -151,7 +157,7 @@ class CategoriesViewModel(private val repository: CategoryRepository) : WritingV
     fun confirmMerge(intoId: String) {
         val request = _merge.value ?: return
         launchWrite(
-            onError = { "Не удалось слить категории" },
+            onError = { uiMessage(R.string.categories_error_merge) },
             onSuccess = { _merge.value = null },
         ) {
             repository.mergeInto(request.from.id, intoId)

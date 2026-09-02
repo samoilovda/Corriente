@@ -62,6 +62,10 @@ data class TxnRow(
     val icon: String? = null,
     /** Цвет категории (ARGB); 0 — нет цвета. */
     val color: Int = 0,
+    /** R3.0: цвет счёта (ARGB), с которого/на который прошла операция; 0 — нет цвета. */
+    val accountColor: Int = 0,
+    /** R3.3: название счёта — для CSV-выгрузки списка операций (у перевода — «откуда → куда»). */
+    val accountName: String = "",
 )
 
 /** Итог дня считается по каждой валюте отдельно (I-8) — сложение разных валют невозможно. */
@@ -110,23 +114,48 @@ private fun amountMagnitudesOf(txn: Txn): List<Long> = when (txn) {
     is Txn.Transfer -> listOf(txn.fromAmount.amount.raw, txn.toAmount.amount.raw)
 }
 
-private fun matchesQuery(txn: Txn, query: String, categoryNames: Map<String, String>): Boolean {
+private fun accountIdsOf(txn: Txn): List<String> = when (txn) {
+    is Txn.Expense -> listOf(txn.accountId)
+    is Txn.Income -> listOf(txn.accountId)
+    is Txn.Transfer -> listOf(txn.fromAccountId, txn.toAccountId)
+}
+
+/**
+ * R2.1: заметка, название категории и название счёта — та же область поиска, что и в
+ * [com.corriente.data.repository.TxnRepository.search] (FTS/LIKE), только над уже загруженным
+ * в память списком: этот путь используется для остальных полей фильтра (счёт/период/сумма),
+ * когда поисковый запрос уже отфильтровал операции через БД (см. [TransactionsViewModel]).
+ */
+private fun matchesQuery(
+    txn: Txn,
+    query: String,
+    categoryNames: Map<String, String>,
+    accountNames: Map<String, String>,
+): Boolean {
     val needle = query.trim().lowercase()
     if (needle.isEmpty()) return true
     val haystack = buildList {
         txn.note?.let { add(it) }
         categoryIdOf(txn)?.let { categoryNames[it] }?.let { add(it) }
+        accountIdsOf(txn).forEach { accountNames[it]?.let(::add) }
     }
     return haystack.any { it.lowercase().contains(needle) }
 }
 
-private fun matchesFilter(txn: Txn, filter: TxnFilter, categoryNames: Map<String, String>): Boolean {
+private fun matchesFilter(
+    txn: Txn,
+    filter: TxnFilter,
+    categoryNames: Map<String, String>,
+    accountNames: Map<String, String> = emptyMap(),
+    /** true — запрос уже применён на уровне БД ([TransactionsViewModel.rangeTxns]), здесь его не проверяем повторно. */
+    querySatisfiedExternally: Boolean = false,
+): Boolean {
     if (filter.accountId != null && !matchesAccount(txn, filter.accountId)) return false
     if (filter.currencyCode != null && !matchesCurrency(txn, filter.currencyCode)) return false
     if (filter.categoryId != null && categoryIdOf(txn) != filter.categoryId) return false
     if (filter.from != null && txn.date < filter.from) return false
     if (filter.to != null && txn.date > filter.to) return false
-    if (!matchesQuery(txn, filter.query, categoryNames)) return false
+    if (!querySatisfiedExternally && !matchesQuery(txn, filter.query, categoryNames, accountNames)) return false
     val magnitudes = amountMagnitudesOf(txn)
     if (filter.minAmountMinor != null && magnitudes.none { it >= filter.minAmountMinor }) return false
     if (filter.maxAmountMinor != null && magnitudes.none { it <= filter.maxAmountMinor }) return false
@@ -148,8 +177,14 @@ internal fun buildDaySections(
     currenciesByCode: Map<String, Currency>,
     categoryIcons: Map<String, String?> = emptyMap(),
     categoryColors: Map<String, Int> = emptyMap(),
+    /** R3.0: цвет счёта (ARGB), 0/отсутствие — «нет цвета». */
+    accountColors: Map<String, Int> = emptyMap(),
+    /** R2.1: true, когда [txns] уже пришли из [com.corriente.data.repository.TxnRepository.search]. */
+    querySatisfiedExternally: Boolean = false,
 ): List<DaySection> {
-    val filtered = txns.filter { matchesFilter(it, filter, categoryNames) }
+    val filtered = txns.filter {
+        matchesFilter(it, filter, categoryNames, accountNames, querySatisfiedExternally)
+    }
 
     return filtered.groupBy { it.date }.entries
         .sortedByDescending { it.key }
@@ -158,7 +193,7 @@ internal fun buildDaySections(
                 date = date,
                 totals = dayTotals(dayTxns, currenciesByCode),
                 rows = dayTxns.map { txn ->
-                    row(txn, accountNames, categoryNames, currenciesByCode, categoryIcons, categoryColors)
+                    row(txn, accountNames, categoryNames, currenciesByCode, categoryIcons, categoryColors, accountColors)
                 },
             )
         }
@@ -187,6 +222,7 @@ private fun row(
     byCode: Map<String, Currency>,
     categoryIcons: Map<String, String?>,
     categoryColors: Map<String, Int>,
+    accountColors: Map<String, Int> = emptyMap(),
 ): TxnRow = when (txn) {
     is Txn.Expense -> {
         val currency = currencyOrFallback(txn.amount.currency, byCode)
@@ -198,6 +234,8 @@ private fun row(
             editable = true,
             icon = txn.categoryId?.let { categoryIcons[it] },
             color = txn.categoryId?.let { categoryColors[it] } ?: 0,
+            accountColor = accountColors[txn.accountId] ?: 0,
+            accountName = accountNames[txn.accountId] ?: "",
         )
     }
     is Txn.Income -> {
@@ -210,18 +248,25 @@ private fun row(
             editable = true,
             icon = txn.categoryId?.let { categoryIcons[it] },
             color = txn.categoryId?.let { categoryColors[it] } ?: 0,
+            accountColor = accountColors[txn.accountId] ?: 0,
+            accountName = accountNames[txn.accountId] ?: "",
         )
     }
     is Txn.Transfer -> {
         val from = currencyOrFallback(txn.fromAmount.currency, byCode)
         val to = currencyOrFallback(txn.toAmount.currency, byCode)
+        val fromName = accountNames[txn.fromAccountId] ?: "?"
+        val toName = accountNames[txn.toAccountId] ?: "?"
         TxnRow(
             id = txn.id,
-            title = "${accountNames[txn.fromAccountId] ?: "?"} → ${accountNames[txn.toAccountId] ?: "?"}",
+            title = "$fromName → $toName",
             note = txn.note,
             amountText = "${MoneyFormatter.format(txn.fromAmount, from)} → ${MoneyFormatter.format(txn.toAmount, to)}",
             editable = false,
             isTransfer = true,
+            // R3.0: у перевода два счёта — маркер красим цветом счёта-источника.
+            accountColor = accountColors[txn.fromAccountId] ?: 0,
+            accountName = "$fromName → $toName",
         )
     }
 }
@@ -245,11 +290,23 @@ class TransactionsViewModel(
         return f.from?.let { minOf(it, base) } ?: base
     }
 
+    /** [windowStart] — null, когда источник — [TxnRepository.search] (вся история, окно не применимо). */
+    private data class TxnSource(val windowStart: LocalDate?, val txns: List<Txn>, val isSearch: Boolean)
+
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
-    private val rangeTxns: kotlinx.coroutines.flow.Flow<Pair<LocalDate, List<Txn>>> =
-        combine(windowMonths, filter) { m, f -> windowStart(m, f) }
+    private val rangeTxns: kotlinx.coroutines.flow.Flow<TxnSource> =
+        combine(windowMonths, filter) { m, f -> f.query.isNotBlank() to windowStart(m, f) }
             .distinctUntilChanged()
-            .flatMapLatest { start -> txns.observeRange(start, today().plusDays(1)).map { start to it } }
+            .flatMapLatest { (isSearchNow, start) ->
+                if (isSearchNow) {
+                    // R2.1: поиск уходит в БД по всей истории, а не по подгруженному окну месяцев —
+                    // именно это даёт «на 50 000 операций без заметной задержки» (критерий приёмки).
+                    filter.map { it.query }.distinctUntilChanged()
+                        .flatMapLatest { q -> txns.search(q).map { TxnSource(null, it, isSearch = true) } }
+                } else {
+                    txns.observeRange(start, today().plusDays(1)).map { TxnSource(start, it, isSearch = false) }
+                }
+            }
 
     val uiState: StateFlow<TransactionsUiState> = combine(
         rangeTxns,
@@ -257,7 +314,8 @@ class TransactionsViewModel(
         categories.observeAllForLookup(),
         currencies.observeAll(),
         combine(filter, txns.observeAnyExist()) { f, any -> f to any },
-    ) { (windowStart, windowTxns), allAccounts, allCategories, allCurrencies, filterAndAny ->
+    ) { source, allAccounts, allCategories, allCurrencies, filterAndAny ->
+        val (windowStart, windowTxns, isSearch) = source
         val (currentFilter, anyExist) = filterAndAny
         val byCode = allCurrencies.associateBy { it.code.code }
         val sanitizedFilter = currentFilter.copy(
@@ -268,15 +326,18 @@ class TransactionsViewModel(
         val sections = buildDaySections(
             txns = windowTxns,
             filter = sanitizedFilter,
+            querySatisfiedExternally = isSearch,
             accountNames = allAccounts.associate { it.id to it.name },
             categoryNames = allCategories.associate { it.id to it.name },
             currenciesByCode = byCode,
             categoryIcons = allCategories.associate { it.id to it.icon },
             categoryColors = allCategories.associate { it.id to it.color },
+            accountColors = allAccounts.associate { it.id to it.color },
         )
         // Окно «полное снизу» — самая старая загруженная операция дошла до его начала:
-        // вероятно, за границей есть ещё.
-        val canLoadEarlier = windowTxns.isNotEmpty() &&
+        // вероятно, за границей есть ещё. Поиск (R2.1) уже смотрит во всю историю — «показать
+        // ещё» ему не нужно.
+        val canLoadEarlier = !isSearch && windowStart != null && windowTxns.isNotEmpty() &&
             windowTxns.minOf { it.date } <= windowStart &&
             sanitizedFilter.from == null
         TransactionsUiState(
@@ -307,6 +368,26 @@ class TransactionsViewModel(
         filter.update { it.copy(minAmountMinor = minMinor, maxAmountMinor = maxMinor) }
 
     fun clearFilters() = filter.update { TxnFilter() }
+
+    /**
+     * R3.3: CSV списка операций с уже применёнными на экране фильтрами — ровно то, что видно
+     * в [uiState] сейчас (те же секции по дням, тот же порядок), суммы уже отформатированы
+     * [com.corriente.money.MoneyFormatter] (I-25).
+     */
+    fun exportCsv(): String {
+        val rows = uiState.value.sections.flatMap { section ->
+            section.rows.map { row ->
+                com.corriente.data.export.TxnCsvRow(
+                    date = section.date.toString(),
+                    account = row.accountName,
+                    category = row.title,
+                    note = row.note ?: "",
+                    amountText = row.amountText,
+                )
+            }
+        }
+        return com.corriente.data.export.CsvExport.txnCsv(rows)
+    }
 
     companion object {
         fun factory(

@@ -38,12 +38,11 @@ import com.corriente.app.ui.common.rememberMessageSnackbarState
 fun WidgetSettingsScreen(
     onBack: () -> Unit,
     viewModel: WidgetSettingsViewModel = viewModel(
-        factory = WidgetSettingsViewModel.factory(
-            corrienteContainer().accountRepository,
-            corrienteContainer().currencyRepository,
-            corrienteContainer().txnRepository,
-            corrienteContainer().widgetConfigStore,
-        ),
+        factory = with(corrienteContainer()) {
+            WidgetSettingsViewModel.factory(
+                accountRepository, currencyRepository, txnRepository, categoryRepository, widgetConfigStore,
+            )
+        },
     ),
 ) {
     val state by viewModel.uiState.collectAsState()
@@ -101,6 +100,38 @@ fun WidgetSettingsScreen(
                         RadioButton(selected = row.active, onClick = { viewModel.setActiveAccount(row.id) })
                     },
                     modifier = Modifier.clickable { viewModel.setActiveAccount(row.id) },
+                )
+            }
+
+            HorizontalDivider()
+            Text(
+                stringResource(R.string.widget_pinned_categories),
+                style = MaterialTheme.typography.titleSmall,
+                modifier = Modifier.padding(16.dp),
+            )
+            Text(
+                stringResource(R.string.widget_pinned_categories_hint),
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.padding(horizontal = 16.dp),
+            )
+            state.categories.forEach { row ->
+                ListItem(
+                    headlineContent = { Text(row.name) },
+                    leadingContent = if (!row.icon.isNullOrBlank()) {
+                        { Text(row.icon) }
+                    } else {
+                        null
+                    },
+                    trailingContent = {
+                        Checkbox(
+                            checked = row.pinned,
+                            onCheckedChange = null,
+                            enabled = row.pinned || state.canPinMoreCategories,
+                        )
+                    },
+                    modifier = Modifier.clickable(enabled = row.pinned || state.canPinMoreCategories) {
+                        viewModel.toggleCategory(row.id)
+                    },
                 )
             }
 

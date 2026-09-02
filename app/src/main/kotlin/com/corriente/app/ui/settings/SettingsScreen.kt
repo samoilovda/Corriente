@@ -1,5 +1,6 @@
 package com.corriente.app.ui.settings
 
+import android.content.Intent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
@@ -25,9 +26,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.core.content.FileProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.corriente.app.R
+import com.corriente.app.backup.ShareBackupCache
 import com.corriente.app.corrienteContainer
+import com.corriente.app.ui.common.BackupReminderBanner
+import java.io.File
 
 /** Настройки (T1.2 — валюты; T1.4 — категории; T1.9 — экспорт/восстановление бэкапа). */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -39,6 +44,9 @@ fun SettingsScreen(
     onOpenImportHistory: () -> Unit,
     onOpenWidgetSettings: () -> Unit,
     onOpenAutoBackup: () -> Unit,
+    onOpenBudgets: () -> Unit,
+    onOpenRecurring: () -> Unit,
+    onOpenAppLock: () -> Unit,
     backupViewModel: BackupViewModel = viewModel(
         factory = BackupViewModel.factory(
             corrienteContainer().backupRepository,
@@ -47,6 +55,9 @@ fun SettingsScreen(
     ),
 ) {
     val context = LocalContext.current
+    // Читаем ресурс в композиции (конфиг-осведомлённо), а не через context.getString в
+    // обработчике клика — того требует lint-правило LocalContextGetResourceValueCall.
+    val shareChooserTitle = stringResource(R.string.backup_share)
     val result by backupViewModel.result.collectAsState()
     val busy by backupViewModel.busy.collectAsState()
     var pendingImportUri by remember { mutableStateOf<android.net.Uri?>(null) }
@@ -64,6 +75,8 @@ fun SettingsScreen(
 
     Scaffold(topBar = { TopAppBar(title = { Text(stringResource(R.string.nav_settings)) }) }) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
+            // R1.5: плашка «Последний бэкап: N дней назад» — сама решает, показываться ли.
+            BackupReminderBanner(onClick = onOpenAutoBackup)
             ListItem(
                 headlineContent = { Text(stringResource(R.string.currencies_title)) },
                 modifier = Modifier.clickable(onClick = onOpenCurrencies),
@@ -87,6 +100,21 @@ fun SettingsScreen(
                 supportingContent = { Text(stringResource(R.string.import_history_hint)) },
                 modifier = Modifier.clickable(onClick = onOpenImportHistory),
             )
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.budgets_title)) },
+                supportingContent = { Text(stringResource(R.string.budgets_hint)) },
+                modifier = Modifier.clickable(onClick = onOpenBudgets),
+            )
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.recurring_title)) },
+                supportingContent = { Text(stringResource(R.string.recurring_hint)) },
+                modifier = Modifier.clickable(onClick = onOpenRecurring),
+            )
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.app_lock_title)) },
+                supportingContent = { Text(stringResource(R.string.app_lock_hint)) },
+                modifier = Modifier.clickable(onClick = onOpenAppLock),
+            )
             HorizontalDivider()
             ListItem(
                 headlineContent = { Text(stringResource(R.string.backup_export)) },
@@ -97,6 +125,26 @@ fun SettingsScreen(
                 headlineContent = { Text(stringResource(R.string.backup_import)) },
                 supportingContent = { Text(stringResource(R.string.backup_import_hint)) },
                 modifier = Modifier.clickable(enabled = !busy) { importLauncher.launch(arrayOf("application/json")) },
+            )
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.backup_share)) },
+                supportingContent = { Text(stringResource(R.string.backup_share_hint)) },
+                modifier = Modifier.clickable(enabled = !busy) {
+                    // R1.2: временный файл в cache/share, отдаётся системному шерингу через
+                    // FileProvider — своей сети приложение не заводит (I-24), сеть трогает
+                    // то приложение, которое пользователь выберет в системном листе.
+                    val dir = ShareBackupCache.dir(context).apply { mkdirs() }
+                    val file = File(dir, "corriente-backup-${System.currentTimeMillis()}.json")
+                    backupViewModel.exportForShare(file) { shared ->
+                        val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", shared)
+                        val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                            type = "application/json"
+                            putExtra(Intent.EXTRA_STREAM, uri)
+                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        }
+                        context.startActivity(Intent.createChooser(sendIntent, shareChooserTitle))
+                    }
+                },
             )
             if (busy) {
                 LinearProgressIndicator(Modifier.fillMaxWidth())
@@ -126,29 +174,5 @@ fun SettingsScreen(
         )
     }
 
-    result?.let { current ->
-        AlertDialog(
-            onDismissRequest = backupViewModel::consumeResult,
-            confirmButton = {
-                TextButton(onClick = backupViewModel::consumeResult) { Text(stringResource(R.string.ok)) }
-            },
-            text = {
-                Text(
-                    when (current) {
-                        BackupResult.Exported -> stringResource(R.string.backup_result_exported)
-                        BackupResult.Imported -> stringResource(R.string.backup_result_imported)
-                        is BackupResult.VersionMismatch ->
-                            stringResource(R.string.backup_result_version, current.fileVersion, current.appVersion)
-                        is BackupResult.Invalid -> {
-                            val shown = current.problems.take(3).joinToString("\n") { "• $it" }
-                            val rest = current.problems.size - 3
-                            stringResource(R.string.backup_result_invalid) + "\n" + shown +
-                                if (rest > 0) "\n" + stringResource(R.string.backup_result_invalid_more, rest) else ""
-                        }
-                        BackupResult.Failed -> stringResource(R.string.backup_result_failed)
-                    },
-                )
-            },
-        )
-    }
+    result?.let { current -> BackupResultDialog(current, onDismiss = backupViewModel::consumeResult) }
 }

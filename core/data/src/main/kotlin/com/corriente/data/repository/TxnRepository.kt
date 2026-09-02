@@ -1,5 +1,7 @@
 package com.corriente.data.repository
 
+import com.corriente.data.db.buildFtsPrefixQuery
+import com.corriente.data.db.buildLikePattern
 import com.corriente.data.db.dao.AccountDao
 import com.corriente.data.db.dao.TxnDao
 import com.corriente.data.db.entity.TxnEntity
@@ -40,8 +42,20 @@ class TxnRepository(
     /** Есть ли в БД хоть одна операция (F2.1/F2.5). */
     fun observeAnyExist(): Flow<Boolean> = txnDao.observeAnyExist()
 
+    /** Общее число операций (R1.5 — плашка напоминания о бэкапе). */
+    fun observeCount(): Flow<Int> = txnDao.observeCount()
+
     fun observeForAccount(accountId: String): Flow<List<Txn>> =
         txnDao.observeForAccount(accountId).map { list -> list.map { it.toDomain() } }
+
+    /**
+     * R2.1: полнотекстовый поиск по всей истории (не ограничен окном `observeRange`) — заметка
+     * через FTS4 `MATCH`, название счёта/категории через `LIKE`. Пустая строка не должна сюда
+     * попадать — вызывающий (`TransactionsViewModel`) переключается на неё только когда есть
+     * непустой текст запроса.
+     */
+    fun search(query: String): Flow<List<Txn>> =
+        txnDao.search(buildFtsPrefixQuery(query), buildLikePattern(query)).map { list -> list.map { it.toDomain() } }
 
     suspend fun addExpense(accountId: String, amount: Money, categoryId: String?, date: LocalDate, note: String? = null): Txn {
         val now = System.currentTimeMillis()
@@ -178,6 +192,18 @@ class TxnRepository(
 
     suspend fun deleteById(id: String) {
         txnDao.getById(id)?.let { txnDao.delete(it) }
+    }
+
+    /**
+     * R5.3: вставляет операцию обратно «как есть» — с тем же `id`, `createdAt`/`updatedAt` и
+     * `import_hash`, без повторной генерации. Единственный вызывающий — отмена удаления
+     * (снекбар «Операция удалена — Отменить»); никакой «корзины» в БД нет (I-22), это просто
+     * повторная запись строки, ещё лежащей в памяти ViewModel.
+     */
+    suspend fun restore(txn: Txn) {
+        val entity = txn.toEntity()
+        validate(entity)
+        txnDao.insert(entity)
     }
 
     /**

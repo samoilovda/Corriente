@@ -5,6 +5,8 @@ import com.corriente.data.db.AppDatabase
 import com.corriente.data.db.entity.AccountEntity
 import com.corriente.data.db.entity.AccountKind
 import com.corriente.data.db.entity.AppSettingEntity
+import com.corriente.data.db.entity.BudgetEntity
+import com.corriente.data.db.entity.BudgetPeriod
 import com.corriente.data.db.entity.CategoryEntity
 import com.corriente.data.db.entity.CategoryKind
 import com.corriente.data.db.entity.CategoryOrigin
@@ -12,6 +14,8 @@ import com.corriente.data.db.entity.CurrencyEntity
 import com.corriente.data.db.entity.ImportAliasEntity
 import com.corriente.data.db.entity.ImportAliasKind
 import com.corriente.data.db.entity.ImportBatchEntity
+import com.corriente.data.db.entity.RecurrenceEntity
+import com.corriente.data.db.entity.RecurrenceRuleType
 import com.corriente.data.db.entity.TxnEntity
 import com.corriente.data.db.entity.TxnKind
 import kotlinx.coroutines.flow.first
@@ -40,22 +44,25 @@ interface BackupIo {
  */
 class BackupRepository(private val db: AppDatabase) : BackupIo {
 
-    private val json = Json { prettyPrint = true; ignoreUnknownKeys = true }
+    /** Полезная нагрузка бэкапа, собранная из текущего состояния [db] (T1.9). */
+    suspend fun buildPayload(): BackupPayload = BackupPayload(
+        schemaVersion = SCHEMA_VERSION,
+        exportedAt = System.currentTimeMillis(),
+        currencies = db.currencyDao().observeAll().first().map { it.toBackup() },
+        // observeAll, не observeActive: бэкап обязан сохранять состояние ПОЛНОСТЬЮ (I-21),
+        // включая архивные счета и категории.
+        accounts = db.accountDao().observeAll().first().map { it.toBackup() },
+        categories = db.categoryDao().observeAll().first().map { it.toBackup() },
+        transactions = db.txnDao().observeAll().first().map { it.toBackup() },
+        importBatches = db.importBatchDao().getAll().map { it.toBackup() },
+        importAliases = db.importAliasDao().getAll().map { it.toBackup() },
+        appSettings = db.appSettingDao().getAll().map { it.toBackup() },
+        budgets = db.budgetDao().getAll().map { it.toBackup() },
+        recurrences = db.recurrenceDao().getAll().map { it.toBackup() },
+    )
 
     override suspend fun export(output: OutputStream) {
-        val payload = BackupPayload(
-            schemaVersion = SCHEMA_VERSION,
-            exportedAt = System.currentTimeMillis(),
-            currencies = db.currencyDao().observeAll().first().map { it.toBackup() },
-            // observeAll, не observeActive: бэкап обязан сохранять состояние ПОЛНОСТЬЮ (I-21),
-            // включая архивные счета и категории.
-            accounts = db.accountDao().observeAll().first().map { it.toBackup() },
-            categories = db.categoryDao().observeAll().first().map { it.toBackup() },
-            transactions = db.txnDao().observeAll().first().map { it.toBackup() },
-            importBatches = db.importBatchDao().getAll().map { it.toBackup() },
-            importAliases = db.importAliasDao().getAll().map { it.toBackup() },
-            appSettings = db.appSettingDao().getAll().map { it.toBackup() },
-        )
+        val payload = buildPayload()
         output.writer(Charsets.UTF_8).use { it.write(json.encodeToString(BackupPayload.serializer(), payload)) }
     }
 
@@ -65,9 +72,17 @@ class BackupRepository(private val db: AppDatabase) : BackupIo {
      * этот путь; более новые читать безопасно нельзя в принципе).
      */
     override suspend fun restore(input: InputStream, beforeReplace: suspend () -> Unit) {
-        val payload = input.reader(Charsets.UTF_8).use {
-            json.decodeFromString(BackupPayload.serializer(), it.readText())
-        }
+        restorePayload(parsePayload(input), beforeReplace)
+    }
+
+    /**
+     * Замещает данные в [db] содержимым [payload] (F1.4/R1.4). Вынесено из [restore] отдельно,
+     * чтобы «Проверить файл» (R1.4) могло прогнать тот же путь на временной in-memory БД без
+     * лишнего сериализованного круга через JSON.
+     *
+     * @throws BackupVersionException / [BackupInvalidException] — как у [restore].
+     */
+    suspend fun restorePayload(payload: BackupPayload, beforeReplace: suspend () -> Unit = {}) {
         if (payload.schemaVersion > SCHEMA_VERSION) {
             throw BackupVersionException(payload.schemaVersion, SCHEMA_VERSION)
         }
@@ -79,6 +94,8 @@ class BackupRepository(private val db: AppDatabase) : BackupIo {
         beforeReplace()
         db.withTransaction {
             // Порядок удаления - по внешним ключам, от зависимых к независимым.
+            db.recurrenceDao().deleteAll()
+            db.budgetDao().deleteAll()
             db.txnDao().deleteAll()
             db.importBatchDao().deleteAll()
             db.importAliasDao().deleteAll()
@@ -95,12 +112,47 @@ class BackupRepository(private val db: AppDatabase) : BackupIo {
             payload.importBatches.forEach { db.importBatchDao().insert(it.toEntity()) }
             payload.importAliases.forEach { db.importAliasDao().upsert(it.toEntity()) }
             payload.appSettings.forEach { db.appSettingDao().set(it.toEntity()) }
+            payload.budgets.forEach { db.budgetDao().insert(it.toEntity()) }
+            payload.recurrences.forEach { db.recurrenceDao().insert(it.toEntity()) }
         }
     }
 
+    /** Контрольные суммы текущего состояния [db] (R1.4) — тот же счёт, что и по файлу бэкапа. */
+    suspend fun currentSummary(): BackupSummary = summarize(buildPayload())
+
     companion object {
-        // v2: category.import_batch_id (F1.5). Держать в синхроне с AppDatabase.SCHEMA_VERSION.
-        const val SCHEMA_VERSION = 2
+        // v2: category.import_batch_id (F1.5). v3: txn_fts (R2.1, не входит в бэкап — производный
+        // кэш, I-9). v4: budget (R2.3). v5: recurrence (R2.4). Держать в синхроне с
+        // AppDatabase.SCHEMA_VERSION.
+        const val SCHEMA_VERSION = 5
+
+        private val json = Json { prettyPrint = true; ignoreUnknownKeys = true }
+
+        /** Разбор файла бэкапа в [BackupPayload] без записи куда-либо — используется restore и R1.4. */
+        fun parsePayload(input: InputStream): BackupPayload = input.reader(Charsets.UTF_8).use {
+            json.decodeFromString(BackupPayload.serializer(), it.readText())
+        }
+
+        /**
+         * Контрольные суммы бэкапа (R1.4): число счетов/категорий/операций и сумма движений по
+         * каждой валюте. Переводы исключены из сумм — как и в отчётах (I-11), это не доход и не
+         * расход. Сложение — `Math.addExact` (I-3): переполнение обязано падать, а не тихо
+         * переворачиваться. Чистая функция над [BackupPayload] — тестируется без БД.
+         */
+        fun summarize(payload: BackupPayload): BackupSummary {
+            val sums = mutableMapOf<String, Long>()
+            payload.transactions.forEach { t ->
+                if (t.kind == "TRANSFER") return@forEach
+                val delta = if (t.kind == "INCOME") t.amountMinor else -t.amountMinor
+                sums[t.currencyCode] = Math.addExact(sums[t.currencyCode] ?: 0L, delta)
+            }
+            return BackupSummary(
+                accounts = payload.accounts.size,
+                categories = payload.categories.size,
+                transactions = payload.transactions.size,
+                sumsByCurrency = sums,
+            )
+        }
 
         /**
          * Проверка полезной нагрузки бэкапа до записи (F1.4). Чистая функция — тестируется без БД.
@@ -158,6 +210,32 @@ class BackupRepository(private val db: AppDatabase) : BackupIo {
                     else -> problems += "$tag: неизвестный тип «${t.kind}»"
                 }
             }
+            payload.budgets.forEach { b ->
+                val tag = "бюджет ${b.id}"
+                if (b.currencyCode !in currencyCodes) problems += "$tag: валюты ${b.currencyCode} нет в справочнике"
+                if (b.categoryId != null && b.categoryId !in categoryIds) problems += "$tag: категория ${b.categoryId} не найдена"
+                if (b.amountMinor < 0) problems += "$tag: сумма ${b.amountMinor} отрицательна"
+                if (runCatching { LocalDate.parse(b.startsOn) }.isFailure) problems += "$tag: дата «${b.startsOn}» не разбирается"
+                if (b.period != "MONTH") problems += "$tag: неизвестный период «${b.period}»"
+            }
+            payload.recurrences.forEach { r ->
+                val tag = "правило ${r.id}"
+                if (r.accountId !in accountIds) problems += "$tag: счёт ${r.accountId} не найден"
+                if (r.currencyCode !in currencyCodes) problems += "$tag: валюты ${r.currencyCode} нет в справочнике"
+                if (r.categoryId != null && r.categoryId !in categoryIds) problems += "$tag: категория ${r.categoryId} не найдена"
+                if (r.amountMinor <= 0) problems += "$tag: сумма ${r.amountMinor} не положительна"
+                if (r.kind !in setOf("EXPENSE", "INCOME")) problems += "$tag: неподдерживаемый вид «${r.kind}»"
+                if (runCatching { LocalDate.parse(r.nextRunOn) }.isFailure) problems += "$tag: дата «${r.nextRunOn}» не разбирается"
+                when (r.ruleType) {
+                    "DAY_OF_MONTH" -> if (r.dayOfMonth == null || r.dayOfMonth !in 1..31) {
+                        problems += "$tag: некорректный день месяца ${r.dayOfMonth}"
+                    }
+                    "EVERY_N_DAYS" -> if (r.intervalDays == null || r.intervalDays < 1) {
+                        problems += "$tag: некорректный интервал ${r.intervalDays}"
+                    }
+                    else -> problems += "$tag: неизвестное правило «${r.ruleType}»"
+                }
+            }
             return problems
         }
     }
@@ -209,3 +287,17 @@ internal fun ImportAliasBackup.toEntity() = ImportAliasEntity(sourceApp, ImportA
 
 internal fun AppSettingEntity.toBackup() = AppSettingBackup(key, value)
 internal fun AppSettingBackup.toEntity() = AppSettingEntity(key, value)
+
+internal fun BudgetEntity.toBackup() = BudgetBackup(id, categoryId, currencyCode, amountMinor, period.name, startsOn)
+internal fun BudgetBackup.toEntity() = BudgetEntity(id, categoryId, currencyCode, amountMinor, BudgetPeriod.valueOf(period), startsOn)
+
+internal fun RecurrenceEntity.toBackup() = RecurrenceBackup(
+    id, kind.name, accountId, categoryId, amountMinor, currencyCode, note,
+    ruleType.name, dayOfMonth, intervalDays, nextRunOn, lastCreatedTxnId,
+)
+internal fun RecurrenceBackup.toEntity() = RecurrenceEntity(
+    id = id, kind = TxnKind.valueOf(kind), accountId = accountId, categoryId = categoryId,
+    amountMinor = amountMinor, currencyCode = currencyCode, note = note,
+    ruleType = RecurrenceRuleType.valueOf(ruleType), dayOfMonth = dayOfMonth, intervalDays = intervalDays,
+    nextRunOn = nextRunOn, lastCreatedTxnId = lastCreatedTxnId,
+)

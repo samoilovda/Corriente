@@ -8,6 +8,7 @@ import com.corriente.data.db.entity.AccountKind
 import com.corriente.data.db.entity.CategoryEntity
 import com.corriente.data.db.entity.CategoryKind
 import com.corriente.data.db.entity.CurrencyEntity
+import com.corriente.data.db.entity.TxnEntity
 import com.corriente.data.db.entity.TxnKind
 import com.corriente.data.repository.AccountRepository
 import com.corriente.data.repository.CategoryRepository
@@ -18,8 +19,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
@@ -70,6 +73,7 @@ class TxnEntryViewModelTest {
         fakes: Fakes,
         editingTxnId: String? = null,
         initialKind: EntryKind = EntryKind.EXPENSE,
+        savedStateHandle: androidx.lifecycle.SavedStateHandle = androidx.lifecycle.SavedStateHandle(),
     ): TxnEntryViewModel = TxnEntryViewModel(
         txns = TxnRepository(fakes.txnDao, fakes.accountDao),
         accounts = AccountRepository(fakes.accountDao),
@@ -78,6 +82,7 @@ class TxnEntryViewModelTest {
         editingTxnId = editingTxnId,
         initialKind = initialKind,
         today = { today },
+        savedStateHandle = savedStateHandle,
     )
 
     private fun CoroutineScope.observe(model: TxnEntryViewModel) {
@@ -419,5 +424,178 @@ class TxnEntryViewModelTest {
         advanceUntilIdle()
         assertEquals(7L, fakes.txnDao.rows.value.single().amountMinor)
         assertEquals("CLP", fakes.txnDao.rows.value.single().currencyCode)
+    }
+
+    // R2.2 — «частые»: строка над клавиатурой на экране нового ввода, тап заполняет форму целиком.
+    @Test
+    fun `frequent templates surface after repeated entries and fill the form on tap`() = runTest(dispatcher) {
+        val fakes = Fakes().apply {
+            seed()
+            repeat(3) { i ->
+                txnDao.insert(
+                    TxnEntity(
+                        "coffee-$i", TxnKind.EXPENSE, today.minusDays(i.toLong()).toString(), 0, 0,
+                        "acc-rub", 300_00, "RUB", categoryId = "cat-food",
+                    ),
+                )
+            }
+        }
+        val model = vm(fakes)
+        backgroundScope.observe(model)
+        advanceUntilIdle()
+
+        assertEquals(1, model.uiState.value.frequentOptions.size)
+        val option = model.uiState.value.frequentOptions.single()
+        assertEquals(300_00, option.entry.amountMinor)
+
+        // Форма ещё пустая
+        assertTrue(model.uiState.value.amount.isEmpty)
+
+        model.applyFrequent(option)
+        advanceUntilIdle()
+
+        assertEquals("acc-rub", model.uiState.value.selectedAccountId)
+        assertEquals("cat-food", model.uiState.value.selectedCategoryId)
+        assertTrue(model.uiState.value.canSave)
+    }
+
+    // R2.2: строка «частые» не показывается при редактировании существующей операции.
+    @Test
+    fun `frequent templates are hidden while editing an existing transaction`() = runTest(dispatcher) {
+        val fakes = Fakes().apply {
+            seed()
+            repeat(3) { i ->
+                txnDao.insert(
+                    TxnEntity(
+                        "coffee-$i", TxnKind.EXPENSE, today.minusDays(i.toLong()).toString(), 0, 0,
+                        "acc-rub", 300_00, "RUB", categoryId = "cat-food",
+                    ),
+                )
+            }
+        }
+        val model = vm(fakes, editingTxnId = "coffee-0")
+        backgroundScope.observe(model)
+        advanceUntilIdle()
+
+        assertTrue(model.uiState.value.frequentOptions.isEmpty())
+    }
+
+    // R5.3: удаление физическое и немедленное (I-22), но снекбар держит копию 5 секунд.
+    @Test
+    fun `delete then undo restores the transaction with the same id, createdAt and import_hash`() =
+        runTest(dispatcher) {
+            val fakes = Fakes().apply {
+                seed()
+                txnDao.insert(
+                    TxnEntity(
+                        "txn-1", TxnKind.EXPENSE, today.toString(), createdAt = 111L, updatedAt = 111L,
+                        accountId = "acc-rub", amountMinor = 500_00, currencyCode = "RUB",
+                        categoryId = "cat-food", note = "такси", importHash = "hash-1",
+                    ),
+                )
+            }
+            val editor = vm(fakes, editingTxnId = "txn-1")
+            backgroundScope.observe(editor)
+            advanceUntilIdle()
+
+            // ВАЖНО: не advanceUntilIdle() здесь — он проматал бы виртуальное время сквозь
+            // delay(UNDO_WINDOW_MS) внутри deleteEditing и сразу подтвердил бы удаление.
+            editor.deleteEditing()
+            runCurrent()
+            assertTrue("удаление немедленное — строки в БД уже нет", fakes.txnDao.rows.value.isEmpty())
+            assertNotNull(editor.pendingUndo.value)
+            assertFalse(editor.finished.value)
+
+            editor.undoDelete()
+            runCurrent()
+
+            val restored = fakes.txnDao.rows.value.single()
+            assertEquals("txn-1", restored.id)
+            assertEquals(111L, restored.createdAt)
+            assertEquals("hash-1", restored.importHash)
+            assertEquals("такси", restored.note)
+            assertNull(editor.pendingUndo.value)
+            assertTrue(editor.finished.value)
+        }
+
+    @Test
+    fun `leaving before the undo window expires commits the deletion`() = runTest(dispatcher) {
+        val fakes = Fakes().apply {
+            seed()
+            txnDao.insert(
+                TxnEntity(
+                    "txn-2", TxnKind.EXPENSE, today.toString(), 0, 0,
+                    "acc-rub", 500_00, "RUB", categoryId = "cat-food",
+                ),
+            )
+        }
+        val editor = vm(fakes, editingTxnId = "txn-2")
+        backgroundScope.observe(editor)
+        advanceUntilIdle()
+
+        editor.deleteEditing()
+        runCurrent()
+        assertNotNull(editor.pendingUndo.value)
+
+        // Таймер снекбара ещё не истёк — отмена всё ещё возможна, строки в БД по-прежнему нет.
+        advanceTimeBy(TxnEntryViewModel.UNDO_WINDOW_MS - 1_000L)
+        runCurrent()
+        assertNotNull(editor.pendingUndo.value)
+        assertTrue(fakes.txnDao.rows.value.isEmpty())
+        assertFalse(editor.finished.value)
+
+        // Таймер истёк — снекбар закрылся сам, экран может закрываться, отмена больше недоступна.
+        advanceTimeBy(2_000L)
+        runCurrent()
+        assertNull(editor.pendingUndo.value)
+        assertTrue(editor.finished.value)
+        assertTrue(fakes.txnDao.rows.value.isEmpty())
+    }
+
+    // R5.4: устойчивость к пересозданию процесса — форма живёт в SavedStateHandle, а не только
+    // в MutableStateFlow, который «Не сохранять действия» уничтожает вместе с процессом.
+    @Test
+    fun `constructing with a pre-populated SavedStateHandle restores amount, category and note`() =
+        runTest(dispatcher) {
+            val fakes = Fakes().apply { seed() }
+            val savedState = androidx.lifecycle.SavedStateHandle(
+                mapOf(
+                    "txn_entry.kind" to EntryKind.EXPENSE.name,
+                    "txn_entry.amount_text" to "12.50",
+                    "txn_entry.account_id" to "acc-rub",
+                    "txn_entry.category_id" to "cat-food",
+                    "txn_entry.date" to today.toString(),
+                    "txn_entry.note" to "восстановлено после смерти процесса",
+                ),
+            )
+            val model = vm(fakes, savedStateHandle = savedState)
+            backgroundScope.observe(model)
+            advanceUntilIdle()
+
+            assertEquals("12.50", model.uiState.value.amountText)
+            assertEquals("acc-rub", model.uiState.value.selectedAccountId)
+            assertEquals("cat-food", model.uiState.value.selectedCategoryId)
+            assertEquals("восстановлено после смерти процесса", model.uiState.value.note)
+            assertTrue(model.uiState.value.canSave)
+        }
+
+    @Test
+    fun `every form field is mirrored into SavedStateHandle as it changes`() = runTest(dispatcher) {
+        val fakes = Fakes().apply { seed() }
+        val savedState = androidx.lifecycle.SavedStateHandle()
+        val model = vm(fakes, savedStateHandle = savedState)
+        backgroundScope.observe(model)
+        advanceUntilIdle()
+
+        model.selectCategory("cat-food")
+        model.pressDigit('7'); model.pressDigit('5')
+        model.setNote("такси")
+        advanceUntilIdle()
+
+        assertEquals("75", savedState.get<String>("txn_entry.amount_text"))
+        assertEquals("cat-food", savedState.get<String>("txn_entry.category_id"))
+        assertEquals("такси", savedState.get<String>("txn_entry.note"))
+        assertEquals("acc-rub", savedState.get<String>("txn_entry.account_id"))
+        assertEquals(EntryKind.EXPENSE.name, savedState.get<String>("txn_entry.kind"))
     }
 }

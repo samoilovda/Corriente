@@ -1,13 +1,21 @@
 package com.corriente.app.ui.txnentry
 
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import com.corriente.app.R
 import com.corriente.app.ui.common.WritingViewModel
+import com.corriente.app.ui.common.uiMessage
 import com.corriente.data.db.entity.CategoryKind
 import com.corriente.data.model.Account
 import com.corriente.data.model.Category
 import com.corriente.data.model.Txn
+import com.corriente.data.quickentry.FREQUENT_ENTRY_SUGGESTIONS_LIMIT
+import com.corriente.data.quickentry.FrequentEntry
+import com.corriente.data.quickentry.FrequentEntryKind
+import com.corriente.data.quickentry.frequentEntries
 import com.corriente.data.repository.AccountRepository
 import com.corriente.data.repository.CategoryRepository
 import com.corriente.data.repository.CurrencyRepository
@@ -15,13 +23,18 @@ import com.corriente.data.repository.TxnRepository
 import com.corriente.money.AmountInput
 import com.corriente.money.CalcOp
 import com.corriente.money.Currency
+import com.corriente.money.CurrencyCode
 import com.corriente.money.Minor
 import com.corriente.money.Money
+import com.corriente.money.MoneyFormatter
 import com.corriente.money.applyCalc
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -32,6 +45,16 @@ enum class EntryKind { EXPENSE, INCOME }
 
 /** Счёт как вариант выбора в форме — с уже разрешённой [Currency] для клавиатуры и показа. */
 data class AccountOption(val id: String, val name: String, val currency: Currency, val isArchived: Boolean = false)
+
+/**
+ * R2.2: шаблон быстрого ввода для строки «частые» — с уже разрешёнными для показа именем
+ * категории/счёта и отформатированной суммой (I-1: деньги в UI-state — строка).
+ */
+data class FrequentOption(
+    val entry: FrequentEntry,
+    val label: String,
+    val amountText: String,
+)
 
 data class TxnEntryUiState(
     val kind: EntryKind = EntryKind.EXPENSE,
@@ -46,6 +69,8 @@ data class TxnEntryUiState(
     val note: String = "",
     /** F2.5: false до первой эмиссии репозиториев — экран не показывает ни форму, ни «нет счетов». */
     val loaded: Boolean = false,
+    /** R2.2: строка «частые» над клавиатурой — пусто при редактировании существующей операции. */
+    val frequentOptions: List<FrequentOption> = emptyList(),
 ) {
     val selectedAccount: AccountOption? get() = accounts.firstOrNull { it.id == selectedAccountId }
     val currency: Currency? get() = selectedAccount?.currency
@@ -107,6 +132,13 @@ class TxnEntryViewModel(
     private val editingTxnId: String? = null,
     initialKind: EntryKind = EntryKind.EXPENSE,
     private val today: () -> LocalDate = LocalDate::now,
+    /**
+     * R5.4: форма живёт здесь, а не только в [form] — `SavedStateHandle` переживает убийство
+     * процесса («Не сохранять действия» в параметрах разработчика), обычный `MutableStateFlow`
+     * внутри ViewModel нет. Часть уже подключённого `lifecycle-viewmodel` (ROADMAP.md §7,
+     * R5.4) — новой зависимости не требует.
+     */
+    private val savedStateHandle: SavedStateHandle = SavedStateHandle(),
 ) : WritingViewModel() {
 
     private data class Form(
@@ -120,34 +152,121 @@ class TxnEntryViewModel(
         val note: String = "",
     )
 
+    /** Ключи в [savedStateHandle] — префикс на случай, если когда-нибудь появится общий Bundle. */
+    private object SavedKeys {
+        const val KIND = "txn_entry.kind"
+        const val AMOUNT_TEXT = "txn_entry.amount_text"
+        const val CALC_ACC = "txn_entry.calc_acc"
+        const val CALC_OP = "txn_entry.calc_op"
+        const val ACCOUNT_ID = "txn_entry.account_id"
+        const val CATEGORY_ID = "txn_entry.category_id"
+        const val DATE = "txn_entry.date"
+        const val NOTE = "txn_entry.note"
+    }
+
+    private fun persistForm(f: Form) {
+        savedStateHandle[SavedKeys.KIND] = f.kind.name
+        savedStateHandle[SavedKeys.AMOUNT_TEXT] = f.amount.displayText()
+        savedStateHandle[SavedKeys.CALC_ACC] = f.calcAcc
+        savedStateHandle[SavedKeys.CALC_OP] = f.calcOp?.name
+        savedStateHandle[SavedKeys.ACCOUNT_ID] = f.selectedAccountId
+        savedStateHandle[SavedKeys.CATEGORY_ID] = f.selectedCategoryId
+        savedStateHandle[SavedKeys.DATE] = f.date.toString()
+        savedStateHandle[SavedKeys.NOTE] = f.note
+    }
+
     private val form = MutableStateFlow(Form(kind = initialKind, date = today()))
 
     private val _finished = MutableStateFlow(false)
     val finished: StateFlow<Boolean> = _finished
 
+    /**
+     * R5.3: операция, только что удалённая с этого экрана и ещё не подтверждённая
+     * бесповоротно — снекбар держит её в памяти на [UNDO_WINDOW_MS], пока не истечёт таймер
+     * или пользователь не нажмёт «Отменить». Удаление из БД уже произошло (I-22: физическое,
+     * без флагов) — это только копия для возможной отмены.
+     */
+    private val _pendingUndo = MutableStateFlow<Txn?>(null)
+    val pendingUndo: StateFlow<Txn?> = _pendingUndo
+
+    private var undoJob: Job? = null
+
     val isEditing: Boolean get() = editingTxnId != null
 
     init {
-        if (editingTxnId != null) {
-            viewModelScope.launch {
-                val existing = txns.getById(editingTxnId) ?: return@launch
-                val (kind, accountId, amount, categoryId) = when (existing) {
-                    is Txn.Expense -> Quad(EntryKind.EXPENSE, existing.accountId, existing.amount, existing.categoryId)
-                    is Txn.Income -> Quad(EntryKind.INCOME, existing.accountId, existing.amount, existing.categoryId)
-                    is Txn.Transfer -> return@launch // переводы здесь не редактируются
+        viewModelScope.launch {
+            // R5.4: сперва восстанавливаем форму — из SavedStateHandle предыдущей жизни
+            // процесса (важнее свежей загрузки из БД: непроверенные правки не теряются) либо
+            // из БД при редактировании — и только ПОТОМ включаем зеркалирование формы в
+            // SavedStateHandle. Иначе первая (пустая) эмиссия `form` затирала бы сохранённое
+            // состояние раньше, чем `restoreFormFromSavedState` успевает его прочитать.
+            when {
+                savedStateHandle.get<String>(SavedKeys.KIND) != null -> {
+                    form.value = restoreFormFromSavedState()
                 }
-                val currency = currencies.getByCode(amount.currency)
-                    ?: Currency(amount.currency, minorUnits = 2, displayScale = 2, symbol = amount.currency.code)
-                form.value = Form(
-                    kind = kind,
-                    amount = AmountInput.fromMinor(amount.amount, currency),
-                    selectedAccountId = accountId,
-                    selectedCategoryId = categoryId,
-                    date = existing.date,
-                    note = existing.note.orEmpty(),
-                )
+                editingTxnId != null -> {
+                    val existing = txns.getById(editingTxnId)
+                    val quad = when (existing) {
+                        is Txn.Expense -> Quad(EntryKind.EXPENSE, existing.accountId, existing.amount, existing.categoryId)
+                        is Txn.Income -> Quad(EntryKind.INCOME, existing.accountId, existing.amount, existing.categoryId)
+                        is Txn.Transfer, null -> null // переводы здесь не редактируются
+                    }
+                    if (existing != null && quad != null) {
+                        val (kind, accountId, amount, categoryId) = quad
+                        val currency = currencies.getByCode(amount.currency)
+                            ?: Currency(amount.currency, minorUnits = 2, displayScale = 2, symbol = amount.currency.code)
+                        form.value = Form(
+                            kind = kind,
+                            amount = AmountInput.fromMinor(amount.amount, currency),
+                            selectedAccountId = accountId,
+                            selectedCategoryId = categoryId,
+                            date = existing.date,
+                            note = existing.note.orEmpty(),
+                        )
+                    }
+                }
             }
+
+            // R5.4: автоподстановку «первого активного счёта» (раньше она жила только в
+            // производном uiState) фиксируем в самой форме — иначе счёт по умолчанию не
+            // попадёт в SavedStateHandle и потеряется вместе с процессом. При редактировании
+            // счёт уже задан из операции.
+            if (editingTxnId == null && form.value.selectedAccountId == null) {
+                accounts.observeActive().first().firstOrNull()?.let { default ->
+                    form.update { if (it.selectedAccountId == null) it.copy(selectedAccountId = default.id) else it }
+                }
+            }
+
+            // R5.4: каждое изменение формы зеркалится в SavedStateHandle — переживает и
+            // сворачивание с пересозданием процесса, и обычный поворот экрана.
+            form.collect(::persistForm)
         }
+    }
+
+    /**
+     * R5.4: сумма хранится как её [AmountInput.displayText] — тот же приём, что уже используется
+     * при смене счёта в [selectAccount] (`AmountInput.fromText(f.amount.displayText(), ...)`),
+     * только валюта здесь берётся из счёта, восстановленного из того же SavedStateHandle.
+     */
+    private suspend fun restoreFormFromSavedState(): Form {
+        val kind = savedStateHandle.get<String>(SavedKeys.KIND)?.let(EntryKind::valueOf) ?: EntryKind.EXPENSE
+        val accountId = savedStateHandle.get<String>(SavedKeys.ACCOUNT_ID)
+        val account = accountId?.let { accounts.getById(it) }
+        val currency = account?.let {
+            currencies.getByCode(it.currency)
+                ?: Currency(it.currency, minorUnits = 2, displayScale = 2, symbol = it.currency.code)
+        }
+        val amountText = savedStateHandle.get<String>(SavedKeys.AMOUNT_TEXT).orEmpty()
+        return Form(
+            kind = kind,
+            amount = if (currency != null) AmountInput.fromText(amountText, currency) else AmountInput.empty(),
+            calcAcc = savedStateHandle.get<Long>(SavedKeys.CALC_ACC),
+            calcOp = savedStateHandle.get<String>(SavedKeys.CALC_OP)?.let(CalcOp::valueOf),
+            selectedAccountId = accountId,
+            selectedCategoryId = savedStateHandle.get<String>(SavedKeys.CATEGORY_ID),
+            date = savedStateHandle.get<String>(SavedKeys.DATE)?.let(LocalDate::parse) ?: today(),
+            note = savedStateHandle.get<String>(SavedKeys.NOTE).orEmpty(),
+        )
     }
 
     private data class Quad(
@@ -162,7 +281,9 @@ class TxnEntryViewModel(
         accounts.observeAll(),
         currencies.observeAll(),
         categories.observeAllForLookup(),
-    ) { f, allAccounts, allCurrencies, allCategories ->
+        // R2.2: только для нового ввода — при редактировании строка «частые» не нужна.
+        if (editingTxnId == null) txns.observeAll() else kotlinx.coroutines.flow.flowOf<List<Txn>>(emptyList()),
+    ) { f, allAccounts, allCurrencies, allCategories, allTxns ->
         val byCode = allCurrencies.associateBy { it.code.code }
         fun option(account: Account) = AccountOption(
             id = account.id,
@@ -189,6 +310,20 @@ class TxnEntryViewModel(
         val kindCategories = allCategories.filter {
             it.kind == entryKindToCategoryKind(f.kind) && (!it.isArchived || it.id == editingCategoryId)
         }
+        val activeAccountsById = allAccounts.filterNot { it.isArchived }.associateBy { it.id }
+        val categoryNamesById = allCategories.associate { it.id to it.name }
+        val frequentOptions = frequentEntries(allTxns, today(), FREQUENT_ENTRY_SUGGESTIONS_LIMIT)
+            .mapNotNull { entry ->
+                val account = activeAccountsById[entry.accountId] ?: return@mapNotNull null
+                val currencyMeta = byCode[entry.currencyCode]
+                    ?: Currency(CurrencyCode(entry.currencyCode), minorUnits = 2, displayScale = 2, symbol = entry.currencyCode)
+                val categoryName = entry.categoryId?.let(categoryNamesById::get)
+                FrequentOption(
+                    entry = entry,
+                    label = categoryName?.let { "$it · ${account.name}" } ?: account.name,
+                    amountText = MoneyFormatter.format(Money(Minor(entry.amountMinor), CurrencyCode(entry.currencyCode)), currencyMeta),
+                )
+            }
         TxnEntryUiState(
             kind = f.kind,
             amount = f.amount,
@@ -201,10 +336,34 @@ class TxnEntryViewModel(
             date = f.date,
             note = f.note,
             loaded = true,
+            frequentOptions = frequentOptions,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), TxnEntryUiState(date = form.value.date))
 
     fun setKind(kind: EntryKind) = form.update { it.copy(kind = kind, selectedCategoryId = null) }
+
+    /**
+     * R2.2: тап по «частым» — подставляет вид/счёт/категорию/сумму целиком, остаётся нажать
+     * «Сохранить». Молча ничего не делает, если счёт шаблона уже недоступен (архивирован/удалён).
+     */
+    fun applyFrequent(option: FrequentOption) {
+        val entry = option.entry
+        val account = uiState.value.accounts.firstOrNull { it.id == entry.accountId } ?: return
+        val kind = when (entry.kind) {
+            FrequentEntryKind.EXPENSE -> EntryKind.EXPENSE
+            FrequentEntryKind.INCOME -> EntryKind.INCOME
+        }
+        form.update {
+            it.copy(
+                kind = kind,
+                selectedAccountId = entry.accountId,
+                selectedCategoryId = entry.categoryId,
+                amount = AmountInput.fromMinor(Minor(entry.amountMinor), account.currency),
+                calcAcc = null,
+                calcOp = null,
+            )
+        }
+    }
 
     /** F2.8: набор новой цифры после удержанного результата ≤ 0 начинает ввод заново. */
     private fun Form.clearHeldResult(): Form =
@@ -275,7 +434,7 @@ class TxnEntryViewModel(
         val money = Money(state.resolvedMinor()!!, currency.code)
         val note = state.note.trim().ifBlank { null }
         launchWrite(
-            onError = { "Не удалось сохранить операцию" },
+            onError = { uiMessage(R.string.txn_entry_error_save) },
             onSuccess = { _finished.value = true },
         ) {
             if (editingTxnId != null) {
@@ -290,17 +449,44 @@ class TxnEntryViewModel(
         return true
     }
 
+    /**
+     * R5.3: удаление физическое и немедленное (I-22), но экран не закрывается сразу — снекбар
+     * «Операция удалена — Отменить» держит копию [UNDO_WINDOW_MS] на случай отмены. Уход с
+     * экрана раньше (назад/системная кнопка) отменяет корутину вместе с ViewModel — отмена
+     * тогда уже невозможна, удаление подтверждено.
+     */
     fun deleteEditing() {
         val id = editingTxnId ?: return
+        launchWrite(onError = { uiMessage(R.string.txn_entry_error_delete) }) {
+            val existing = txns.getById(id) ?: return@launchWrite
+            txns.deleteById(id)
+            _pendingUndo.value = existing
+            undoJob?.cancel()
+            undoJob = viewModelScope.launch {
+                delay(UNDO_WINDOW_MS)
+                _pendingUndo.value = null
+                _finished.value = true
+            }
+        }
+    }
+
+    /** Отмена удаления — та же операция, тот же `id`/`createdAt`/`import_hash` (критерий приёмки). */
+    fun undoDelete() {
+        val txn = _pendingUndo.value ?: return
+        undoJob?.cancel()
+        _pendingUndo.value = null
         launchWrite(
-            onError = { "Не удалось удалить операцию" },
+            onError = { uiMessage(R.string.txn_entry_error_restore) },
             onSuccess = { _finished.value = true },
         ) {
-            txns.deleteById(id)
+            txns.restore(txn)
         }
     }
 
     companion object {
+        /** R5.3: 5 секунд на «Отменить» (ROADMAP.md §7, R5.3). */
+        const val UNDO_WINDOW_MS = 5_000L
+
         fun factory(
             txns: TxnRepository,
             accounts: AccountRepository,
@@ -309,7 +495,12 @@ class TxnEntryViewModel(
             editingTxnId: String? = null,
             initialKind: EntryKind = EntryKind.EXPENSE,
         ) = viewModelFactory {
-            initializer { TxnEntryViewModel(txns, accounts, categories, currencies, editingTxnId, initialKind) }
+            initializer {
+                // R5.4: createSavedStateHandle() — расширение на CreationExtras, доступное здесь
+                // потому что NavBackStackEntry/ComponentActivity, из которых viewModel(...) берёт
+                // extras, сами являются SavedStateRegistryOwner (navigation-compose 2.9.0).
+                TxnEntryViewModel(txns, accounts, categories, currencies, editingTxnId, initialKind, savedStateHandle = createSavedStateHandle())
+            }
         }
     }
 }

@@ -66,6 +66,10 @@ interface TxnDao {
     @Query("SELECT EXISTS(SELECT 1 FROM txn)")
     fun observeAnyExist(): Flow<Boolean>
 
+    /** Общее число операций (R1.5) — плашка напоминания о бэкапе не грузит весь список ради счётчика. */
+    @Query("SELECT COUNT(*) FROM txn")
+    fun observeCount(): Flow<Int>
+
     @Query("SELECT COUNT(*) FROM txn WHERE import_hash = :importHash")
     suspend fun countByImportHash(importHash: String): Int
 
@@ -74,4 +78,23 @@ interface TxnDao {
 
     @Query("DELETE FROM txn")
     suspend fun deleteAll()
+
+    /**
+     * R2.1: полнотекстовый поиск по заметке (через `txn_fts` MATCH) плюс подстрока по названию
+     * счёта/категории — эти справочники малы, `LIKE` по ним не требует индекса FTS. [ftsQuery] —
+     * уже подготовленный MATCH-запрос ([com.corriente.data.db.buildFtsPrefixQuery]), [likePattern] —
+     * `%подстрока%` в нижнем регистре. Не участвует в окне `observeRange` намеренно: поиск ищет
+     * по всей истории, а не только по подгруженным месяцам (критерий приёмки R2.1).
+     */
+    @Query(
+        """
+        SELECT * FROM txn
+        WHERE (:ftsQuery != '' AND rowid IN (SELECT docid FROM txn_fts WHERE txn_fts MATCH :ftsQuery))
+           OR account_id IN (SELECT id FROM account WHERE LOWER(name) LIKE :likePattern)
+           OR to_account_id IN (SELECT id FROM account WHERE LOWER(name) LIKE :likePattern)
+           OR category_id IN (SELECT id FROM category WHERE LOWER(name) LIKE :likePattern)
+        ORDER BY date DESC, created_at DESC
+        """,
+    )
+    fun search(ftsQuery: String, likePattern: String): Flow<List<TxnEntity>>
 }

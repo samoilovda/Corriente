@@ -1,5 +1,7 @@
 package com.corriente.app.ui.transactions
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -13,6 +15,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.SwapHoriz
@@ -44,6 +47,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -67,6 +71,18 @@ fun TransactionsScreen(
 ) {
     val state by viewModel.uiState.collectAsState()
     var showFilters by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+
+    // R3.3: экспорт списка операций (с наложенными на экране фильтрами) в CSV через SAF.
+    val exportCsvLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("text/csv"),
+    ) { uri ->
+        if (uri != null) {
+            context.contentResolver.openOutputStream(uri)?.use {
+                it.write(viewModel.exportCsv().toByteArray(Charsets.UTF_8))
+            }
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -80,6 +96,9 @@ fun TransactionsScreen(
                                 contentDescription = stringResource(R.string.txn_filters),
                             )
                         }
+                    }
+                    IconButton(onClick = { exportCsvLauncher.launch("corriente-transactions.csv") }) {
+                        Icon(Icons.Filled.FileDownload, contentDescription = stringResource(R.string.txn_export_csv))
                     }
                     IconButton(onClick = onAddTransfer) {
                         Icon(Icons.Filled.SwapHoriz, contentDescription = stringResource(R.string.transfer_title))
@@ -317,13 +336,50 @@ private fun TxnRowItem(row: TxnRow, onClick: () -> Unit) {
                 MaterialTheme.colorScheme.surfaceVariant
             }
             androidx.compose.foundation.layout.Box(
-                Modifier
-                    .size(28.dp)
-                    .background(dotColor, androidx.compose.foundation.shape.CircleShape),
+                Modifier.size(28.dp),
                 contentAlignment = Alignment.Center,
             ) {
-                row.icon?.takeIf { it.isNotBlank() }?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
+                androidx.compose.foundation.layout.Box(
+                    Modifier
+                        .size(28.dp)
+                        .background(dotColor, androidx.compose.foundation.shape.CircleShape),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    row.icon?.takeIf { it.isNotBlank() }?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
+                }
+                // R3.0: маркер счёта — маленькая точка поверх иконки категории, чтобы по цвету
+                // было видно, с какого счёта операция, не занимая отдельного столбца в строке.
+                if (row.accountColor != 0) {
+                    androidx.compose.foundation.layout.Box(
+                        Modifier
+                            .align(Alignment.BottomEnd)
+                            .size(10.dp)
+                            .background(
+                                MaterialTheme.colorScheme.surface,
+                                androidx.compose.foundation.shape.CircleShape,
+                            ),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        androidx.compose.foundation.layout.Box(
+                            Modifier
+                                .size(8.dp)
+                                .background(
+                                    androidx.compose.ui.graphics.Color(row.accountColor),
+                                    androidx.compose.foundation.shape.CircleShape,
+                                ),
+                        )
+                    }
+                }
             }
+        } else if (row.accountColor != 0) {
+            androidx.compose.foundation.layout.Box(
+                Modifier
+                    .size(10.dp)
+                    .background(
+                        androidx.compose.ui.graphics.Color(row.accountColor),
+                        androidx.compose.foundation.shape.CircleShape,
+                    ),
+            )
         }
         Column(Modifier.weight(1f)) {
             Text(row.title)
