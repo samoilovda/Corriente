@@ -50,6 +50,8 @@
     <string name="backup_verify_sums">Суммы по валютам (в минимальных единицах, без переводов)</string>
     <string name="backup_verify_invalid">Файл повреждён:</string>
     <string name="backup_verify_failed">Не удалось прочитать файл.</string>
+    <string name="backup_reminder_days">Последний бэкап: %1$d дней назад</string>
+    <string name="backup_reminder_never">Бэкап ещё ни разу не выполнялся</string>
 
     <string name="widget_settings">Виджет</string>
     <string name="widget_settings_hint">Закреплённые валюты и счёт для быстрого ввода</string>

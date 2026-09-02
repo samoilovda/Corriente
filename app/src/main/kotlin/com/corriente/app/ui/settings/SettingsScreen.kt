@@ -31,6 +31,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.corriente.app.R
 import com.corriente.app.backup.ShareBackupCache
 import com.corriente.app.corrienteContainer
+import com.corriente.app.ui.common.BackupReminderBanner
 import java.io.File
 
 /** Настройки (T1.2 — валюты; T1.4 — категории; T1.9 — экспорт/восстановление бэкапа). */
@@ -68,6 +69,8 @@ fun SettingsScreen(
 
     Scaffold(topBar = { TopAppBar(title = { Text(stringResource(R.string.nav_settings)) }) }) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
+            // R1.5: плашка «Последний бэкап: N дней назад» — сама решает, показываться ли.
+            BackupReminderBanner(onClick = onOpenAutoBackup)
             ListItem(
                 headlineContent = { Text(stringResource(R.string.currencies_title)) },
                 modifier = Modifier.clickable(onClick = onOpenCurrencies),

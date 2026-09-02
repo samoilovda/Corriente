@@ -51,6 +51,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.corriente.app.R
 import com.corriente.app.corrienteContainer
 import com.corriente.app.ui.categories.CategoryPalette
+import com.corriente.app.ui.common.BackupReminderBanner
 import com.corriente.app.ui.common.rememberMessageSnackbarState
 import com.corriente.data.db.entity.AccountKind
 import com.corriente.money.CurrencyCode
@@ -59,6 +60,7 @@ import com.corriente.money.MoneyFormatter
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AccountsScreen(
+    onOpenAutoBackup: () -> Unit = {},
     viewModel: AccountsViewModel = viewModel(
         factory = with(corrienteContainer()) {
             AccountsViewModel.factory(accountRepository, currencyRepository, accountBalanceUseCase)
@@ -80,6 +82,8 @@ fun AccountsScreen(
         },
     ) { padding ->
         LazyColumn(Modifier.fillMaxWidth().padding(padding)) {
+            // R1.5: плашка «Последний бэкап: N дней назад» — та же логика, что и на «Настройках».
+            item { BackupReminderBanner(onClick = onOpenAutoBackup) }
             if (state.groups.isEmpty() && state.archived.isEmpty()) {
                 item {
                     Text(

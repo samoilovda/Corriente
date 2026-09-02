@@ -40,6 +40,9 @@ class TxnRepository(
     /** Есть ли в БД хоть одна операция (F2.1/F2.5). */
     fun observeAnyExist(): Flow<Boolean> = txnDao.observeAnyExist()
 
+    /** Общее число операций (R1.5 — плашка напоминания о бэкапе). */
+    fun observeCount(): Flow<Int> = txnDao.observeCount()
+
     fun observeForAccount(accountId: String): Flow<List<Txn>> =
         txnDao.observeForAccount(accountId).map { list -> list.map { it.toDomain() } }
 

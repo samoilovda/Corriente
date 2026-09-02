@@ -66,6 +66,10 @@ interface TxnDao {
     @Query("SELECT EXISTS(SELECT 1 FROM txn)")
     fun observeAnyExist(): Flow<Boolean>
 
+    /** Общее число операций (R1.5) — плашка напоминания о бэкапе не грузит весь список ради счётчика. */
+    @Query("SELECT COUNT(*) FROM txn")
+    fun observeCount(): Flow<Int>
+
     @Query("SELECT COUNT(*) FROM txn WHERE import_hash = :importHash")
     suspend fun countByImportHash(importHash: String): Int
 

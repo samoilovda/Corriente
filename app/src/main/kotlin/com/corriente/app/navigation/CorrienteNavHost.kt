@@ -97,7 +97,9 @@ fun CorrienteNavHost() {
                     onEditTransfer = { id -> navController.navigate("$TRANSFER_EDIT_ROUTE/$id") },
                 )
             }
-            composable(CorrienteDestination.ACCOUNTS.route) { AccountsScreen() }
+            composable(CorrienteDestination.ACCOUNTS.route) {
+                AccountsScreen(onOpenAutoBackup = { navController.navigate(AUTOBACKUP_ROUTE) })
+            }
             composable(CorrienteDestination.REPORT.route) {
                 ReportScreen(
                     onEditTransaction = { id -> navController.navigate("$TXN_EDIT_ROUTE/$id") },
