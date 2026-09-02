@@ -54,6 +54,7 @@ import java.time.ZoneOffset
 @Composable
 fun TxnEntryScreen(
     onDone: () -> Unit,
+    onCreateAccount: () -> Unit = {},
     editingTxnId: String? = null,
     initialKind: EntryKind = EntryKind.EXPENSE,
     viewModel: TxnEntryViewModel = viewModel(
@@ -114,8 +115,16 @@ fun TxnEntryScreen(
                     )
                 }
 
-                if (state.accounts.isEmpty()) {
-                    Text(stringResource(R.string.txn_entry_no_accounts), style = MaterialTheme.typography.bodyMedium)
+                if (!state.loaded) {
+                    // F2.5: ещё грузится — не мигаем «нет счетов».
+                } else if (state.accounts.isEmpty()) {
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Text(
+                            stringResource(R.string.txn_entry_no_accounts),
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                        Button(onClick = onCreateAccount) { Text(stringResource(R.string.txn_entry_create_account)) }
+                    }
                 } else {
                     Text(
                         text = "${state.amountText} ${state.currency?.symbol.orEmpty()}",

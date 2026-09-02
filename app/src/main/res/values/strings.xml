@@ -146,7 +146,8 @@
     <string name="txn_entry_date">Дата</string>
     <string name="txn_entry_note">Заметка</string>
     <string name="txn_entry_backspace">Стереть</string>
-    <string name="txn_entry_no_accounts">Сначала создайте счёт на вкладке «Счета».</string>
+    <string name="txn_entry_no_accounts">Счетов пока нет — операцию некуда записать.</string>
+    <string name="txn_entry_create_account">Создать счёт</string>
     <string name="txn_entry_edit">Редактировать операцию</string>
     <string name="txn_entry_delete">Удалить</string>
 

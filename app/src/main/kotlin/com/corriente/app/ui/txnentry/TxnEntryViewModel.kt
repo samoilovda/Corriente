@@ -44,6 +44,8 @@ data class TxnEntryUiState(
     val selectedCategoryId: String? = null,
     val date: LocalDate = LocalDate.now(),
     val note: String = "",
+    /** F2.5: false до первой эмиссии репозиториев — экран не показывает ни форму, ни «нет счетов». */
+    val loaded: Boolean = false,
 ) {
     val selectedAccount: AccountOption? get() = accounts.firstOrNull { it.id == selectedAccountId }
     val currency: Currency? get() = selectedAccount?.currency
@@ -190,6 +192,7 @@ class TxnEntryViewModel(
             selectedCategoryId = f.selectedCategoryId?.takeIf { id -> kindCategories.any { it.id == id } },
             date = f.date,
             note = f.note,
+            loaded = true,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), TxnEntryUiState(date = form.value.date))
 

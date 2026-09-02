@@ -40,6 +40,8 @@ data class TransferUiState(
     val rateText: String = "",
     val date: LocalDate = LocalDate.now(),
     val note: String = "",
+    /** F2.5: false до первой эмиссии репозиториев. */
+    val loaded: Boolean = false,
 ) {
     val fromAccount: TransferAccount? get() = accounts.firstOrNull { it.id == fromAccountId }
     val toAccount: TransferAccount? get() = accounts.firstOrNull { it.id == toAccountId }
@@ -156,6 +158,7 @@ class TransferEntryViewModel(
             rateText = f.rateText,
             date = f.date,
             note = f.note,
+            loaded = true,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), TransferUiState(date = form.value.date))
 

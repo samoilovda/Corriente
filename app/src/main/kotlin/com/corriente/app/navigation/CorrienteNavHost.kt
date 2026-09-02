@@ -143,6 +143,9 @@ fun CorrienteNavHost() {
             ) { entry ->
                 TxnEntryScreen(
                     onDone = { navController.popBackStack() },
+                    onCreateAccount = {
+                        navController.navigate(CorrienteDestination.ACCOUNTS.route) { launchSingleTop = true }
+                    },
                     initialKind = EntryKind.valueOf(
                         entry.arguments?.getString("kind") ?: EntryKind.EXPENSE.name,
                     ),

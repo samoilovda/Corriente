@@ -90,6 +90,9 @@ fun TransferEntryScreen(
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
+            if (!state.loaded) {
+                return@Column
+            }
             if (state.accounts.size < 2) {
                 Text(stringResource(R.string.transfer_need_two_accounts), style = MaterialTheme.typography.bodyMedium)
                 return@Column

@@ -278,6 +278,17 @@ class TxnEntryViewModelTest {
         assertNull(row.categoryId)
     }
 
+    // F2.5 — экран не должен мигать «нет счетов» до загрузки.
+    @Test
+    fun `uiState starts not loaded and flips to loaded after repositories emit`() = runTest(dispatcher) {
+        val fakes = Fakes().apply { seed() }
+        val model = vm(fakes)
+        assertFalse(model.uiState.value.loaded)
+        backgroundScope.observe(model)
+        advanceUntilIdle()
+        assertTrue(model.uiState.value.loaded)
+    }
+
     // F0.3 — правка операции на архивном счёте раньше уводила её на первый активный счёт.
     @Test
     fun `editing a txn on an archived account keeps it on that account`() = runTest(dispatcher) {
