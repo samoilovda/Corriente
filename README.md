@@ -90,6 +90,22 @@ shrinkResources; при первой реальной сборке вне пес
 песочницы иконки заметно раздувают APK — см. `-printusage`/APK Analyzer и, при необходимости,
 замену на `-core` + горстку точечных иконок.
 
+### Версии
+
+`versionCode`/`versionName` живут в `gradle/libs.versions.toml` (ключи `appVersionCode`,
+`appVersionName`), а не в `app/build.gradle.kts` — вся числовая конфигурация проекта в
+одном месте (R6.2, ROADMAP.md §8). Правило:
+
+* `versionCode` — целое, растёт **на 1 с каждым релизным APK** (в том числе внутренним),
+  никогда не переиспользуется и не уменьшается;
+* `versionName` — семантический `MAJOR.MINOR.PATCH`; `MAJOR` = 0, пока приложение не
+  прошло открытую публикацию (`docs/ROADMAP.md`), `MINOR` — за этап (`R`-серию) с заметными
+  для пользователя изменениями, `PATCH` — за точечные фиксы между этапами.
+
+Первый релиз после закрытия `BUILD_PLAN.md`/`FIX_PLAN.md`/`R1`–`R6` выпущен как
+`versionCode = 2`, `versionName = "0.2.0"` (было `1` / `"0.1"`, ни разу не менявшееся).
+История изменений по коммитам `Tx.y`/`Fx.y`/`Rx.y` — в [`CHANGELOG.md`](CHANGELOG.md).
+
 ### Инструментальные тесты
 
 `AppDatabaseMigrationTest` (`core/data/src/androidTest`) требует подключённого
