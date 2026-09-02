@@ -88,6 +88,28 @@ class ReportViewModelTest {
         assertEquals(listOf(111, 222), rows.map { it.color })
     }
 
+    // F3.6 — доли всегда дают ровно 100 при непустом отчёте (метод наибольших остатков).
+    @Test
+    fun `withShares - percentages always sum to exactly 100`() {
+        fun sumFor(vararg minor: Long): Int {
+            val report = minor.mapIndexed { i, m ->
+                com.corriente.data.usecase.CategoryTotal("c$i", Money(Minor(m), rub))
+            }
+            return withShares(report, emptyMap(), emptyMap(), com.corriente.money.Currency(rub, 2, 2, "₽"))
+                .sumOf { it.sharePercent }
+        }
+        assertEquals(100, sumFor(1000, 1000, 1000))      // 33.33 × 3 → 34+33+33
+        assertEquals(100, sumFor(1, 1, 1, 1, 1, 1, 1))   // семь равных
+        assertEquals(100, sumFor(9990, 5, 5))            // одна доминирующая
+        assertEquals(0, sumFor())                         // пустой отчёт
+    }
+
+    @Test
+    fun `largestRemainderShares floors then distributes the remainder to the biggest fractions`() {
+        assertEquals(listOf(34, 33, 33), largestRemainderShares(listOf(1000L, 1000L, 1000L), 3000L))
+        assertEquals(listOf(0, 0), largestRemainderShares(listOf(1L, 1L), 0L))
+    }
+
     @Test
     fun `dominantCurrency picks the currency with the most category transactions`() {
         val txns = listOf(
