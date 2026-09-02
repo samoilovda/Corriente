@@ -1,5 +1,6 @@
 package com.corriente.app.navigation
 
+import android.content.Intent
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Icon
@@ -8,6 +9,7 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -19,6 +21,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import androidx.navigation.navDeepLink
 import com.corriente.app.ui.accountbalance.AccountBalanceScreen
 import com.corriente.app.ui.accounts.AccountsScreen
 import com.corriente.app.ui.budgets.BudgetsScreen
@@ -53,15 +56,30 @@ private const val TXN_EDIT_ROUTE = "txn_edit"
 private const val TRANSFER_ROUTE = "transfer"
 private const val TRANSFER_EDIT_ROUTE = "transfer_edit"
 
+/** R4.4: схема deep link'ов для ярлыков приложения — не сетевой URI, чисто internal-routing. */
+private const val DEEP_LINK_SCHEME = "corriente"
+
 /**
  * Каркас навигации (T1.1): нижняя панель с четырьмя разделами. Содержимое разделов
  * наполняется в T1.2–T1.9, каждый в своей задаче/коммите.
+ *
+ * @param deepLinkIntent intent ярлыка приложения (R4.4) — с холодного старта [com.corriente.app.MainActivity.onCreate],
+ *   при уже запущенной Activity — [com.corriente.app.MainActivity.onNewIntent]. `null`, если Activity
+ *   открыта обычным способом (лаунчер/бэкстек).
  */
 @Composable
-fun CorrienteNavHost() {
+fun CorrienteNavHost(deepLinkIntent: Intent? = null, onDeepLinkConsumed: () -> Unit = {}) {
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = backStackEntry?.destination
+
+    // R4.4: intent ярлыка обрабатывается через LaunchedEffect — handleDeepLink требует, чтобы
+    // граф NavHost уже был построен, а эффекты в Compose выполняются уже после того, как вся
+    // функция скомпозилась (в т.ч. NavHost ниже), независимо от места этого вызова в исходнике.
+    LaunchedEffect(deepLinkIntent) {
+        val handled = deepLinkIntent?.let { navController.handleDeepLink(it) } ?: false
+        if (handled) onDeepLinkConsumed()
+    }
 
     Scaffold(
         bottomBar = {
@@ -168,6 +186,8 @@ fun CorrienteNavHost() {
                 arguments = listOf(
                     navArgument("kind") { type = NavType.StringType; defaultValue = EntryKind.EXPENSE.name },
                 ),
+                // R4.4: ярлыки «Записать расход»/«Записать доход» ведут сюда через deep link.
+                deepLinks = listOf(navDeepLink { uriPattern = "$DEEP_LINK_SCHEME://entry?kind={kind}" }),
             ) { entry ->
                 TxnEntryScreen(
                     onDone = { navController.popBackStack() },
@@ -188,7 +208,11 @@ fun CorrienteNavHost() {
                     editingTxnId = entry.arguments?.getString("txnId"),
                 )
             }
-            composable(TRANSFER_ROUTE) {
+            composable(
+                TRANSFER_ROUTE,
+                // R4.4: ярлык «Перевод» ведёт сюда через deep link.
+                deepLinks = listOf(navDeepLink { uriPattern = "$DEEP_LINK_SCHEME://transfer" }),
+            ) {
                 TransferEntryScreen(onDone = { navController.popBackStack() })
             }
             composable(

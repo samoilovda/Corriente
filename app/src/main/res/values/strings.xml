@@ -150,6 +150,9 @@
     <string name="category_kind_income">Доход</string>
 
     <string name="txn_entry_title">Новая операция</string>
+    <string name="shortcut_add_expense">Записать расход</string>
+    <string name="shortcut_add_income">Записать доход</string>
+    <string name="shortcut_transfer">Перевод</string>
     <string name="txn_add_expense">Добавить расход</string>
     <string name="txn_add_income">Добавить доход</string>
 
