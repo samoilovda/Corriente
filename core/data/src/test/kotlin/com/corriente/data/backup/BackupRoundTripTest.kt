@@ -12,6 +12,8 @@ import com.corriente.data.db.entity.CurrencyEntity
 import com.corriente.data.db.entity.ImportAliasEntity
 import com.corriente.data.db.entity.ImportAliasKind
 import com.corriente.data.db.entity.ImportBatchEntity
+import com.corriente.data.db.entity.RecurrenceEntity
+import com.corriente.data.db.entity.RecurrenceRuleType
 import com.corriente.data.db.entity.TxnEntity
 import com.corriente.data.db.entity.TxnKind
 import kotlinx.serialization.json.Json
@@ -60,6 +62,19 @@ class BackupRoundTripTest {
             id = "budget-2", categoryId = null, currencyCode = "RUB",
             amountMinor = 50_000_00, period = BudgetPeriod.MONTH, startsOn = "2026-09-01",
         )
+        val recurrenceDayOfMonth = RecurrenceEntity(
+            id = "rec-1", kind = TxnKind.EXPENSE, accountId = "acc-1", categoryId = "cat-1",
+            amountMinor = 5_000_00, currencyCode = "RUB", note = "Аренда",
+            ruleType = RecurrenceRuleType.DAY_OF_MONTH, dayOfMonth = 1, intervalDays = null,
+            nextRunOn = "2026-10-01", lastCreatedTxnId = "txn-1",
+        )
+        val recurrenceEveryNDays = RecurrenceEntity(
+            id = "rec-2", kind = TxnKind.INCOME, accountId = "acc-1", categoryId = null,
+            amountMinor = 1000, currencyCode = "RUB", note = null,
+            ruleType = RecurrenceRuleType.EVERY_N_DAYS, dayOfMonth = null, intervalDays = 14,
+            nextRunOn = "2026-09-15", lastCreatedTxnId = null,
+        )
+
         val payload = BackupPayload(
             schemaVersion = 1,
             exportedAt = 42L,
@@ -71,6 +86,7 @@ class BackupRoundTripTest {
             importAliases = listOf(alias.toBackup()),
             appSettings = listOf(setting.toBackup()),
             budgets = listOf(budget.toBackup(), wholeCurrencyBudget.toBackup()),
+            recurrences = listOf(recurrenceDayOfMonth.toBackup(), recurrenceEveryNDays.toBackup()),
         )
 
         val encoded = json.encodeToString(BackupPayload.serializer(), payload)
@@ -84,6 +100,10 @@ class BackupRoundTripTest {
         assertEquals(alias, decoded.importAliases.single().toEntity())
         assertEquals(setting, decoded.appSettings.single().toEntity())
         assertEquals(listOf(budget, wholeCurrencyBudget), decoded.budgets.map { it.toEntity() })
+        assertEquals(
+            listOf(recurrenceDayOfMonth, recurrenceEveryNDays),
+            decoded.recurrences.map { it.toEntity() },
+        )
         assertEquals(payload, decoded)
     }
 
@@ -111,6 +131,7 @@ class BackupRoundTripTest {
     private fun payloadOf(
         vararg txns: TxnEntity,
         budgets: List<BudgetEntity> = emptyList(),
+        recurrences: List<RecurrenceEntity> = emptyList(),
     ) = BackupPayload(
         schemaVersion = 1, exportedAt = 0,
         currencies = listOf(CurrencyEntity("RUB", 2, 2, "₽", isActive = true, displayOrder = 0).toBackup()),
@@ -121,6 +142,7 @@ class BackupRoundTripTest {
         transactions = txns.map { it.toBackup() },
         importBatches = emptyList(), importAliases = emptyList(), appSettings = emptyList(),
         budgets = budgets.map { it.toBackup() },
+        recurrences = recurrences.map { it.toBackup() },
     )
 
     private fun budgetEntity(id: String, categoryId: String? = "cat", currencyCode: String = "RUB", amountMinor: Long = 100_00) =
@@ -140,6 +162,40 @@ class BackupRoundTripTest {
             payloadOf(
                 expenseEntity("t1"),
                 budgets = listOf(budgetEntity("b1", categoryId = "ghost", currencyCode = "ZZZ", amountMinor = -1)),
+            ),
+        )
+        assertEquals(3, problems.size)
+    }
+
+    private fun recurrenceEntity(
+        id: String,
+        accountId: String = "acc",
+        currencyCode: String = "RUB",
+        amountMinor: Long = 100_00,
+        dayOfMonth: Int? = 1,
+    ) = RecurrenceEntity(
+        id, TxnKind.EXPENSE, accountId, "cat", amountMinor, currencyCode, null,
+        RecurrenceRuleType.DAY_OF_MONTH, dayOfMonth, null, "2026-10-01", null,
+    )
+
+    @Test
+    fun `validate accepts a well-formed recurrence rule of either kind`() {
+        val everyNDays = RecurrenceEntity(
+            "r2", TxnKind.INCOME, "acc", null, 1000, "RUB", null,
+            RecurrenceRuleType.EVERY_N_DAYS, null, 14, "2026-09-15", null,
+        )
+        val problems = BackupRepository.validate(
+            payloadOf(expenseEntity("t1"), recurrences = listOf(recurrenceEntity("r1"), everyNDays)),
+        )
+        assertEquals(emptyList<String>(), problems)
+    }
+
+    @Test
+    fun `validate flags a recurrence with a dangling account, non-positive amount or an out-of-range day`() {
+        val problems = BackupRepository.validate(
+            payloadOf(
+                expenseEntity("t1"),
+                recurrences = listOf(recurrenceEntity("r1", accountId = "ghost", amountMinor = 0, dayOfMonth = 40)),
             ),
         )
         assertEquals(3, problems.size)

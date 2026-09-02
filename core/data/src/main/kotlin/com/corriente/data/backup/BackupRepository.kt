@@ -14,6 +14,8 @@ import com.corriente.data.db.entity.CurrencyEntity
 import com.corriente.data.db.entity.ImportAliasEntity
 import com.corriente.data.db.entity.ImportAliasKind
 import com.corriente.data.db.entity.ImportBatchEntity
+import com.corriente.data.db.entity.RecurrenceEntity
+import com.corriente.data.db.entity.RecurrenceRuleType
 import com.corriente.data.db.entity.TxnEntity
 import com.corriente.data.db.entity.TxnKind
 import kotlinx.coroutines.flow.first
@@ -56,6 +58,7 @@ class BackupRepository(private val db: AppDatabase) : BackupIo {
         importAliases = db.importAliasDao().getAll().map { it.toBackup() },
         appSettings = db.appSettingDao().getAll().map { it.toBackup() },
         budgets = db.budgetDao().getAll().map { it.toBackup() },
+        recurrences = db.recurrenceDao().getAll().map { it.toBackup() },
     )
 
     override suspend fun export(output: OutputStream) {
@@ -91,6 +94,7 @@ class BackupRepository(private val db: AppDatabase) : BackupIo {
         beforeReplace()
         db.withTransaction {
             // Порядок удаления - по внешним ключам, от зависимых к независимым.
+            db.recurrenceDao().deleteAll()
             db.budgetDao().deleteAll()
             db.txnDao().deleteAll()
             db.importBatchDao().deleteAll()
@@ -109,6 +113,7 @@ class BackupRepository(private val db: AppDatabase) : BackupIo {
             payload.importAliases.forEach { db.importAliasDao().upsert(it.toEntity()) }
             payload.appSettings.forEach { db.appSettingDao().set(it.toEntity()) }
             payload.budgets.forEach { db.budgetDao().insert(it.toEntity()) }
+            payload.recurrences.forEach { db.recurrenceDao().insert(it.toEntity()) }
         }
     }
 
@@ -117,8 +122,9 @@ class BackupRepository(private val db: AppDatabase) : BackupIo {
 
     companion object {
         // v2: category.import_batch_id (F1.5). v3: txn_fts (R2.1, не входит в бэкап — производный
-        // кэш, I-9). v4: budget (R2.3). Держать в синхроне с AppDatabase.SCHEMA_VERSION.
-        const val SCHEMA_VERSION = 4
+        // кэш, I-9). v4: budget (R2.3). v5: recurrence (R2.4). Держать в синхроне с
+        // AppDatabase.SCHEMA_VERSION.
+        const val SCHEMA_VERSION = 5
 
         private val json = Json { prettyPrint = true; ignoreUnknownKeys = true }
 
@@ -212,6 +218,24 @@ class BackupRepository(private val db: AppDatabase) : BackupIo {
                 if (runCatching { LocalDate.parse(b.startsOn) }.isFailure) problems += "$tag: дата «${b.startsOn}» не разбирается"
                 if (b.period != "MONTH") problems += "$tag: неизвестный период «${b.period}»"
             }
+            payload.recurrences.forEach { r ->
+                val tag = "правило ${r.id}"
+                if (r.accountId !in accountIds) problems += "$tag: счёт ${r.accountId} не найден"
+                if (r.currencyCode !in currencyCodes) problems += "$tag: валюты ${r.currencyCode} нет в справочнике"
+                if (r.categoryId != null && r.categoryId !in categoryIds) problems += "$tag: категория ${r.categoryId} не найдена"
+                if (r.amountMinor <= 0) problems += "$tag: сумма ${r.amountMinor} не положительна"
+                if (r.kind !in setOf("EXPENSE", "INCOME")) problems += "$tag: неподдерживаемый вид «${r.kind}»"
+                if (runCatching { LocalDate.parse(r.nextRunOn) }.isFailure) problems += "$tag: дата «${r.nextRunOn}» не разбирается"
+                when (r.ruleType) {
+                    "DAY_OF_MONTH" -> if (r.dayOfMonth == null || r.dayOfMonth !in 1..31) {
+                        problems += "$tag: некорректный день месяца ${r.dayOfMonth}"
+                    }
+                    "EVERY_N_DAYS" -> if (r.intervalDays == null || r.intervalDays < 1) {
+                        problems += "$tag: некорректный интервал ${r.intervalDays}"
+                    }
+                    else -> problems += "$tag: неизвестное правило «${r.ruleType}»"
+                }
+            }
             return problems
         }
     }
@@ -266,3 +290,14 @@ internal fun AppSettingBackup.toEntity() = AppSettingEntity(key, value)
 
 internal fun BudgetEntity.toBackup() = BudgetBackup(id, categoryId, currencyCode, amountMinor, period.name, startsOn)
 internal fun BudgetBackup.toEntity() = BudgetEntity(id, categoryId, currencyCode, amountMinor, BudgetPeriod.valueOf(period), startsOn)
+
+internal fun RecurrenceEntity.toBackup() = RecurrenceBackup(
+    id, kind.name, accountId, categoryId, amountMinor, currencyCode, note,
+    ruleType.name, dayOfMonth, intervalDays, nextRunOn, lastCreatedTxnId,
+)
+internal fun RecurrenceBackup.toEntity() = RecurrenceEntity(
+    id = id, kind = TxnKind.valueOf(kind), accountId = accountId, categoryId = categoryId,
+    amountMinor = amountMinor, currencyCode = currencyCode, note = note,
+    ruleType = RecurrenceRuleType.valueOf(ruleType), dayOfMonth = dayOfMonth, intervalDays = intervalDays,
+    nextRunOn = nextRunOn, lastCreatedTxnId = lastCreatedTxnId,
+)

@@ -3,6 +3,7 @@ package com.corriente.app
 import android.app.Application
 import com.corriente.app.backup.AutoBackupScheduler
 import com.corriente.app.backup.ShareBackupCache
+import com.corriente.app.recurring.RecurrenceScheduler
 import com.corriente.app.widget.WidgetUpdater
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -23,6 +24,9 @@ class CorrienteApplication : Application() {
         super.onCreate()
         container = AppContainer(this)
         WidgetUpdater(this, container).start()
+
+        // R2.4: воркер материализации повторяющихся операций — раз в сутки, безусловно.
+        RecurrenceScheduler.apply(this)
 
         // R1.2: временные файлы «Отправить бэкап» старше суток чистятся на следующем запуске,
         // а не сразу после отправки — принимающее приложение читает URI асинхронно.

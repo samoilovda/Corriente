@@ -11,6 +11,7 @@ import com.corriente.data.db.dao.CategoryDao
 import com.corriente.data.db.dao.CurrencyDao
 import com.corriente.data.db.dao.ImportAliasDao
 import com.corriente.data.db.dao.ImportBatchDao
+import com.corriente.data.db.dao.RecurrenceDao
 import com.corriente.data.db.dao.TxnDao
 import com.corriente.data.db.entity.AccountEntity
 import com.corriente.data.db.entity.AppSettingEntity
@@ -19,6 +20,7 @@ import com.corriente.data.db.entity.CategoryEntity
 import com.corriente.data.db.entity.CurrencyEntity
 import com.corriente.data.db.entity.ImportAliasEntity
 import com.corriente.data.db.entity.ImportBatchEntity
+import com.corriente.data.db.entity.RecurrenceEntity
 import com.corriente.data.db.entity.TxnEntity
 import com.corriente.data.db.entity.TxnFtsEntity
 import com.corriente.data.seed.ISO_CURRENCIES
@@ -39,8 +41,9 @@ import com.corriente.data.seed.ISO_CURRENCIES
         AppSettingEntity::class,
         TxnFtsEntity::class,
         BudgetEntity::class,
+        RecurrenceEntity::class,
     ],
-    version = 4,
+    version = 5,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -52,12 +55,13 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun importAliasDao(): ImportAliasDao
     abstract fun appSettingDao(): AppSettingDao
     abstract fun budgetDao(): BudgetDao
+    abstract fun recurrenceDao(): RecurrenceDao
 
     companion object {
         const val DB_NAME = "corriente.db"
 
         /** Держать в синхроне с `version` в аннотации [Database]. */
-        const val SCHEMA_VERSION = 4
+        const val SCHEMA_VERSION = 5
 
         /**
          * v1 → v2 (F1.5): `category.import_batch_id` — чтобы откат импорта удалял только свои
@@ -140,7 +144,42 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
-        val ALL_MIGRATIONS: Array<Migration> = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+        /**
+         * v4 → v5 (R2.4): таблица `recurrence` — шаблон повторяющейся операции (расход/доход,
+         * перевод не поддерживается) плюс правило повторения и `next_run_on`/
+         * `last_created_txn_id` для идемпотентного воркера.
+         */
+        val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `recurrence` (
+                        `id` TEXT NOT NULL,
+                        `kind` TEXT NOT NULL,
+                        `account_id` TEXT NOT NULL,
+                        `category_id` TEXT,
+                        `amount_minor` INTEGER NOT NULL,
+                        `currency_code` TEXT NOT NULL,
+                        `note` TEXT,
+                        `rule_type` TEXT NOT NULL,
+                        `day_of_month` INTEGER,
+                        `interval_days` INTEGER,
+                        `next_run_on` TEXT NOT NULL,
+                        `last_created_txn_id` TEXT,
+                        PRIMARY KEY(`id`),
+                        FOREIGN KEY(`account_id`) REFERENCES `account`(`id`) ON UPDATE NO ACTION ON DELETE NO ACTION,
+                        FOREIGN KEY(`category_id`) REFERENCES `category`(`id`) ON UPDATE NO ACTION ON DELETE NO ACTION,
+                        FOREIGN KEY(`currency_code`) REFERENCES `currency`(`code`) ON UPDATE NO ACTION ON DELETE NO ACTION
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_recurrence_account_id` ON `recurrence` (`account_id`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_recurrence_category_id` ON `recurrence` (`category_id`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_recurrence_currency_code` ON `recurrence` (`currency_code`)")
+            }
+        }
+
+        val ALL_MIGRATIONS: Array<Migration> = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
 
         /**
          * Сеет полный справочник ISO-4217 при создании файла БД (I-14). Выполняется как сырой

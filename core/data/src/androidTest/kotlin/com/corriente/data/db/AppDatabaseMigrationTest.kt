@@ -163,4 +163,39 @@ class AppDatabaseMigrationTest {
         db.close()
     }
 
+    // R2.4 — миграция v4 → v5 создаёт таблицу `recurrence` (повторяющиеся операции).
+    @Test
+    fun migration4to5CreatesRecurrenceTable() {
+        helper.createDatabase(testDbName, 4).apply {
+            execSQL(
+                """
+                INSERT INTO currency(code, minor_units, display_scale, symbol, is_active, display_order)
+                VALUES ('RUB', 2, 2, '₽', 1, 0)
+                """.trimIndent(),
+            )
+            execSQL(
+                """
+                INSERT INTO account(id, name, currency_code, kind, opening_balance_minor, color, display_order, is_archived, include_in_total)
+                VALUES ('a1', 'Карта', 'RUB', 'CARD', 0, 0, 0, 0, 1)
+                """.trimIndent(),
+            )
+            close()
+        }
+
+        val db = helper.runMigrationsAndValidate(testDbName, 5, true, AppDatabase.MIGRATION_4_5)
+
+        db.execSQL(
+            """
+            INSERT INTO recurrence(id, kind, account_id, category_id, amount_minor, currency_code, note, rule_type, day_of_month, interval_days, next_run_on, last_created_txn_id)
+            VALUES ('r1', 'EXPENSE', 'a1', NULL, 5000000, 'RUB', 'Аренда', 'DAY_OF_MONTH', 1, NULL, '2026-10-01', NULL)
+            """.trimIndent(),
+        )
+        db.query("SELECT kind, day_of_month, next_run_on FROM recurrence WHERE id = 'r1'").use { c ->
+            assertEquals(true, c.moveToFirst())
+            assertEquals("EXPENSE", c.getString(0))
+            assertEquals(1, c.getInt(1))
+            assertEquals("2026-10-01", c.getString(2))
+        }
+        db.close()
+    }
 }
