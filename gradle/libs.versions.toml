@@ -28,6 +28,13 @@ androidxTestRunner = "1.6.2"
 # alpha на момент, отражённый в обучающих данных модели; sandbox не имеет доступа к Google
 # Maven, чтобы свериться с фактическим latest stable — см. итоговое сообщение сессии).
 biometric = "1.1.0"
+# androidx.biometric:1.1.0 тянет транзитивно androidx.fragment:1.2.5 (2020), чей
+# FragmentActivity.startActivityForResult отвергает requestCode >= 65536 — а именно такие
+# генерирует ActivityResultRegistry из androidx.activity:1.11.0. Итог — краш
+# «Can only use lower 16 bits for requestCode» на любом rememberLauncherForActivityResult
+# (экспорт/восстановление бэкапа, импорт Monefy, CSV, выбор папки автобэкапа). Явно
+# поднимаем fragment до версии, где FragmentActivity делегирует результат в реестр activity.
+fragment = "1.8.6"
 
 [libraries]
 junit = { module = "junit:junit", version.ref = "junit" }
@@ -62,8 +69,11 @@ glance-material3 = { module = "androidx.glance:glance-material3", version.ref = 
 work-runtime-ktx = { module = "androidx.work:work-runtime-ktx", version.ref = "work" }
 # R5.2: единственный новый некод-зависимый артефакт этапа (ROADMAP.md §9.2, ~150 КБ).
 # Тянет androidx.fragment транзитивно — им и объясняется переход экранов-Activity на
-# FragmentActivity (BiometricPrompt его требует).
+# FragmentActivity (BiometricPrompt его требует). Версию fragment фиксируем явно ниже,
+# т.к. транзитивная (1.2.5) несовместима с ActivityResult из androidx.activity 1.11.
 androidx-biometric = { module = "androidx.biometric:biometric", version.ref = "biometric" }
+# Явное выравнивание fragment под androidx.activity 1.11 — см. комментарий к version 'fragment'.
+androidx-fragment = { module = "androidx.fragment:fragment", version.ref = "fragment" }
 
 [plugins]
 # :core:money — чистый Kotlin/JVM. Android-модули с AGP 9+ используют встроенный

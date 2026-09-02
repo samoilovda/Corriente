@@ -142,6 +142,10 @@ dependencies {
     implementation(libs.work.runtime.ktx)
     // R5.2 (ROADMAP.md §9.2) — блокировка приложения по биометрии/PIN устройства.
     implementation(libs.androidx.biometric)
+    // biometric тянет древний androidx.fragment:1.2.5; поднимаем явно, иначе любой
+    // rememberLauncherForActivityResult падает с "Can only use lower 16 bits for requestCode"
+    // (несовместимость FragmentActivity 1.2.5 c ActivityResultRegistry из activity 1.11).
+    implementation(libs.androidx.fragment)
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
