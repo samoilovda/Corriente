@@ -71,4 +71,10 @@ dependencies {
     androidTestImplementation(libs.androidx.test.junit)
     androidTestImplementation(libs.androidx.test.runner)
     androidTestImplementation(libs.kotlinx.coroutines.test)
+    // R5.1: инструментальные UI-тесты (ROADMAP.md §9.1) — androidTest/debug, компилируются
+    // и работают на настоящих Activity через ручной DI-контейнер (ADR-011), но требуют
+    // эмулятора/устройства; в релизный APK не попадают.
+    androidTestImplementation(platform(libs.compose.bom))
+    androidTestImplementation(libs.compose.ui.test.junit4)
+    debugImplementation(libs.compose.ui.test.manifest)
 }

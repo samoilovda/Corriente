@@ -41,6 +41,10 @@ compose-ui = { module = "androidx.compose.ui:ui" }
 compose-ui-tooling-preview = { module = "androidx.compose.ui:ui-tooling-preview" }
 compose-ui-tooling = { module = "androidx.compose.ui:ui-tooling" }
 compose-material-icons-extended = { module = "androidx.compose.material:material-icons-extended" }
+# R5.1: инструментальные Compose-тесты — только androidTest/debug, в релизный APK не попадают
+# (ROADMAP.md §9.1). Версии из compose-bom (platform), как и у остальных compose-* артефактов.
+compose-ui-test-junit4 = { module = "androidx.compose.ui:ui-test-junit4" }
+compose-ui-test-manifest = { module = "androidx.compose.ui:ui-test-manifest" }
 glance-appwidget = { module = "androidx.glance:glance-appwidget", version.ref = "glance" }
 glance-material3 = { module = "androidx.glance:glance-material3", version.ref = "glance" }
 work-runtime-ktx = { module = "androidx.work:work-runtime-ktx", version.ref = "work" }
