@@ -41,6 +41,12 @@ class TxnFilterTest {
         assertEquals(listOf("i1"), ids(TxnFilter(query = "зарплата")))
     }
 
+    // R2.1: область поиска расширена — заметка/категория/счёт (не только заметка и категория).
+    @Test
+    fun `query also matches account name`() {
+        assertEquals(listOf("e2", "e3"), ids(TxnFilter(query = "card")))
+    }
+
     @Test
     fun `category, account and currency filters`() {
         assertEquals(listOf("e1", "e3"), ids(TxnFilter(categoryId = "food")))

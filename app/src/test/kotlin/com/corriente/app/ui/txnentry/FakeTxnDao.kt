@@ -45,6 +45,8 @@ class FakeTxnDao : TxnDao {
 
     override fun observeAnyExist(): Flow<Boolean> = rows.map { it.isNotEmpty() }
 
+    override fun observeCount(): Flow<Int> = rows.map { it.size }
+
     override fun observeAccountDeltas(): Flow<List<AccountDeltaRow>> = rows.map { list ->
         val acc = HashMap<Pair<String, String>, Long>()
         list.forEach { t ->
@@ -70,5 +72,15 @@ class FakeTxnDao : TxnDao {
 
     override suspend fun deleteAll() {
         rows.value = emptyList()
+    }
+
+    /**
+     * Упрощённая замена FTS/LIKE для юнит-теста (без Room): совпадение по заметке через
+     * подстроку из [likePattern]. Поиск по названию счёта/категории проверяется отдельным
+     * `[БД]`-тестом ([com.corriente.data.db.TxnDaoSearchInstrumentedTest]) на настоящем FTS4.
+     */
+    override fun search(ftsQuery: String, likePattern: String): Flow<List<TxnEntity>> {
+        val needle = likePattern.removePrefix("%").removeSuffix("%")
+        return rows.map { list -> list.filter { needle.isNotEmpty() && it.note?.lowercase()?.contains(needle) == true } }
     }
 }

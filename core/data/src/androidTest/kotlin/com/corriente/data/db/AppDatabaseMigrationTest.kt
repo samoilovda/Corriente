@@ -63,4 +63,56 @@ class AppDatabaseMigrationTest {
         }
         db.close()
     }
+
+    // R2.1 — миграция v2 → v3 создаёт `txn_fts`, наполняет её существующими операциями и держит
+    // в синхроне через триггеры на будущих вставках/правках/удалениях.
+    @Test
+    fun migration2to3CreatesFtsTableAndBackfillsExistingNotes() {
+        helper.createDatabase(testDbName, 2).apply {
+            execSQL(
+                """
+                INSERT INTO currency(code, minor_units, display_scale, symbol, is_active, display_order)
+                VALUES ('RUB', 2, 2, '₽', 1, 0)
+                """.trimIndent(),
+            )
+            execSQL(
+                """
+                INSERT INTO account(id, name, currency_code, kind, opening_balance_minor, color, display_order, is_archived, include_in_total)
+                VALUES ('a1', 'Наличные', 'RUB', 'CASH', 0, 0, 0, 0, 1)
+                """.trimIndent(),
+            )
+            execSQL(
+                """
+                INSERT INTO txn(id, kind, date, created_at, updated_at, account_id, amount_minor, currency_code, note)
+                VALUES ('t1', 'EXPENSE', '2026-01-01', 0, 0, 'a1', 100, 'RUB', 'кофе с молоком')
+                """.trimIndent(),
+            )
+            close()
+        }
+
+        val db = helper.runMigrationsAndValidate(testDbName, 3, true, AppDatabase.MIGRATION_2_3)
+
+        // Существующая до миграции заметка нашлась поиском (бэкфилл).
+        db.query("SELECT docid FROM txn_fts WHERE txn_fts MATCH 'кофе*'").use { c ->
+            assertEquals(true, c.moveToFirst())
+        }
+
+        // Новая операция синхронизируется в txn_fts автоматически (AFTER INSERT).
+        db.execSQL(
+            """
+            INSERT INTO txn(id, kind, date, created_at, updated_at, account_id, amount_minor, currency_code, note)
+            VALUES ('t2', 'EXPENSE', '2026-01-02', 0, 0, 'a1', 200, 'RUB', 'такси домой')
+            """.trimIndent(),
+        )
+        db.query("SELECT docid FROM txn_fts WHERE txn_fts MATCH 'такси*'").use { c ->
+            assertEquals(true, c.moveToFirst())
+        }
+
+        // Удаление операции убирает её из индекса (BEFORE DELETE).
+        db.execSQL("DELETE FROM txn WHERE id = 't2'")
+        db.query("SELECT docid FROM txn_fts WHERE txn_fts MATCH 'такси*'").use { c ->
+            assertEquals(false, c.moveToFirst())
+        }
+        db.close()
+    }
 }

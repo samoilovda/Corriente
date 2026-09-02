@@ -18,6 +18,7 @@ import com.corriente.data.db.entity.CurrencyEntity
 import com.corriente.data.db.entity.ImportAliasEntity
 import com.corriente.data.db.entity.ImportBatchEntity
 import com.corriente.data.db.entity.TxnEntity
+import com.corriente.data.db.entity.TxnFtsEntity
 import com.corriente.data.seed.ISO_CURRENCIES
 
 /**
@@ -34,8 +35,9 @@ import com.corriente.data.seed.ISO_CURRENCIES
         ImportBatchEntity::class,
         ImportAliasEntity::class,
         AppSettingEntity::class,
+        TxnFtsEntity::class,
     ],
-    version = 2,
+    version = 3,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -51,7 +53,7 @@ abstract class AppDatabase : RoomDatabase() {
         const val DB_NAME = "corriente.db"
 
         /** Держать в синхроне с `version` в аннотации [Database]. */
-        const val SCHEMA_VERSION = 2
+        const val SCHEMA_VERSION = 3
 
         /**
          * v1 → v2 (F1.5): `category.import_batch_id` — чтобы откат импорта удалял только свои
@@ -63,7 +65,51 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
-        val ALL_MIGRATIONS: Array<Migration> = arrayOf(MIGRATION_1_2)
+        /**
+         * v2 → v3 (R2.1): полнотекстовый поиск по заметке. Виртуальная таблица `txn_fts`
+         * (FTS4, "external content" — content=`txn`) плюс четыре триггера синхронизации —
+         * ровно то, что Room сгенерировал бы сам при первой установке для
+         * `@Fts4(contentEntity = TxnEntity::class)` ([TxnFtsEntity]); здесь пишем руками, потому
+         * что миграция не может положиться на `onCreate`. `INSERT ... SELECT rowid, note FROM txn`
+         * наполняет индекс из уже существующих операций — иначе введённые до этой версии заметки
+         * не находились бы поиском, пока их не отредактируют.
+         */
+        val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("CREATE VIRTUAL TABLE IF NOT EXISTS `txn_fts` USING FTS4(`note`, content=`txn`)")
+                db.execSQL("INSERT INTO `txn_fts`(`docid`, `note`) SELECT `rowid`, `note` FROM `txn`")
+                db.execSQL(
+                    """
+                    CREATE TRIGGER IF NOT EXISTS `room_fts_content_sync_txn_fts_BEFORE_UPDATE` BEFORE UPDATE ON `txn` BEGIN
+                    DELETE FROM `txn_fts` WHERE `docid`=OLD.`rowid`;
+                    END
+                    """.trimIndent(),
+                )
+                db.execSQL(
+                    """
+                    CREATE TRIGGER IF NOT EXISTS `room_fts_content_sync_txn_fts_BEFORE_DELETE` BEFORE DELETE ON `txn` BEGIN
+                    DELETE FROM `txn_fts` WHERE `docid`=OLD.`rowid`;
+                    END
+                    """.trimIndent(),
+                )
+                db.execSQL(
+                    """
+                    CREATE TRIGGER IF NOT EXISTS `room_fts_content_sync_txn_fts_AFTER_UPDATE` AFTER UPDATE ON `txn` BEGIN
+                    INSERT INTO `txn_fts`(`docid`, `note`) VALUES (NEW.`rowid`, NEW.`note`);
+                    END
+                    """.trimIndent(),
+                )
+                db.execSQL(
+                    """
+                    CREATE TRIGGER IF NOT EXISTS `room_fts_content_sync_txn_fts_AFTER_INSERT` AFTER INSERT ON `txn` BEGIN
+                    INSERT INTO `txn_fts`(`docid`, `note`) VALUES (NEW.`rowid`, NEW.`note`);
+                    END
+                    """.trimIndent(),
+                )
+            }
+        }
+
+        val ALL_MIGRATIONS: Array<Migration> = arrayOf(MIGRATION_1_2, MIGRATION_2_3)
 
         /**
          * Сеет полный справочник ISO-4217 при создании файла БД (I-14). Выполняется как сырой

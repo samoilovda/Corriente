@@ -1,5 +1,7 @@
 package com.corriente.data.repository
 
+import com.corriente.data.db.buildFtsPrefixQuery
+import com.corriente.data.db.buildLikePattern
 import com.corriente.data.db.dao.AccountDao
 import com.corriente.data.db.dao.TxnDao
 import com.corriente.data.db.entity.TxnEntity
@@ -45,6 +47,15 @@ class TxnRepository(
 
     fun observeForAccount(accountId: String): Flow<List<Txn>> =
         txnDao.observeForAccount(accountId).map { list -> list.map { it.toDomain() } }
+
+    /**
+     * R2.1: полнотекстовый поиск по всей истории (не ограничен окном `observeRange`) — заметка
+     * через FTS4 `MATCH`, название счёта/категории через `LIKE`. Пустая строка не должна сюда
+     * попадать — вызывающий (`TransactionsViewModel`) переключается на неё только когда есть
+     * непустой текст запроса.
+     */
+    fun search(query: String): Flow<List<Txn>> =
+        txnDao.search(buildFtsPrefixQuery(query), buildLikePattern(query)).map { list -> list.map { it.toDomain() } }
 
     suspend fun addExpense(accountId: String, amount: Money, categoryId: String?, date: LocalDate, note: String? = null): Txn {
         val now = System.currentTimeMillis()
