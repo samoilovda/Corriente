@@ -15,6 +15,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ShowChart
 import androidx.compose.material.icons.filled.Unarchive
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenuItem
@@ -61,6 +62,7 @@ import com.corriente.money.MoneyFormatter
 @Composable
 fun AccountsScreen(
     onOpenAutoBackup: () -> Unit = {},
+    onOpenAccountBalance: (String) -> Unit = {},
     viewModel: AccountsViewModel = viewModel(
         factory = with(corrienteContainer()) {
             AccountsViewModel.factory(accountRepository, currencyRepository, accountBalanceUseCase)
@@ -108,6 +110,7 @@ fun AccountsScreen(
                         color = row.account.color,
                         icon = row.account.icon,
                         onClick = { viewModel.startEdit(row.account) },
+                        onOpenBalanceChart = { onOpenAccountBalance(row.account.id) },
                     )
                     HorizontalDivider()
                 }
@@ -170,9 +173,10 @@ private fun AccountListRow(
     color: Int,
     icon: String?,
     onClick: () -> Unit,
+    onOpenBalanceChart: () -> Unit,
 ) {
     Row(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(16.dp),
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(start = 16.dp, end = 4.dp, top = 16.dp, bottom = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
@@ -192,6 +196,11 @@ private fun AccountListRow(
             Text(subtitle, style = MaterialTheme.typography.bodySmall)
         }
         Text(trailing)
+        // R3.2: график остатка счёта по дням — отдельный тап, не конфликтует с открытием
+        // редактора счёта по тапу на всю строку.
+        IconButton(onClick = onOpenBalanceChart) {
+            Icon(Icons.Filled.ShowChart, contentDescription = stringResource(R.string.account_balance_chart))
+        }
     }
 }
 

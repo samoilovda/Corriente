@@ -19,6 +19,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.corriente.app.ui.accountbalance.AccountBalanceScreen
 import com.corriente.app.ui.accounts.AccountsScreen
 import com.corriente.app.ui.budgets.BudgetsScreen
 import com.corriente.app.ui.categories.CategoriesScreen
@@ -46,6 +47,7 @@ private const val AUTOBACKUP_ROUTE = "autobackup"
 private const val BUDGETS_ROUTE = "budgets"
 private const val RECURRING_ROUTE = "recurring"
 private const val FX_REPORT_ROUTE = "fx_report"
+private const val ACCOUNT_BALANCE_ROUTE = "account_balance"
 private const val TXN_ENTRY_ROUTE = "txn_entry"
 private const val TXN_EDIT_ROUTE = "txn_edit"
 private const val TRANSFER_ROUTE = "transfer"
@@ -102,7 +104,19 @@ fun CorrienteNavHost() {
                 )
             }
             composable(CorrienteDestination.ACCOUNTS.route) {
-                AccountsScreen(onOpenAutoBackup = { navController.navigate(AUTOBACKUP_ROUTE) })
+                AccountsScreen(
+                    onOpenAutoBackup = { navController.navigate(AUTOBACKUP_ROUTE) },
+                    onOpenAccountBalance = { accountId -> navController.navigate("$ACCOUNT_BALANCE_ROUTE/$accountId") },
+                )
+            }
+            composable(
+                "$ACCOUNT_BALANCE_ROUTE/{accountId}",
+                arguments = listOf(navArgument("accountId") { type = NavType.StringType }),
+            ) { entry ->
+                AccountBalanceScreen(
+                    onBack = { navController.popBackStack() },
+                    initialAccountId = entry.arguments?.getString("accountId"),
+                )
             }
             composable(CorrienteDestination.REPORT.route) {
                 ReportScreen(

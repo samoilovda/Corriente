@@ -22,17 +22,23 @@ data class AccountBalance(val account: Account, val balance: Money)
 fun accountBalance(account: Account, transactions: List<Txn>): Money {
     var balance = account.openingBalance
     for (txn in transactions) {
-        balance = when (txn) {
-            is Txn.Income -> if (txn.accountId == account.id) balance + txn.amount else balance
-            is Txn.Expense -> if (txn.accountId == account.id) balance - txn.amount else balance
-            is Txn.Transfer -> when (account.id) {
-                txn.fromAccountId -> balance - txn.fromAmount
-                txn.toAccountId -> balance + txn.toAmount
-                else -> balance
-            }
-        }
+        balance = applyToBalance(balance, account, txn)
     }
     return balance
+}
+
+/**
+ * Один шаг накопления баланса — вынесен из [accountBalance], чтобы [balanceSeries] (R3.2)
+ * считал тот же баланс день за днём той же логикой, а не дублировал ветвление по [Txn].
+ */
+internal fun applyToBalance(balance: Money, account: Account, txn: Txn): Money = when (txn) {
+    is Txn.Income -> if (txn.accountId == account.id) balance + txn.amount else balance
+    is Txn.Expense -> if (txn.accountId == account.id) balance - txn.amount else balance
+    is Txn.Transfer -> when (account.id) {
+        txn.fromAccountId -> balance - txn.fromAmount
+        txn.toAccountId -> balance + txn.toAmount
+        else -> balance
+    }
 }
 
 /** Сумма по валюте среди активных счетов, помеченных include_in_total (главный экран, T1.7). */
