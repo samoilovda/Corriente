@@ -90,7 +90,8 @@ class BackupRepository(private val db: AppDatabase) {
     }
 
     companion object {
-        const val SCHEMA_VERSION = 1
+        // v2: category.import_batch_id (F1.5). Держать в синхроне с AppDatabase.SCHEMA_VERSION.
+        const val SCHEMA_VERSION = 2
 
         /**
          * Проверка полезной нагрузки бэкапа до записи (F1.4). Чистая функция — тестируется без БД.
@@ -173,10 +174,11 @@ internal fun AccountBackup.toEntity() = AccountEntity(
 )
 
 internal fun CategoryEntity.toBackup() = CategoryBackup(
-    id, name, kind.name, parentId, color, icon, origin.name, displayOrder, isArchived,
+    id, name, kind.name, parentId, color, icon, origin.name, displayOrder, isArchived, importBatchId,
 )
 internal fun CategoryBackup.toEntity() = CategoryEntity(
-    id, name, CategoryKind.valueOf(kind), parentId, color, icon, CategoryOrigin.valueOf(origin), displayOrder, isArchived,
+    id, name, CategoryKind.valueOf(kind), parentId, color, icon,
+    CategoryOrigin.valueOf(origin), displayOrder, isArchived, importBatchId,
 )
 
 internal fun TxnEntity.toBackup() = TxnBackup(

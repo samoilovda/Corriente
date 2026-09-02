@@ -23,6 +23,7 @@ import com.corriente.app.ui.categories.CategoriesScreen
 import com.corriente.app.ui.autobackup.AutoBackupScreen
 import com.corriente.app.ui.currencies.CurrenciesScreen
 import com.corriente.app.ui.fxreport.FxReportScreen
+import com.corriente.app.ui.imports.ImportHistoryScreen
 import com.corriente.app.ui.imports.ImportScreen
 import com.corriente.app.ui.report.ReportScreen
 import com.corriente.app.ui.settings.SettingsScreen
@@ -36,6 +37,7 @@ import com.corriente.app.ui.txnentry.TxnEntryScreen
 private const val CURRENCIES_ROUTE = "currencies"
 private const val CATEGORIES_ROUTE = "categories"
 private const val IMPORT_ROUTE = "import_monefy"
+private const val IMPORT_HISTORY_ROUTE = "import_history"
 private const val WIDGET_SETTINGS_ROUTE = "widget_settings"
 private const val AUTOBACKUP_ROUTE = "autobackup"
 private const val FX_REPORT_ROUTE = "fx_report"
@@ -107,6 +109,7 @@ fun CorrienteNavHost() {
                     onOpenCurrencies = { navController.navigate(CURRENCIES_ROUTE) },
                     onOpenCategories = { navController.navigate(CATEGORIES_ROUTE) },
                     onOpenImport = { navController.navigate(IMPORT_ROUTE) },
+                    onOpenImportHistory = { navController.navigate(IMPORT_HISTORY_ROUTE) },
                     onOpenWidgetSettings = { navController.navigate(WIDGET_SETTINGS_ROUTE) },
                     onOpenAutoBackup = { navController.navigate(AUTOBACKUP_ROUTE) },
                 )
@@ -116,6 +119,9 @@ fun CorrienteNavHost() {
             }
             composable(IMPORT_ROUTE) {
                 ImportScreen(onBack = { navController.popBackStack() })
+            }
+            composable(IMPORT_HISTORY_ROUTE) {
+                ImportHistoryScreen(onBack = { navController.popBackStack() })
             }
             composable(WIDGET_SETTINGS_ROUTE) {
                 WidgetSettingsScreen(onBack = { navController.popBackStack() })

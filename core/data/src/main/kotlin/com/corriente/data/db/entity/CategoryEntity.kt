@@ -50,4 +50,11 @@ data class CategoryEntity(
     val displayOrder: Int = 0,
     @ColumnInfo(name = "is_archived", defaultValue = "0")
     val isArchived: Boolean = false,
+    /**
+     * Батч импорта, создавший эту категорию (origin = IMPORT). Нужен, чтобы откат импорта
+     * удалял только свои осиротевшие категории, а не все IMPORT-категории всех батчей (F1.5).
+     * Схема v2.
+     */
+    @ColumnInfo(name = "import_batch_id")
+    val importBatchId: String? = null,
 )

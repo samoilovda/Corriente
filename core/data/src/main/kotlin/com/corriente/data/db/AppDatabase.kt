@@ -2,6 +2,7 @@ package com.corriente.data.db
 
 import androidx.room.Database
 import androidx.room.RoomDatabase
+import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.corriente.data.db.dao.AccountDao
 import com.corriente.data.db.dao.AppSettingDao
@@ -34,7 +35,7 @@ import com.corriente.data.seed.ISO_CURRENCIES
         ImportAliasEntity::class,
         AppSettingEntity::class,
     ],
-    version = 1,
+    version = 2,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -50,7 +51,19 @@ abstract class AppDatabase : RoomDatabase() {
         const val DB_NAME = "corriente.db"
 
         /** Держать в синхроне с `version` в аннотации [Database]. */
-        const val SCHEMA_VERSION = 1
+        const val SCHEMA_VERSION = 2
+
+        /**
+         * v1 → v2 (F1.5): `category.import_batch_id` — чтобы откат импорта удалял только свои
+         * осиротевшие IMPORT-категории. Nullable-колонка, старые строки получают NULL.
+         */
+        val MIGRATION_1_2 = object : Migration(1, 2) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE category ADD COLUMN import_batch_id TEXT")
+            }
+        }
+
+        val ALL_MIGRATIONS: Array<Migration> = arrayOf(MIGRATION_1_2)
 
         /**
          * Сеет полный справочник ISO-4217 при создании файла БД (I-14). Выполняется как сырой

@@ -68,6 +68,16 @@ AGP 9 использует встроенный Kotlin (built-in Kotlin) — п�
 в `core/data/schemas/` при каждой сборке — файлы коммитятся. Они дают
 `MigrationTestHelper` эталон, с которым сверяется схема при каждой следующей миграции.
 
+Текущая версия схемы — **v2**. Миграции (`AppDatabase.ALL_MIGRATIONS`, тесты в
+`AppDatabaseMigrationTest`):
+
+| | Что |
+|---|---|
+| `MIGRATION_1_2` | `category.import_batch_id` — откат импорта чистит только свои категории (F1.5) |
+
+`fallbackToDestructiveMigration` запрещён навсегда (I-20). Перед применением миграции
+`PreMigrationBackup` копирует файл БД в `databases/pre-migration/`.
+
 ### Бэкап
 
 Экспорт/восстановление — полный JSON БД в файл, выбранный пользователем (SAF, без сети, I-24).

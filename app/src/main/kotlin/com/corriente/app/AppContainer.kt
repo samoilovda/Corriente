@@ -33,6 +33,7 @@ class AppContainer(context: Context) {
         PreMigrationBackup.runIfNeeded(appContext, AppDatabase.DB_NAME, AppDatabase.SCHEMA_VERSION)
         Room.databaseBuilder(appContext, AppDatabase::class.java, AppDatabase.DB_NAME)
             .addCallback(AppDatabase.seedCallback())
+            .addMigrations(*AppDatabase.ALL_MIGRATIONS)
             .build()
     }
 

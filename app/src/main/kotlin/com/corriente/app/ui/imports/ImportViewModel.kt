@@ -7,6 +7,7 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.corriente.data.imports.MonefyCsvParser
 import com.corriente.data.imports.MonefyImportPlan
 import com.corriente.data.imports.MonefyImportPlanner
+import com.corriente.data.imports.MonefyImportReport
 import com.corriente.data.imports.MonefyImportRepository
 import com.corriente.data.imports.ReviewDecision
 import com.corriente.data.imports.ReviewReason
@@ -101,7 +102,18 @@ class ImportViewModel(private val importer: MonefyImportRepository) : ViewModel(
         _state.value = ImportUiState.Working
         viewModelScope.launch(Dispatchers.IO) {
             _state.value = runCatching {
-                val result = importer.import(p.applyReviewDecisions(decisions), fileName)
+                val finalPlan = p.applyReviewDecisions(decisions)
+                val summary = finalPlan.toImportSummary()
+                val report = MonefyImportReport(
+                    accounts = summary.accounts,
+                    categories = summary.categories,
+                    operations = summary.operations,
+                    transfers = summary.transfers,
+                    unpairedHalves = summary.unpairedHalves,
+                    reviews = summary.reviews.size,
+                    errors = summary.errors.size,
+                )
+                val result = importer.import(finalPlan, fileName, report.encode())
                 ImportUiState.Done(result.inserted, result.skipped)
             }.getOrElse { ImportUiState.Failed(it.message ?: "ошибка записи") }
         }

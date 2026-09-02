@@ -106,6 +106,40 @@ class MonefyImportRepositoryInstrumentedTest {
         assertTrue(db.txnDao().observeAll().first().all { it.currencyCode == curByAcc[it.accountId] })
     }
 
+    // F1.5 — откат одного импорта не задевает категории другого.
+    @Test
+    fun rollbackOfOneBatchLeavesTheOthersCategoriesAlone() = runBlocking {
+        fun plan(account: String, category: String, key: String) = MonefyImportPlan(
+            accounts = listOf(
+                com.corriente.data.imports.PlannedAccount(account, com.corriente.money.CurrencyCode("RUB"), 0L),
+            ),
+            categories = listOf(category),
+            plainTxns = listOf(
+                com.corriente.data.imports.PlannedTxn(
+                    line = 1, date = java.time.LocalDate.of(2026, 1, 1), account = account, category = category,
+                    amountMinor = 100L, currency = com.corriente.money.CurrencyCode("RUB"),
+                    kind = MonefyTxnKind.EXPENSE, naturalKey = key,
+                ),
+            ),
+            transfers = emptyList(), reviews = emptyList(), errors = emptyList(),
+        )
+
+        val first = repo.import(plan("Cash", "Еда", "k-a"), "a.csv")
+        repo.import(plan("Cash", "Транспорт", "k-b"), "b.csv")
+
+        // «Транспорт» второго батча осиротела (пользователь снял категорию с операции).
+        val secondTxn = db.txnDao().observeAll().first().first { it.importHash != null && it.categoryId != null &&
+            db.categoryDao().getById(it.categoryId!!)?.name == "Транспорт" }
+        db.txnDao().update(secondTxn.copy(categoryId = null))
+
+        repo.rollback(first.batchId)
+
+        val categories = db.categoryDao().observeAll().first().map { it.name }
+        assertEquals(false, categories.contains("Еда"))      // осиротевшая категория первого батча удалена
+        assertEquals(true, categories.contains("Транспорт")) // осиротевшая категория ДРУГОГО батча не тронута
+        assertEquals(1, db.importBatchDao().getAll().size)
+    }
+
     // F1.2 — импорт проходит через requireValidTxn; битая строка откатывает весь батч.
     @Test
     fun invalidRowRollsBackTheWholeBatch() = runBlocking {

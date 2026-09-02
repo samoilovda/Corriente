@@ -60,6 +60,8 @@ data class CategoryBackup(
     val origin: String,
     val displayOrder: Int,
     val isArchived: Boolean,
+    /** Схема v2 (F1.5). Старые файлы без поля → null. */
+    val importBatchId: String? = null,
 )
 
 @Serializable

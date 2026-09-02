@@ -11,7 +11,9 @@ import com.corriente.data.db.entity.CurrencyEntity
 import com.corriente.data.db.entity.ImportBatchEntity
 import com.corriente.data.db.entity.TxnEntity
 import com.corriente.data.db.entity.TxnKind
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import java.security.MessageDigest
 import java.util.UUID
 
@@ -25,6 +27,21 @@ import java.util.UUID
 class MonefyImportRepository(private val db: AppDatabase) {
 
     data class ImportResult(val batchId: String, val inserted: Int, val skipped: Int)
+
+    /** Запись истории импортов для экрана «История импортов» (F1.5). */
+    data class ImportBatchInfo(
+        val id: String,
+        val fileName: String,
+        val importedAt: Long,
+        val rowCount: Int,
+        val report: MonefyImportReport,
+    )
+
+    fun observeBatches(): Flow<List<ImportBatchInfo>> = db.importBatchDao().observeAll().map { list ->
+        list.map {
+            ImportBatchInfo(it.id, it.fileName, it.importedAt, it.rowCount, MonefyImportReport.decode(it.reportJson))
+        }
+    }
 
     /** Счета приложения (имя → валюта) — для [MonefyImportPlanner.plan] на шаге dry-run (F0.5). */
     suspend fun existingAccountCurrencies(): List<Pair<String, com.corriente.money.CurrencyCode>> =
@@ -101,7 +118,10 @@ class MonefyImportRepository(private val db: AppDatabase) {
                 }
                 val id = UUID.randomUUID().toString()
                 db.categoryDao().insert(
-                    CategoryEntity(id = id, name = name, kind = kind, color = 0, origin = CategoryOrigin.IMPORT),
+                    CategoryEntity(
+                        id = id, name = name, kind = kind, color = 0,
+                        origin = CategoryOrigin.IMPORT, importBatchId = batchId,
+                    ),
                 )
                 categoryId[name to kind] = id
                 return id
@@ -157,11 +177,14 @@ class MonefyImportRepository(private val db: AppDatabase) {
         return ImportResult(batchId, inserted, skipped)
     }
 
-    /** Откат: удалить все операции батча, осиротевшие IMPORT-категории и сам батч. */
+    /**
+     * Откат: удалить операции батча, осиротевшие IMPORT-категории **этого** батча и сам батч.
+     * Категории и операции прошлых импортов не трогаются (F1.5).
+     */
     suspend fun rollback(batchId: String) {
         db.withTransaction {
             db.txnDao().deleteByImportBatch(batchId)
-            db.importBatchDao().deleteOrphanedImportCategories()
+            db.importBatchDao().deleteOrphanedImportCategoriesForBatch(batchId)
             db.importBatchDao().getAll().firstOrNull { it.id == batchId }?.let { db.importBatchDao().delete(it) }
         }
     }

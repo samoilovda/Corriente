@@ -34,6 +34,7 @@ fun SettingsScreen(
     onOpenCurrencies: () -> Unit,
     onOpenCategories: () -> Unit,
     onOpenImport: () -> Unit,
+    onOpenImportHistory: () -> Unit,
     onOpenWidgetSettings: () -> Unit,
     onOpenAutoBackup: () -> Unit,
     backupViewModel: BackupViewModel = viewModel(
@@ -77,6 +78,11 @@ fun SettingsScreen(
                 headlineContent = { Text(stringResource(R.string.import_monefy)) },
                 supportingContent = { Text(stringResource(R.string.import_monefy_hint)) },
                 modifier = Modifier.clickable(onClick = onOpenImport),
+            )
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.import_history_title)) },
+                supportingContent = { Text(stringResource(R.string.import_history_hint)) },
+                modifier = Modifier.clickable(onClick = onOpenImportHistory),
             )
             HorizontalDivider()
             ListItem(
