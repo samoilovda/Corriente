@@ -73,6 +73,7 @@ class TxnEntryViewModelTest {
         fakes: Fakes,
         editingTxnId: String? = null,
         initialKind: EntryKind = EntryKind.EXPENSE,
+        savedStateHandle: androidx.lifecycle.SavedStateHandle = androidx.lifecycle.SavedStateHandle(),
     ): TxnEntryViewModel = TxnEntryViewModel(
         txns = TxnRepository(fakes.txnDao, fakes.accountDao),
         accounts = AccountRepository(fakes.accountDao),
@@ -81,6 +82,7 @@ class TxnEntryViewModelTest {
         editingTxnId = editingTxnId,
         initialKind = initialKind,
         today = { today },
+        savedStateHandle = savedStateHandle,
     )
 
     private fun CoroutineScope.observe(model: TxnEntryViewModel) {
@@ -548,5 +550,52 @@ class TxnEntryViewModelTest {
         assertNull(editor.pendingUndo.value)
         assertTrue(editor.finished.value)
         assertTrue(fakes.txnDao.rows.value.isEmpty())
+    }
+
+    // R5.4: устойчивость к пересозданию процесса — форма живёт в SavedStateHandle, а не только
+    // в MutableStateFlow, который «Не сохранять действия» уничтожает вместе с процессом.
+    @Test
+    fun `constructing with a pre-populated SavedStateHandle restores amount, category and note`() =
+        runTest(dispatcher) {
+            val fakes = Fakes().apply { seed() }
+            val savedState = androidx.lifecycle.SavedStateHandle(
+                mapOf(
+                    "txn_entry.kind" to EntryKind.EXPENSE.name,
+                    "txn_entry.amount_text" to "12.50",
+                    "txn_entry.account_id" to "acc-rub",
+                    "txn_entry.category_id" to "cat-food",
+                    "txn_entry.date" to today.toString(),
+                    "txn_entry.note" to "восстановлено после смерти процесса",
+                ),
+            )
+            val model = vm(fakes, savedStateHandle = savedState)
+            backgroundScope.observe(model)
+            advanceUntilIdle()
+
+            assertEquals("12.50", model.uiState.value.amountText)
+            assertEquals("acc-rub", model.uiState.value.selectedAccountId)
+            assertEquals("cat-food", model.uiState.value.selectedCategoryId)
+            assertEquals("восстановлено после смерти процесса", model.uiState.value.note)
+            assertTrue(model.uiState.value.canSave)
+        }
+
+    @Test
+    fun `every form field is mirrored into SavedStateHandle as it changes`() = runTest(dispatcher) {
+        val fakes = Fakes().apply { seed() }
+        val savedState = androidx.lifecycle.SavedStateHandle()
+        val model = vm(fakes, savedStateHandle = savedState)
+        backgroundScope.observe(model)
+        advanceUntilIdle()
+
+        model.selectCategory("cat-food")
+        model.pressDigit('7'); model.pressDigit('5')
+        model.setNote("такси")
+        advanceUntilIdle()
+
+        assertEquals("75", savedState.get<String>("txn_entry.amount_text"))
+        assertEquals("cat-food", savedState.get<String>("txn_entry.category_id"))
+        assertEquals("такси", savedState.get<String>("txn_entry.note"))
+        assertEquals("acc-rub", savedState.get<String>("txn_entry.account_id"))
+        assertEquals(EntryKind.EXPENSE.name, savedState.get<String>("txn_entry.kind"))
     }
 }

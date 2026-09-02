@@ -1,6 +1,8 @@
 package com.corriente.app.ui.txnentry
 
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.viewmodel.compose.createSavedStateHandle
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.corriente.app.ui.common.WritingViewModel
@@ -127,6 +129,13 @@ class TxnEntryViewModel(
     private val editingTxnId: String? = null,
     initialKind: EntryKind = EntryKind.EXPENSE,
     private val today: () -> LocalDate = LocalDate::now,
+    /**
+     * R5.4: форма живёт здесь, а не только в [form] — `SavedStateHandle` переживает убийство
+     * процесса («Не сохранять действия» в параметрах разработчика), обычный `MutableStateFlow`
+     * внутри ViewModel нет. Часть уже подключённого `lifecycle-viewmodel` (ROADMAP.md §7,
+     * R5.4) — новой зависимости не требует.
+     */
+    private val savedStateHandle: SavedStateHandle = SavedStateHandle(),
 ) : WritingViewModel() {
 
     private data class Form(
@@ -139,6 +148,29 @@ class TxnEntryViewModel(
         val date: LocalDate,
         val note: String = "",
     )
+
+    /** Ключи в [savedStateHandle] — префикс на случай, если когда-нибудь появится общий Bundle. */
+    private object SavedKeys {
+        const val KIND = "txn_entry.kind"
+        const val AMOUNT_TEXT = "txn_entry.amount_text"
+        const val CALC_ACC = "txn_entry.calc_acc"
+        const val CALC_OP = "txn_entry.calc_op"
+        const val ACCOUNT_ID = "txn_entry.account_id"
+        const val CATEGORY_ID = "txn_entry.category_id"
+        const val DATE = "txn_entry.date"
+        const val NOTE = "txn_entry.note"
+    }
+
+    private fun persistForm(f: Form) {
+        savedStateHandle[SavedKeys.KIND] = f.kind.name
+        savedStateHandle[SavedKeys.AMOUNT_TEXT] = f.amount.displayText()
+        savedStateHandle[SavedKeys.CALC_ACC] = f.calcAcc
+        savedStateHandle[SavedKeys.CALC_OP] = f.calcOp?.name
+        savedStateHandle[SavedKeys.ACCOUNT_ID] = f.selectedAccountId
+        savedStateHandle[SavedKeys.CATEGORY_ID] = f.selectedCategoryId
+        savedStateHandle[SavedKeys.DATE] = f.date.toString()
+        savedStateHandle[SavedKeys.NOTE] = f.note
+    }
 
     private val form = MutableStateFlow(Form(kind = initialKind, date = today()))
 
@@ -159,7 +191,16 @@ class TxnEntryViewModel(
     val isEditing: Boolean get() = editingTxnId != null
 
     init {
-        if (editingTxnId != null) {
+        // R5.4: каждое изменение формы зеркалится в SavedStateHandle — переживает и
+        // сворачивание с пересозданием процесса, и обычный поворот экрана.
+        viewModelScope.launch { form.collect(::persistForm) }
+
+        // R5.4: SavedStateHandle, заполненный в предыдущей жизни процесса, важнее свежей
+        // загрузки из БД — иначе непроверенные правки пользователя (в т.ч. при редактировании
+        // существующей операции) терялись бы точно так же, как до этой задачи.
+        if (savedStateHandle.get<String>(SavedKeys.KIND) != null) {
+            viewModelScope.launch { form.value = restoreFormFromSavedState() }
+        } else if (editingTxnId != null) {
             viewModelScope.launch {
                 val existing = txns.getById(editingTxnId) ?: return@launch
                 val (kind, accountId, amount, categoryId) = when (existing) {
@@ -179,6 +220,32 @@ class TxnEntryViewModel(
                 )
             }
         }
+    }
+
+    /**
+     * R5.4: сумма хранится как её [AmountInput.displayText] — тот же приём, что уже используется
+     * при смене счёта в [selectAccount] (`AmountInput.fromText(f.amount.displayText(), ...)`),
+     * только валюта здесь берётся из счёта, восстановленного из того же SavedStateHandle.
+     */
+    private suspend fun restoreFormFromSavedState(): Form {
+        val kind = savedStateHandle.get<String>(SavedKeys.KIND)?.let(EntryKind::valueOf) ?: EntryKind.EXPENSE
+        val accountId = savedStateHandle.get<String>(SavedKeys.ACCOUNT_ID)
+        val account = accountId?.let { accounts.getById(it) }
+        val currency = account?.let {
+            currencies.getByCode(it.currency)
+                ?: Currency(it.currency, minorUnits = 2, displayScale = 2, symbol = it.currency.code)
+        }
+        val amountText = savedStateHandle.get<String>(SavedKeys.AMOUNT_TEXT).orEmpty()
+        return Form(
+            kind = kind,
+            amount = if (currency != null) AmountInput.fromText(amountText, currency) else AmountInput.empty(),
+            calcAcc = savedStateHandle.get<Long>(SavedKeys.CALC_ACC),
+            calcOp = savedStateHandle.get<String>(SavedKeys.CALC_OP)?.let(CalcOp::valueOf),
+            selectedAccountId = accountId,
+            selectedCategoryId = savedStateHandle.get<String>(SavedKeys.CATEGORY_ID),
+            date = savedStateHandle.get<String>(SavedKeys.DATE)?.let(LocalDate::parse) ?: today(),
+            note = savedStateHandle.get<String>(SavedKeys.NOTE).orEmpty(),
+        )
     }
 
     private data class Quad(
@@ -407,7 +474,12 @@ class TxnEntryViewModel(
             editingTxnId: String? = null,
             initialKind: EntryKind = EntryKind.EXPENSE,
         ) = viewModelFactory {
-            initializer { TxnEntryViewModel(txns, accounts, categories, currencies, editingTxnId, initialKind) }
+            initializer {
+                // R5.4: createSavedStateHandle() — расширение на CreationExtras, доступное здесь
+                // потому что NavBackStackEntry/ComponentActivity, из которых viewModel(...) берёт
+                // extras, сами являются SavedStateRegistryOwner (navigation-compose 2.9.0).
+                TxnEntryViewModel(txns, accounts, categories, currencies, editingTxnId, initialKind, savedStateHandle = createSavedStateHandle())
+            }
         }
     }
 }
