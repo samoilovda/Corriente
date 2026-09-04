@@ -23,6 +23,7 @@ import com.corriente.data.db.entity.ImportBatchEntity
 import com.corriente.data.db.entity.RecurrenceEntity
 import com.corriente.data.db.entity.TxnEntity
 import com.corriente.data.db.entity.TxnFtsEntity
+import com.corriente.data.seed.DEFAULT_CATEGORIES
 import com.corriente.data.seed.ISO_CURRENCIES
 
 /**
@@ -43,7 +44,7 @@ import com.corriente.data.seed.ISO_CURRENCIES
         BudgetEntity::class,
         RecurrenceEntity::class,
     ],
-    version = 5,
+    version = 6,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -61,7 +62,7 @@ abstract class AppDatabase : RoomDatabase() {
         const val DB_NAME = "corriente.db"
 
         /** Держать в синхроне с `version` в аннотации [Database]. */
-        const val SCHEMA_VERSION = 5
+        const val SCHEMA_VERSION = 6
 
         /**
          * v1 → v2 (F1.5): `category.import_batch_id` — чтобы откат импорта удалял только свои
@@ -179,7 +180,46 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
-        val ALL_MIGRATIONS: Array<Migration> = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+        /**
+         * v5 → v6 (доработка после R6): базовые типовые категории «из коробки». Структура схемы
+         * не меняется — только данные: вставляем [DEFAULT_CATEGORIES], но лишь если таблица
+         * `category` пуста, чтобы не спорить с уже заведёнными категориями и не упереться в
+         * уникальный индекс (name, kind). Тот же набор при первой установке кладёт [seedCallback].
+         */
+        val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                seedDefaultCategoriesIfEmpty(db)
+            }
+        }
+
+        val ALL_MIGRATIONS: Array<Migration> =
+            arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
+
+        /**
+         * Вставляет [DEFAULT_CATEGORIES] сырым SQL — только когда в `category` нет ни одной строки.
+         * Общий код для [seedCallback] (первая установка) и [MIGRATION_5_6] (уже установленные
+         * копии). `origin = 'USER'`, `import_batch_id = NULL` — обычные пользовательские категории.
+         */
+        private fun seedDefaultCategoriesIfEmpty(db: SupportSQLiteDatabase) {
+            db.query("SELECT COUNT(*) FROM category").use { c ->
+                if (!c.moveToFirst() || c.getInt(0) != 0) return
+            }
+            db.beginTransaction()
+            try {
+                DEFAULT_CATEGORIES.forEachIndexed { index, cat ->
+                    db.execSQL(
+                        """
+                        INSERT INTO category(id, name, kind, parent_id, color, icon, origin, display_order, is_archived, import_batch_id)
+                        VALUES (?, ?, ?, NULL, ?, ?, 'USER', ?, 0, NULL)
+                        """.trimIndent(),
+                        arrayOf<Any>(cat.id, cat.name, cat.kind.name, cat.color, cat.icon, index),
+                    )
+                }
+                db.setTransactionSuccessful()
+            } finally {
+                db.endTransaction()
+            }
+        }
 
         /**
          * Сеет полный справочник ISO-4217 при создании файла БД (I-14). Выполняется как сырой
@@ -209,6 +249,9 @@ abstract class AppDatabase : RoomDatabase() {
                 } finally {
                     db.endTransaction()
                 }
+                // Типовые категории «из коробки» — тот же набор, что кладёт миграция v5→v6
+                // для уже установленных копий (своя транзакция внутри).
+                seedDefaultCategoriesIfEmpty(db)
             }
         }
     }

@@ -122,9 +122,10 @@ class BackupRepository(private val db: AppDatabase) : BackupIo {
 
     companion object {
         // v2: category.import_batch_id (F1.5). v3: txn_fts (R2.1, не входит в бэкап — производный
-        // кэш, I-9). v4: budget (R2.3). v5: recurrence (R2.4). Держать в синхроне с
+        // кэш, I-9). v4: budget (R2.3). v5: recurrence (R2.4). v6: только данные — типовые
+        // категории «из коробки», структура бэкапа не меняется. Держать в синхроне с
         // AppDatabase.SCHEMA_VERSION.
-        const val SCHEMA_VERSION = 5
+        const val SCHEMA_VERSION = 6
 
         private val json = Json { prettyPrint = true; ignoreUnknownKeys = true }
 

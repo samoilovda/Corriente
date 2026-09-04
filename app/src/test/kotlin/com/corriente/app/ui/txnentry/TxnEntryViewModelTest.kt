@@ -155,6 +155,44 @@ class TxnEntryViewModelTest {
     }
 
     @Test
+    fun `calculator multiplies an amount by a plain number`() = runTest(dispatcher) {
+        val fakes = Fakes().apply { seed() }
+        val model = vm(fakes)
+        backgroundScope.observe(model)
+        advanceUntilIdle()
+
+        // 12.50 × 3 = 37.50 (второй операнд — множитель, не сумма)
+        model.pressDigit('1'); model.pressDigit('2'); model.pressDecimalPoint(); model.pressDigit('5')
+        model.pressOp(com.corriente.money.CalcOp.TIMES)
+        model.pressDigit('3')
+        model.pressEquals()
+        advanceUntilIdle()
+
+        assertTrue(model.save())
+        advanceUntilIdle()
+        assertEquals(3750L, fakes.txnDao.rows.value.single().amountMinor)
+    }
+
+    @Test
+    fun `calculator divides an amount by a plain number`() = runTest(dispatcher) {
+        val fakes = Fakes().apply { seed() }
+        val model = vm(fakes)
+        backgroundScope.observe(model)
+        advanceUntilIdle()
+
+        // 100.00 ÷ 4 = 25.00
+        model.pressDigit('1'); model.pressDigit('0'); model.pressDigit('0')
+        model.pressOp(com.corriente.money.CalcOp.DIVIDE)
+        model.pressDigit('4')
+        model.pressEquals()
+        advanceUntilIdle()
+
+        assertTrue(model.save())
+        advanceUntilIdle()
+        assertEquals(2500L, fakes.txnDao.rows.value.single().amountMinor)
+    }
+
+    @Test
     fun `chained subtraction driving the accumulator negative does not crash the amount field`() =
         runTest(dispatcher) {
             val fakes = Fakes().apply { seed() }

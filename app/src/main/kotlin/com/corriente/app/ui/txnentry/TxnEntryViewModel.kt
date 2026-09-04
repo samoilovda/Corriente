@@ -105,7 +105,11 @@ data class TxnEntryUiState(
         val currency = currency ?: return null
         heldResult?.let { return Minor(it) }
         val operand = amount.toMinorOrNull(currency) ?: if (hasPendingCalc) Minor(0) else return null
-        return if (calcAcc != null && calcOp != null) applyCalc(Minor(calcAcc), calcOp, operand) else operand
+        return if (calcAcc != null && calcOp != null) {
+            applyCalc(Minor(calcAcc), calcOp, operand, currency.minorUnits)
+        } else {
+            operand
+        }
     }
 
     /** I-1: знак не вводится; проверяем лишь, что сумма положительна и счёт выбран. */
@@ -387,7 +391,7 @@ class TxnEntryViewModel(
         form.update { f ->
             val operand = f.amount.toMinorOrNull(currency) ?: Minor(f.calcAcc ?: 0)
             val newAcc = if (f.calcAcc != null && f.calcOp != null) {
-                applyCalc(Minor(f.calcAcc), f.calcOp, operand)
+                applyCalc(Minor(f.calcAcc), f.calcOp, operand, currency.minorUnits)
             } else {
                 operand
             }
@@ -400,7 +404,7 @@ class TxnEntryViewModel(
         form.update { f ->
             if (f.calcAcc == null || f.calcOp == null) return@update f
             val operand = f.amount.toMinorOrNull(currency) ?: Minor(0)
-            val result = applyCalc(Minor(f.calcAcc), f.calcOp, operand)
+            val result = applyCalc(Minor(f.calcAcc), f.calcOp, operand, currency.minorUnits)
             // F2.8: результат ≤ 0 — держим как calcAcc без операции, показываем «−5» и блокируем
             // «Сохранить» с подсказкой; продолжение «+ 20 =» даёт «15».
             if (result.raw > 0) {

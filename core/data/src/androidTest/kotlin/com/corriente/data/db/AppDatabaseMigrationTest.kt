@@ -198,4 +198,50 @@ class AppDatabaseMigrationTest {
         }
         db.close()
     }
+
+    // Доработка после R6 — миграция v5 → v6 наполняет ПУСТОЙ список категорий типовым набором.
+    @Test
+    fun migration5to6SeedsDefaultCategoriesWhenEmpty() {
+        helper.createDatabase(testDbName, 5).close()
+
+        val db = helper.runMigrationsAndValidate(testDbName, 6, true, AppDatabase.MIGRATION_5_6)
+
+        db.query("SELECT COUNT(*) FROM category").use { c ->
+            assertEquals(true, c.moveToFirst())
+            assertEquals(com.corriente.data.seed.DEFAULT_CATEGORIES.size, c.getInt(0))
+        }
+        db.query("SELECT COUNT(*) FROM category WHERE kind = 'INCOME'").use { c ->
+            assertEquals(true, c.moveToFirst())
+            assertEquals(
+                com.corriente.data.seed.DEFAULT_CATEGORIES.count {
+                    it.kind == com.corriente.data.db.entity.CategoryKind.INCOME
+                },
+                c.getInt(0),
+            )
+        }
+        db.close()
+    }
+
+    // Миграция v5 → v6 НЕ трогает список категорий, если пользователь уже что-то в нём завёл.
+    @Test
+    fun migration5to6KeepsUserCategoriesUntouched() {
+        helper.createDatabase(testDbName, 5).apply {
+            execSQL(
+                """
+                INSERT INTO category(id, name, kind, parent_id, color, origin, display_order, is_archived)
+                VALUES ('u1', 'Моя категория', 'EXPENSE', NULL, 0, 'USER', 0, 0)
+                """.trimIndent(),
+            )
+            close()
+        }
+
+        val db = helper.runMigrationsAndValidate(testDbName, 6, true, AppDatabase.MIGRATION_5_6)
+
+        db.query("SELECT id FROM category").use { c ->
+            assertEquals(true, c.moveToFirst())
+            assertEquals(1, c.count)
+            assertEquals("u1", c.getString(0))
+        }
+        db.close()
+    }
 }

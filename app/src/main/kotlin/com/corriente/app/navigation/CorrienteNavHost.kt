@@ -203,7 +203,18 @@ fun CorrienteNavHost(deepLinkIntent: Intent? = null, onDeepLinkConsumed: () -> U
                 TxnEntryScreen(
                     onDone = { navController.popBackStack() },
                     onCreateAccount = {
-                        navController.navigate(CorrienteDestination.ACCOUNTS.route) { launchSingleTop = true }
+                        // Сначала убираем экран ввода из стека, потом уходим на «Счета» тем же
+                        // манёвром, что и нижняя навигация. Иначе экран ввода остаётся под
+                        // «Счетами», и первый же тап по «Операциям» в нижней панели через
+                        // saveState/restoreState воскрешает именно его (под-экран), а не корневой
+                        // раздел — нижняя панель пропадает, и вкладка «Операции» становится
+                        // недоступной до перезапуска приложения.
+                        navController.popBackStack()
+                        navController.navigate(CorrienteDestination.ACCOUNTS.route) {
+                            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
                     },
                     initialKind = EntryKind.valueOf(
                         entry.arguments?.getString("kind") ?: EntryKind.EXPENSE.name,

@@ -64,6 +64,7 @@ import com.corriente.app.R
 import com.corriente.app.corrienteContainer
 import com.corriente.app.ui.common.rememberMessageSnackbarState
 import com.corriente.data.model.Category
+import com.corriente.money.CalcOp
 import java.time.Instant
 import java.time.ZoneOffset
 
@@ -226,8 +227,7 @@ fun TxnEntryScreen(
                     onDigit = viewModel::pressDigit,
                     onDecimalPoint = viewModel::pressDecimalPoint,
                     onBackspace = viewModel::pressBackspace,
-                    onPlus = { viewModel.pressOp(com.corriente.money.CalcOp.PLUS) },
-                    onMinus = { viewModel.pressOp(com.corriente.money.CalcOp.MINUS) },
+                    onOp = viewModel::pressOp,
                     onEquals = viewModel::pressEquals,
                     equalsEnabled = state.hasPendingCalc,
                 )
@@ -357,17 +357,18 @@ private fun Keypad(
     onDigit: (Char) -> Unit,
     onDecimalPoint: () -> Unit,
     onBackspace: () -> Unit,
-    onPlus: () -> Unit,
-    onMinus: () -> Unit,
+    onOp: (CalcOp) -> Unit,
     onEquals: () -> Unit,
     equalsEnabled: Boolean,
 ) {
-    // T5.5: 4-я колонка — калькулятор (сложение/вычитание сумм одной валюты).
+    // T5.5 (+ доработка): 4-я колонка — калькулятор. «+»/«−» — над суммами одной валюты,
+    // «×»/«÷» — умножение/деление суммы на число. «=» — отдельной широкой кнопкой снизу:
+    // в сетку 4×4 пятая операция уже не влезает, а держать «=» рядом с цифрами тесно.
     val rows = listOf(
-        listOf("7", "8", "9", "−"),
-        listOf("4", "5", "6", "+"),
-        listOf("1", "2", "3", "="),
-        listOf(".", "0", "⌫"),
+        listOf("7", "8", "9", "÷"),
+        listOf("4", "5", "6", "×"),
+        listOf("1", "2", "3", "−"),
+        listOf(".", "0", "⌫", "+"),
     )
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         rows.forEach { row ->
@@ -378,13 +379,13 @@ private fun Keypad(
                             when (key) {
                                 "." -> onDecimalPoint()
                                 "⌫" -> onBackspace()
-                                "+" -> onPlus()
-                                "−" -> onMinus()
-                                "=" -> onEquals()
+                                "+" -> onOp(CalcOp.PLUS)
+                                "−" -> onOp(CalcOp.MINUS)
+                                "×" -> onOp(CalcOp.TIMES)
+                                "÷" -> onOp(CalcOp.DIVIDE)
                                 else -> onDigit(key[0])
                             }
                         },
-                        enabled = key != "=" || equalsEnabled,
                         modifier = Modifier.weight(1f).height(56.dp),
                     ) {
                         if (key == "⌫") {
@@ -394,8 +395,14 @@ private fun Keypad(
                         }
                     }
                 }
-                if (row.size < 4) Spacer(Modifier.weight(1f))
             }
+        }
+        FilledTonalButton(
+            onClick = onEquals,
+            enabled = equalsEnabled,
+            modifier = Modifier.fillMaxWidth().height(48.dp),
+        ) {
+            Text("=", style = MaterialTheme.typography.titleLarge)
         }
     }
 }
