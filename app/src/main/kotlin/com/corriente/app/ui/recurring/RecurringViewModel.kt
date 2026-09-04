@@ -58,6 +58,10 @@ data class RecurringEditor(
     val ruleType: RecurrenceRuleType = RecurrenceRuleType.DAY_OF_MONTH,
     val dayOfMonthText: String = "1",
     val intervalDaysText: String = "30",
+    /** Запись в полёте — диалог обязан отключить «Сохранить» на это время: без гварда двойной
+     *  тап до закрытия диалога (`editorState.value = null` приходит только по onSuccess) успевал
+     *  создать два одинаковых правила. */
+    val saving: Boolean = false,
 )
 
 data class RecurringUiState(
@@ -167,8 +171,13 @@ class RecurringViewModel(
 
     fun save() {
         val editor = editorState.value ?: return
+        if (editor.saving) return
         val accountId = editor.accountId ?: return
-        launchWrite(onError = { uiMessage(R.string.recurring_error_save) }, onSuccess = { editorState.value = null }) {
+        editorState.update { it?.copy(saving = true) }
+        launchWrite(
+            onError = { editorState.update { e -> e?.copy(saving = false) }; uiMessage(R.string.recurring_error_save) },
+            onSuccess = { editorState.value = null },
+        ) {
             val account = requireNotNull(accountRepository.getById(accountId)) { "Account $accountId not found" }
             val currencyMeta = currencyRepository.getByCode(account.currency) ?: fallbackCurrency(account.currency.code)
             val minor = AmountInput.fromText(editor.amountText, currencyMeta).toMinorOrNull(currencyMeta) ?: return@launchWrite

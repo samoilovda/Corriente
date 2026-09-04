@@ -71,6 +71,8 @@ data class TxnEntryUiState(
     val loaded: Boolean = false,
     /** R2.2: строка «частые» над клавиатурой — пусто при редактировании существующей операции. */
     val frequentOptions: List<FrequentOption> = emptyList(),
+    /** Запись в полёте — экран обязан отключить «Сохранить» на это время (см. [Form.saving]). */
+    val saving: Boolean = false,
 ) {
     val selectedAccount: AccountOption? get() = accounts.firstOrNull { it.id == selectedAccountId }
     val currency: Currency? get() = selectedAccount?.currency
@@ -154,6 +156,10 @@ class TxnEntryViewModel(
         val selectedCategoryId: String? = null,
         val date: LocalDate,
         val note: String = "",
+        /** Запись уже в полёте — [save] обязан игнорировать повторный вызов, пока она не завершится
+         *  (двойной тап до навигации прочь с экрана иначе создавал вторую операцию). Не зеркалится
+         *  в [SavedStateHandle] — переживший процесс перезапуск обязан начинать не-«в записи». */
+        val saving: Boolean = false,
     )
 
     /** Ключи в [savedStateHandle] — префикс на случай, если когда-нибудь появится общий Bundle. */
@@ -341,6 +347,7 @@ class TxnEntryViewModel(
             note = f.note,
             loaded = true,
             frequentOptions = frequentOptions,
+            saving = f.saving,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), TxnEntryUiState(date = form.value.date))
 
@@ -429,16 +436,22 @@ class TxnEntryViewModel(
 
     fun setNote(note: String) = form.update { it.copy(note = note) }
 
-    /** @return false, если форма невалидна. При успехе выставляет [finished] после записи. */
+    /**
+     * @return false, если форма невалидна ИЛИ запись уже в полёте. При успехе выставляет
+     * [finished] после записи. Гвард по [TxnEntryUiState.saving] — двойной тап по «Сохранить»
+     * до навигации прочь с экрана иначе создавал вторую операцию (тот же класс бага, что
+     * [com.corriente.app.quick.QuickEntryViewModel] уже гасит своим `saving`).
+     */
     fun save(): Boolean {
         val state = uiState.value
-        if (!state.canSave) return false
+        if (!state.canSave || state.saving) return false
         val currency = state.currency ?: return false
         val accountId = state.selectedAccountId ?: return false
         val money = Money(state.resolvedMinor()!!, currency.code)
         val note = state.note.trim().ifBlank { null }
+        form.update { it.copy(saving = true) }
         launchWrite(
-            onError = { uiMessage(R.string.txn_entry_error_save) },
+            onError = { form.update { f -> f.copy(saving = false) }; uiMessage(R.string.txn_entry_error_save) },
             onSuccess = { _finished.value = true },
         ) {
             if (editingTxnId != null) {

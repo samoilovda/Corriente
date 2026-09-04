@@ -104,12 +104,15 @@ class BackupRepository(private val db: AppDatabase) : BackupIo {
             db.appSettingDao().deleteAll()
             db.currencyDao().deleteAll()
 
-            // И обратно - от независимых к зависимым.
+            // И обратно - от независимых к зависимым. import_batch обязан лечь ДО txn:
+            // txn.import_batch_id — настоящий Room @ForeignKey на import_batch(id) (TxnEntity.kt),
+            // и SQLite проверяет его сразу при INSERT (см. регрессию: восстановление любого
+            // бэкапа с хотя бы одной импортированной операцией падало SQLITE_CONSTRAINT_FOREIGNKEY).
             db.currencyDao().insertAll(payload.currencies.map { it.toEntity() })
             payload.accounts.forEach { db.accountDao().insert(it.toEntity()) }
             payload.categories.forEach { db.categoryDao().insert(it.toEntity()) }
-            db.txnDao().insertAll(payload.transactions.map { it.toEntity() })
             payload.importBatches.forEach { db.importBatchDao().insert(it.toEntity()) }
+            db.txnDao().insertAll(payload.transactions.map { it.toEntity() })
             payload.importAliases.forEach { db.importAliasDao().upsert(it.toEntity()) }
             payload.appSettings.forEach { db.appSettingDao().set(it.toEntity()) }
             payload.budgets.forEach { db.budgetDao().insert(it.toEntity()) }

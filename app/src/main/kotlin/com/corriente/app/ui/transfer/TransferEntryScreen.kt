@@ -169,7 +169,7 @@ fun TransferEntryScreen(
 
             Button(
                 onClick = { viewModel.save() },
-                enabled = state.canSave && pendingUndo == null,
+                enabled = state.canSave && !state.saving && pendingUndo == null,
                 modifier = Modifier.fillMaxWidth(),
             ) { Text(stringResource(R.string.save)) }
         }

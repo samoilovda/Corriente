@@ -8,6 +8,7 @@ import com.corriente.data.db.entity.AccountKind
 import com.corriente.data.db.entity.CategoryEntity
 import com.corriente.data.db.entity.CategoryKind
 import com.corriente.data.db.entity.CurrencyEntity
+import com.corriente.data.db.entity.ImportBatchEntity
 import com.corriente.data.db.entity.TxnEntity
 import com.corriente.data.db.entity.TxnKind
 import kotlinx.coroutines.flow.first
@@ -85,6 +86,34 @@ class BackupRepositoryInstrumentedTest {
     }
 
     // F1.4 — файл с висячей ссылкой на счёт: текущие данные не тронуты, причина понятна.
+    // Регрессия: restorePayload вставляла txn ДО import_batch, а txn.import_batch_id — настоящий
+    // Room @ForeignKey на import_batch(id) (TxnEntity.kt) — SQLite ронял вставку constraint'ом
+    // на любом бэкапе с хотя бы одной импортированной операцией.
+    @Test
+    fun restoreRoundTripsATransactionLinkedToAnImportBatch() = runBlocking {
+        db.currencyDao().insertAll(listOf(CurrencyEntity("RUB", 2, 2, "₽", isActive = true, displayOrder = 0)))
+        db.accountDao().insert(AccountEntity("a-1", "Наличные", "RUB", AccountKind.CASH, 0, 0))
+        val batch = ImportBatchEntity("b-1", "monefy", "export.csv", importedAt = 1, rowCount = 1, reportJson = "{}")
+        db.importBatchDao().insert(batch)
+        val txn = TxnEntity(
+            id = "t-imported", kind = TxnKind.EXPENSE, date = "2026-05-01", createdAt = 1, updatedAt = 1,
+            accountId = "a-1", amountMinor = 10_00, currencyCode = "RUB", importBatchId = "b-1",
+        )
+        db.txnDao().insert(txn)
+
+        val exported = ByteArrayOutputStream().also { backup.export(it) }.toByteArray()
+
+        db.txnDao().deleteAll()
+        db.importBatchDao().deleteAll()
+        db.accountDao().deleteAll()
+        db.currencyDao().deleteAll()
+
+        backup.restore(ByteArrayInputStream(exported))
+
+        assertEquals(listOf(txn), db.txnDao().observeAll().first())
+        assertEquals(listOf(batch), db.importBatchDao().getAll())
+    }
+
     @Test
     fun restoreRejectsAnInvalidPayloadWithoutTouchingCurrentData() = runBlocking {
         db.currencyDao().insertAll(listOf(CurrencyEntity("RUB", 2, 2, "₽", isActive = true, displayOrder = 0)))

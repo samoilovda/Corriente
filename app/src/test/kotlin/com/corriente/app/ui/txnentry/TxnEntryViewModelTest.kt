@@ -249,6 +249,29 @@ class TxnEntryViewModelTest {
             assertTrue(model.finished.value)
         }
 
+    // Регрессия: save() не проверял, что запись уже в полёте — двойной тап «Сохранить» до
+    // навигации прочь с экрана создавал вторую операцию. `saving` в форме, зеркалимое в
+    // uiState, обязано блокировать повторный вызов, пока первая запись не завершится.
+    @Test
+    fun `a second save call while the first is settling is a no-op`() = runTest(dispatcher) {
+        val fakes = Fakes().apply { seed() }
+        val model = vm(fakes)
+        backgroundScope.observe(model)
+        advanceUntilIdle()
+
+        model.selectCategory("cat-food")
+        model.pressDigit('1'); model.pressDigit('2'); model.pressDecimalPoint(); model.pressDigit('5')
+        advanceUntilIdle()
+
+        assertTrue(model.save())
+        // Даёт uiState догнать form.saving=true, не дожидаясь, пока запись полностью осядет.
+        dispatcher.scheduler.runCurrent()
+        assertFalse(model.save())
+        advanceUntilIdle()
+
+        assertEquals(1, fakes.txnDao.rows.value.size)
+    }
+
     @Test
     fun `saving an income uses the INCOME branch and allows no category`() = runTest(dispatcher) {
         val fakes = Fakes().apply { seed() }

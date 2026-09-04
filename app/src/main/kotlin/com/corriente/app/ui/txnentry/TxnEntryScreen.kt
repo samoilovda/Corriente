@@ -233,7 +233,7 @@ fun TxnEntryScreen(
                 )
                 Button(
                     onClick = { viewModel.save() },
-                    enabled = state.canSave && pendingUndo == null,
+                    enabled = state.canSave && !state.saving && pendingUndo == null,
                     modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
                 ) { Text(stringResource(R.string.save)) }
             }

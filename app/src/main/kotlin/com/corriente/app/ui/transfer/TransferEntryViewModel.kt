@@ -46,6 +46,8 @@ data class TransferUiState(
     val note: String = "",
     /** F2.5: false до первой эмиссии репозиториев. */
     val loaded: Boolean = false,
+    /** Запись в полёте — экран обязан отключить «Сохранить» на это время (см. [Form.saving]). */
+    val saving: Boolean = false,
 ) {
     val fromAccount: TransferAccount? get() = accounts.firstOrNull { it.id == fromAccountId }
     val toAccount: TransferAccount? get() = accounts.firstOrNull { it.id == toAccountId }
@@ -101,6 +103,9 @@ class TransferEntryViewModel(
         val rateText: String = "",
         val date: LocalDate,
         val note: String = "",
+        /** Двойной тап «Сохранить» до навигации прочь с экрана иначе создавал второй перевод —
+         *  тот же класс бага, что [com.corriente.app.quick.QuickEntryViewModel] уже гасит. */
+        val saving: Boolean = false,
     )
 
     private val form = MutableStateFlow(Form(date = today()))
@@ -168,6 +173,7 @@ class TransferEntryViewModel(
             date = f.date,
             note = f.note,
             loaded = true,
+            saving = f.saving,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), TransferUiState(date = form.value.date))
 
@@ -209,14 +215,15 @@ class TransferEntryViewModel(
 
     fun save(): Boolean {
         val s = uiState.value
-        if (!s.canSave) return false
+        if (!s.canSave || s.saving) return false
         val fromCur = s.fromAccount?.currency ?: return false
         val toCur = s.toAccount?.currency ?: return false
         val fromMoney = Money(s.fromMinor ?: return false, fromCur.code)
         val toMoney = Money(s.toMinor ?: return false, toCur.code)
         val note = s.note.trim().ifBlank { null }
+        form.update { it.copy(saving = true) }
         launchWrite(
-            onError = { uiMessage(R.string.transfer_error_save) },
+            onError = { form.update { f -> f.copy(saving = false) }; uiMessage(R.string.transfer_error_save) },
             onSuccess = { _finished.value = true },
         ) {
             if (editingTxnId != null) {

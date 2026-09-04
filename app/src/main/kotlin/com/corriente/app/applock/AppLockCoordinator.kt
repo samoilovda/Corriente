@@ -21,6 +21,13 @@ import kotlinx.coroutines.launch
  * `androidx.lifecycle:lifecycle-process` (`ProcessLifecycleOwner`) — тот не входит в список
  * разрешённых зависимостей (BUILD_PLAN.md §1.3), а нужный здесь примитив, «число запущенных
  * Activity процесса», даёт сам Android SDK без единой лишней зависимости.
+ *
+ * Ни одна из запертых Activity не объявляет `android:configChanges` — поворот экрана (или смена
+ * темы/локали, разворачивание в split-screen) полностью пересоздаёт её: `onStop`→`onDestroy`→
+ * `onCreate`→`onStart`. Без поправки этот `onStop` уводил бы [startedCount] в 0, а следующий
+ * `onStart` воспринимался бы как «пришли из фона» и снова показывал бы биометрию/PIN, хотя
+ * приложение экран не покидало. [pendingConfigChangeRestart] запоминает этот случай через
+ * [Activity.isChangingConfigurations] и гасит ровно один следующий повторный запрос.
  */
 class AppLockCoordinator(
     private val container: AppContainer,
@@ -29,6 +36,7 @@ class AppLockCoordinator(
 ) : Application.ActivityLifecycleCallbacks {
 
     private var startedCount = 0
+    private var pendingConfigChangeRestart = false
 
     /**
      * `null` — решение ещё не готово (настройки ещё читаются); экран-гейт в этот момент не
@@ -40,16 +48,21 @@ class AppLockCoordinator(
 
     override fun onActivityStarted(activity: Activity) {
         if (startedCount == 0) {
-            _locked.value = null
-            scope.launch {
-                val config = container.appLockSettings.current()
-                _locked.value = shouldPromptForUnlock(config.mode, config.lastUnlockAtMs, now())
+            if (pendingConfigChangeRestart) {
+                pendingConfigChangeRestart = false
+            } else {
+                _locked.value = null
+                scope.launch {
+                    val config = container.appLockSettings.current()
+                    _locked.value = shouldPromptForUnlock(config.mode, config.lastUnlockAtMs, now())
+                }
             }
         }
         startedCount++
     }
 
     override fun onActivityStopped(activity: Activity) {
+        if (activity.isChangingConfigurations) pendingConfigChangeRestart = true
         startedCount = (startedCount - 1).coerceAtLeast(0)
     }
 

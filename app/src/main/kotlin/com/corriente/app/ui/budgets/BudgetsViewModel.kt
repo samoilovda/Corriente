@@ -40,6 +40,10 @@ data class BudgetEditor(
     val categoryId: String? = null,
     val currencyCode: String,
     val amountText: String = "",
+    /** Запись в полёте — диалог обязан отключить «Сохранить» на это время: без гварда двойной
+     *  тап до закрытия диалога (`editorState.value = null` приходит только по onSuccess) успевал
+     *  создать два одинаковых бюджета. */
+    val saving: Boolean = false,
 )
 
 data class BudgetsUiState(
@@ -134,7 +138,12 @@ class BudgetsViewModel(
 
     fun save() {
         val editor = editorState.value ?: return
-        launchWrite(onError = { uiMessage(R.string.budgets_error_save) }, onSuccess = { editorState.value = null }) {
+        if (editor.saving) return
+        editorState.update { it?.copy(saving = true) }
+        launchWrite(
+            onError = { editorState.update { e -> e?.copy(saving = false) }; uiMessage(R.string.budgets_error_save) },
+            onSuccess = { editorState.value = null },
+        ) {
             val currencyMeta = currencyRepository.getByCode(CurrencyCode(editor.currencyCode)) ?: fallbackCurrency(editor.currencyCode)
             val minor = AmountInput.fromText(editor.amountText, currencyMeta).toMinorOrNull(currencyMeta) ?: return@launchWrite
             val money = Money(minor, CurrencyCode(editor.currencyCode))

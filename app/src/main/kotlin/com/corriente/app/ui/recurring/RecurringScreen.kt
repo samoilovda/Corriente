@@ -263,7 +263,9 @@ private fun RecurringEditorDialog(
                 }
             }
         },
-        confirmButton = { TextButton(onClick = onSave) { Text(stringResource(R.string.save)) } },
+        confirmButton = {
+            TextButton(onClick = onSave, enabled = !editor.saving) { Text(stringResource(R.string.save)) }
+        },
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
     )
 }
