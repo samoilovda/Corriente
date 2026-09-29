@@ -26,6 +26,8 @@ object InvariantGuards {
     val floatAllowlist: Set<String> = setOf(
         "app/src/main/kotlin/com/corriente/app/ui/report/ReportCharts.kt",
         "app/src/main/kotlin/com/corriente/app/ui/report/ReportScreen.kt",
+        // A3.7: график курсов обмена — координаты Canvas из `rateMicros` (курс, не деньги); найдено новым правилом.
+        "app/src/main/kotlin/com/corriente/app/ui/fxreport/FxReportScreen.kt",
     )
 
     private data class Rule(val regex: Regex, val reason: String)
@@ -48,6 +50,8 @@ object InvariantGuards {
     private val uiTypeRules = listOf(
         Rule(Regex("""\bDouble\b"""), "тип Double запрещён в денежном коде (I-1)"),
         Rule(Regex("""\bFloat\b"""), "тип Float запрещён в денежном коде (I-1)"),
+        // A3.7: в `.toDouble()` перед `Double` нет границы слова — приведение проходило мимо правил выше.
+        Rule(Regex("""\.to(?:Double|Float)\s*\("""), "приведение к Double/Float запрещено (I-1)"),
     )
 
     /**

@@ -94,6 +94,15 @@ class InvariantGuardsTest {
         assertEquals(emptyList<String>(), InvariantGuards.scanKotlin("app/src/main/kotlin/com/corriente/app/ui/T2.kt", ok))
     }
 
+    // A3.7: .toDouble()/.toFloat() в :app/:widget (вне allowlist Canvas-файлов) — нарушение.
+    @Test
+    fun `flags toDouble and toFloat conversions in ui modules but not in the canvas allowlist`() {
+        val src = "val a = spent.toDouble()\nval b = total.toFloat()"
+        assertEquals(2, InvariantGuards.scanKotlin("app/src/main/kotlin/com/corriente/app/ui/X.kt", src).size)
+        assertEquals(2, InvariantGuards.scanKotlin("widget/src/main/kotlin/com/corriente/widget/W.kt", src).size)
+        assertEquals(emptyList<String>(), InvariantGuards.scanKotlin(InvariantGuards.floatAllowlist.first(), src))
+    }
+
     @Test
     fun `flags uses-permission in a manifest`() {
         val xml = """
