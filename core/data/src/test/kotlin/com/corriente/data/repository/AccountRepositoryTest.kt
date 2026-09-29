@@ -98,4 +98,21 @@ class AccountRepositoryTest {
         assertEquals(listOf(id), repository.observeActive().first().map { it.id })
         assertTrue(repository.observeArchived().first().isEmpty())
     }
+
+    // A1.6: правило без единой операции — тоже «использование»: валюта заблокирована.
+    @Test
+    fun `changing the currency of an account referenced by a recurring rule is rejected`() = runTest {
+        val dao = FakeAccountDao()
+        val repository = AccountRepository(dao)
+        val id = repository.create("Карта", rub, AccountKind.CARD, Money(Minor(0), rub), color = 0).id
+        dao.markHasRecurrence(id)
+
+        assertTrue(repository.isInUse(id))
+        val failure = runCatching {
+            repository.setCurrencyAndOpeningBalanceBeforeFirstUse(id, usd, Money(Minor(0), usd))
+        }.exceptionOrNull()
+        assertTrue(failure is IllegalStateException)
+        assertEquals("RUB", repository.getById(id)?.currency?.code)
+        assertEquals(false, repository.deleteIfUnused(id))
+    }
 }

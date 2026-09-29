@@ -13,7 +13,7 @@ import java.util.UUID
 
 /**
  * Enforced здесь, а не в Room (T0.4: у Room 2.8 нет проверенного API для @Entity-level CHECK):
- *  - I-23: валюта счёта неизменна после первой операции по нему.
+ *  - I-23: валюта счёта неизменна после первой операции по нему (или после появления повторяющегося правила, A1.6).
  *  - I-1/I-2: [Account.openingBalance] — Money той же валюты, что и счёт (проверяется в
  *    [com.corriente.data.model.toEntity], здесь дополнительно на входе конструктора).
  */
@@ -30,6 +30,9 @@ class AccountRepository(private val dao: AccountDao) {
 
     /** I-23: пока false — поле валюты счёта ещё можно редактировать, после — заблокировано навсегда. */
     suspend fun hasTransactions(id: String): Boolean = dao.hasTransactions(id)
+
+    /** A1.6: операции или повторяющиеся правила — валюта счёта уже «историческая». */
+    suspend fun isInUse(id: String): Boolean = dao.isInUse(id)
 
     suspend fun create(
         name: String,
@@ -82,8 +85,8 @@ class AccountRepository(private val dao: AccountDao) {
         require(newOpeningBalance.currency == newCurrency) {
             "Opening balance currency ${newOpeningBalance.currency} does not match $newCurrency"
         }
-        check(!dao.hasTransactions(id)) {
-            "Cannot change currency of account $id: it already has transactions (I-23)"
+        check(!dao.isInUse(id)) {
+            "Cannot change currency of account $id: it has transactions or recurring rules (I-23)"
         }
         val existing = requireNotNull(dao.getById(id)) { "Account $id not found" }
         dao.update(
@@ -107,7 +110,7 @@ class AccountRepository(private val dao: AccountDao) {
 
     /** Физическое удаление разрешено только для счёта без единой операции — иначе см. [archive]. */
     suspend fun deleteIfUnused(id: String): Boolean {
-        if (dao.hasTransactions(id)) return false
+        if (dao.isInUse(id)) return false
         val existing = dao.getById(id) ?: return false
         dao.delete(existing)
         return true

@@ -158,7 +158,7 @@ class AccountsViewModel(
             val currency = currencies.getByCode(account.currency) ?: fallbackCurrency(account.currency)
             _editor.value = AccountEditor(
                 editingId = account.id,
-                currencyLocked = accounts.hasTransactions(account.id),
+                currencyLocked = accounts.isInUse(account.id),
                 name = account.name,
                 currency = account.currency,
                 kind = account.kind,
@@ -202,7 +202,7 @@ class AccountsViewModel(
                 if (editor.currencyLocked.not()) {
                     // Гонка: пока редактор был открыт, по счёту могла появиться операция —
                     // тогда валюта уже исторический факт (I-23), меняем только имя и флаги.
-                    if (accounts.hasTransactions(id)) {
+                    if (accounts.isInUse(id)) {
                         postMessage(R.string.accounts_error_currency_fixed)
                     } else {
                         accounts.setCurrencyAndOpeningBalanceBeforeFirstUse(id, form.currency, money)

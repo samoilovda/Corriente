@@ -47,6 +47,15 @@ class FakeAccountDao(
 
     override suspend fun hasTransactions(accountId: String): Boolean = accountId in accountsWithTransactions
 
+    private val accountsWithRecurrences = mutableSetOf<String>()
+
+    fun markHasRecurrence(accountId: String) {
+        accountsWithRecurrences += accountId
+    }
+
+    override suspend fun isInUse(accountId: String): Boolean =
+        accountId in accountsWithTransactions || accountId in accountsWithRecurrences
+
     override suspend fun deleteAll() {
         rows.value = emptyList()
     }

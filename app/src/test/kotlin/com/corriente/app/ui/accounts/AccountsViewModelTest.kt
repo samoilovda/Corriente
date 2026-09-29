@@ -284,4 +284,21 @@ class AccountsViewModelTest {
         advanceUntilIdle()
         assertEquals(listOf(id), activeRows(vm).map { it.account.id })
     }
+
+    // A1.6
+    @Test
+    fun `currency is locked for an account referenced only by a recurring rule`() = runTest(dispatcher) {
+        val (vm, dao, _) = build()
+        backgroundScope.observe(vm)
+        vm.startCreate(); advanceUntilIdle()
+        vm.save(AccountForm("Карта", CurrencyCode("RUB"), AccountKind.CARD, "0", includeInTotal = true))
+        advanceUntilIdle()
+        val account = activeRows(vm).single().account
+        dao.markHasRecurrence(account.id)
+
+        vm.startEdit(account)
+        advanceUntilIdle()
+
+        assertTrue(vm.editor.value!!.currencyLocked)
+    }
 }
