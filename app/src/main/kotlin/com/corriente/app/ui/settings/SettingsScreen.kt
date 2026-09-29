@@ -7,6 +7,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -26,10 +27,12 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.core.content.FileProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.corriente.app.AppLocale
 import com.corriente.app.R
 import com.corriente.app.backup.ShareBackupCache
 import com.corriente.app.corrienteContainer
@@ -63,6 +66,7 @@ fun SettingsScreen(
     val result by backupViewModel.result.collectAsState()
     val busy by backupViewModel.busy.collectAsState()
     var pendingImportUri by remember { mutableStateOf<android.net.Uri?>(null) }
+    var languageDialogOpen by remember { mutableStateOf(false) }
 
     val exportLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/json"),
@@ -111,6 +115,11 @@ fun SettingsScreen(
                 headlineContent = { Text(stringResource(R.string.recurring_title)) },
                 supportingContent = { Text(stringResource(R.string.recurring_hint)) },
                 modifier = Modifier.clickable(onClick = onOpenRecurring),
+            )
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.language_title)) },
+                supportingContent = { Text(languageLabel(AppLocale.get(context))) },
+                modifier = Modifier.clickable { languageDialogOpen = true },
             )
             ListItem(
                 headlineContent = { Text(stringResource(R.string.app_lock_title)) },
@@ -177,4 +186,40 @@ fun SettingsScreen(
     }
 
     result?.let { current -> BackupResultDialog(current, onDismiss = backupViewModel::consumeResult) }
+
+    if (languageDialogOpen) {
+        val current = AppLocale.get(context)
+        AlertDialog(
+            onDismissRequest = { languageDialogOpen = false },
+            title = { Text(stringResource(R.string.language_title)) },
+            text = {
+                Column {
+                    AppLocale.supported.forEach { tag ->
+                        Row(
+                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth().clickable {
+                                languageDialogOpen = false
+                                if (tag != current) {
+                                    AppLocale.set(context, tag)
+                                    (context as? android.app.Activity)?.recreate()
+                                }
+                            },
+                        ) {
+                            androidx.compose.material3.RadioButton(selected = tag == current, onClick = null)
+                            Text(languageLabel(tag), Modifier.padding(start = 12.dp, top = 12.dp, bottom = 12.dp))
+                        }
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { languageDialogOpen = false }) { Text(stringResource(R.string.cancel)) } },
+        )
+    }
+}
+
+/** Названия языков — на них самих (не переводятся), кроме «как в системе». */
+@androidx.compose.runtime.Composable
+private fun languageLabel(tag: String): String = when (tag) {
+    "en" -> "English"
+    "ru" -> "Русский"
+    else -> stringResource(R.string.language_system)
 }

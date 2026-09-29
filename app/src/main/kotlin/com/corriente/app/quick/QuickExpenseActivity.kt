@@ -57,6 +57,10 @@ import kotlinx.coroutines.flow.first
  */
 class QuickExpenseActivity : FragmentActivity() {
 
+    override fun attachBaseContext(newBase: android.content.Context) {
+        super.attachBaseContext(com.corriente.app.AppLocale.wrap(newBase))
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val categoryId = intent.getStringExtra(EXTRA_CATEGORY_ID)?.takeIf { it.isNotBlank() }

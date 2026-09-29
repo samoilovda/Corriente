@@ -45,6 +45,10 @@ import kotlinx.coroutines.launch
  */
 class ChangeActiveAccountActivity : FragmentActivity() {
 
+    override fun attachBaseContext(newBase: android.content.Context) {
+        super.attachBaseContext(com.corriente.app.AppLocale.wrap(newBase))
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val container = (applicationContext as CorrienteApplication).container

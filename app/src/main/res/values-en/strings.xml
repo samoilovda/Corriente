@@ -155,6 +155,7 @@
     <string name="import_error_unparseable_date">unrecognized date \'%1$s\'</string>
     <string name="import_error_unparseable_amount">amount \'%1$s\': %2$s</string>
     <string name="import_unpaired_category">[unpaired transfer]</string>
+    <string name="import_error_not_csv">This is not a Monefy CSV export. In Monefy use Settings → Export data → CSV (Monefy\'s own backup file cannot be imported).</string>
     <string name="import_error_unparseable_currency">the currency code "%1$s" is not recognised</string>
     <string name="import_error_unparseable_converted_amount">converted amount \'%1$s\': %2$s</string>
     <string name="import_review_account_currency_conflict">account "%1$s" appears with different currencies: %2$s</string>
@@ -253,6 +254,7 @@
     <string name="txn_entry_account">Account</string>
     <string name="txn_entry_frequent">Frequent</string>
     <string name="txn_entry_category">Category</string>
+    <string name="txn_entry_choose_category">Choose category</string>
     <string name="txn_entry_no_category">No category</string>
     <string name="entry_archived_suffix">%1$s (archived)</string>
     <string name="txn_entry_date">Date</string>
@@ -365,6 +367,8 @@
     <string name="recurring_error_delete">Could not delete the rule</string>
 
     <!-- R5.2: app lock. -->
+    <string name="language_title">Language</string>
+    <string name="language_system">System default</string>
     <string name="app_lock_title">App lock</string>
     <string name="app_lock_hint">Lock screen when returning to the app</string>
     <string name="app_lock_disclaimer">The lock protects against a casual glance if the phone ends up in someone else\'s hands — nothing more. The app\'s data is NOT encrypted: anyone with direct access to the device\'s files (e.g. physical seizure or root) can read it without going through this screen. This is not protection against device theft.</string>

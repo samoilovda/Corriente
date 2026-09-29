@@ -33,6 +33,10 @@ class CorrienteApplication : Application() {
 
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
+    override fun attachBaseContext(base: android.content.Context) {
+        super.attachBaseContext(AppLocale.wrap(base))
+    }
+
     override fun onCreate() {
         super.onCreate()
         container = AppContainer(this)

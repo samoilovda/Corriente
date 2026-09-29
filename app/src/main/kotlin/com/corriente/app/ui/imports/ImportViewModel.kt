@@ -7,6 +7,7 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.corriente.app.R
 import com.corriente.data.imports.AccountCurrencyConflictException
 import com.corriente.data.imports.MonefyCsvParser
+import com.corriente.data.imports.looksLikeMonefyCsv
 import com.corriente.data.imports.MonefyImportPlan
 import com.corriente.data.imports.MonefyImportPlanner
 import com.corriente.data.imports.MonefyImportReport
@@ -78,6 +79,8 @@ sealed interface ImportFailureReason {
     data class Localized(val resId: Int, val args: List<Any> = emptyList()) : ImportFailureReason
 }
 
+private class NotMonefyCsvException : Exception()
+
 private fun localizedFailure(resId: Int, vararg args: Any) = ImportFailureReason.Localized(resId, args.toList())
 
 sealed interface ImportUiState {
@@ -110,6 +113,8 @@ class ImportViewModel(private val importer: MonefyImportRepository) : ViewModel(
         viewModelScope.launch(Dispatchers.IO) {
             _state.value = runCatching {
                 val csv = open().use { it.reader(Charsets.UTF_8).readText() }
+                // Не CSV (например, собственный зашифрованный бэкап Monefy) — понятное сообщение вместо ошибки парсера.
+                if (!looksLikeMonefyCsv(csv)) throw NotMonefyCsvException()
                 plan = MonefyImportPlanner.plan(
                     MonefyCsvParser.parse(csv),
                     existingAccounts = importer.existingAccountCurrencies(),
@@ -120,7 +125,11 @@ class ImportViewModel(private val importer: MonefyImportRepository) : ViewModel(
                 readyState()
             }.getOrElse { e ->
                 ImportUiState.Failed(
-                    e.message?.let { ImportFailureReason.Raw(it) } ?: localizedFailure(R.string.import_error_parse_failed),
+                    if (e is NotMonefyCsvException) {
+                        localizedFailure(R.string.import_error_not_csv)
+                    } else {
+                        e.message?.let { ImportFailureReason.Raw(it) } ?: localizedFailure(R.string.import_error_parse_failed)
+                    },
                 )
             }
         }

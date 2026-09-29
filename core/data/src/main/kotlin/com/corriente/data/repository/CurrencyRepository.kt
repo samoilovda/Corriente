@@ -9,8 +9,17 @@ import com.corriente.money.CurrencyCode
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
+/**
+ * Русские символы, которые раньше сеялись по умолчанию («сум», «смн», «сом») — в английском интерфейсе они выглядели как
+ * «русская валюта». Теперь по умолчанию — код валюты; уже записанные в БД значения показываем так же.
+ */
+private val LEGACY_CYRILLIC_DEFAULT_SYMBOLS = mapOf("UZS" to "сум", "TJS" to "смн", "KGS" to "сом")
+
 fun CurrencyEntity.toDomain(): Currency =
-    Currency(CurrencyCode(code), minorUnits, displayScale, symbol)
+    Currency(
+        CurrencyCode(code), minorUnits, displayScale,
+        if (LEGACY_CYRILLIC_DEFAULT_SYMBOLS[code] == symbol) code else symbol,
+    )
 
 /** T1.2: включение/выключение валют из полного сида ISO-4217, правка символа и отображения. */
 class CurrencyRepository(private val dao: CurrencyDao) {

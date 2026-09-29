@@ -458,6 +458,16 @@ class TxnEntryViewModel(
 
     fun selectCategory(id: String?) = form.update { it.copy(selectedCategoryId = id) }
 
+    /** Как в Monefy: выбор категории при создании операции сразу сохраняет её (если сумма уже введена). */
+    fun selectCategoryAndSave(id: String?) {
+        selectCategory(id)
+        viewModelScope.launch {
+            // uiState выводится из формы асинхронно — ждём, пока выбор дойдёт до состояния, и только потом сохраняем.
+            val state = kotlinx.coroutines.withTimeoutOrNull(1_000) { uiState.first { it.selectedCategoryId == id } }
+            if (state?.canSave == true) save()
+        }
+    }
+
     fun selectDate(date: LocalDate) = form.update { it.copy(date = date) }
 
     fun setNote(note: String) = form.update { it.copy(note = note) }

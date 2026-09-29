@@ -88,4 +88,15 @@ class MonefyCsvParserTest {
         assertTrue(result.errors.all { it.issue is MonefyRowIssue.UnparseableCurrency })
         assertEquals(listOf("", "rub", "US"), result.errors.map { (it.issue as MonefyRowIssue.UnparseableCurrency).raw })
     }
+
+    @Test
+    fun `looksLikeMonefyCsv accepts a real export and rejects binary or foreign files`() {
+        val header = "date,account,category,amount,currency,converted amount,currency,description\n"
+        assertTrue(looksLikeMonefyCsv(header + "02/03/2021,Cash,Food,-250,RUB,-250,RUB,\n"))
+        assertTrue(looksLikeMonefyCsv("\uFEFF" + header))
+        // бинарный бэкап Monefy: управляющие символы и U+FFFD после декодирования как UTF-8
+        assertEquals(false, looksLikeMonefyCsv("c\u009c\r}}}\uFFFDN\uFFFD\u0000\u0003"))
+        assertEquals(false, looksLikeMonefyCsv("Just some text\nwithout a table"))
+        assertEquals(false, looksLikeMonefyCsv(""))
+    }
 }

@@ -52,6 +52,18 @@ data class MonefyRowError(val line: Int, val raw: String, val issue: MonefyRowIs
 
 data class MonefyCsvResult(val rows: List<MonefyRow>, val errors: List<MonefyRowError>)
 
+/**
+ * Похож ли [text] на CSV-экспорт Monefy (а не на собственный бэкап Monefy, зашифрованный/бинарный файл, PDF и т.п.):
+ * в первых 4096 символах нет нулевых/управляющих символов (кроме таба и переводов строки) и U+FFFD, а строка
+ * заголовка содержит колонку `amount`. Дешёвая проверка до разбора — вместо сырого сообщения парсера.
+ */
+fun looksLikeMonefyCsv(text: String): Boolean {
+    val head = text.take(4096)
+    if (head.any { (it < ' ' && it != '\t' && it != '\n' && it != '\r') || it == '\uFFFD' }) return false
+    val header = head.removePrefix("\uFEFF").lineSequence().firstOrNull().orEmpty().lowercase()
+    return "amount" in header && ',' in header
+}
+
 object MonefyCsvParser {
 
     private val DATE = DateTimeFormatter.ofPattern("dd/MM/yyyy")

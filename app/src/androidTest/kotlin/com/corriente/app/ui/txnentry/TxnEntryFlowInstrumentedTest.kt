@@ -59,16 +59,15 @@ class TxnEntryFlowInstrumentedTest {
         val expenseCd = composeRule.activity.getString(R.string.txn_add_expense)
         composeRule.onNodeWithContentDescription(expenseCd).performClick()
 
-        // Экран ввода: категория «Еда-тест», сумма 12.50, «Сохранить».
-        composeRule.onNodeWithText("Еда-тест").performClick()
+        // Экран ввода (раскладка как в Monefy): сумма 12.50, затем «Выбрать категорию» → «Еда-тест» — выбор сохраняет.
         composeRule.onNodeWithText("1").performClick()
         composeRule.onNodeWithText("2").performClick()
         composeRule.onNodeWithText(".").performClick()
         composeRule.onNodeWithText("5").performClick()
         composeRule.onNodeWithText("0").performClick()
 
-        val saveLabel = composeRule.activity.getString(R.string.save)
-        composeRule.onNodeWithText(saveLabel).performClick()
+        composeRule.onNodeWithText(composeRule.activity.getString(R.string.txn_entry_choose_category).uppercase()).performClick()
+        composeRule.onNodeWithText("Еда-тест").performClick()
         composeRule.waitForIdle()
 
         // Назад в списке операций — строка с категорией и суммой должна быть видна.

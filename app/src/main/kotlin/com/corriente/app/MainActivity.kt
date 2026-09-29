@@ -22,6 +22,10 @@ import com.corriente.app.ui.theme.CorrienteTheme
  */
 class MainActivity : FragmentActivity() {
 
+    override fun attachBaseContext(newBase: android.content.Context) {
+        super.attachBaseContext(com.corriente.app.AppLocale.wrap(newBase))
+    }
+
     /**
      * R4.4: intent ярлыка приложения, ждущий обработки [CorrienteNavHost]'ом — с холодного
      * старта берётся из [getIntent], при уже запущенной Activity обновляется в [onNewIntent]
