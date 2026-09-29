@@ -19,8 +19,20 @@ data class BalancePoint(val date: LocalDate, val balance: Money)
  * [accountBalance]: `-` для счёта-источника, `+` для счёта-приёмника (одна и та же логика,
  * не дублированная и не переизобретённая здесь).
  */
-fun balanceSeries(account: Account, transactions: List<Txn>, range: ClosedRange<LocalDate>): List<BalancePoint> {
-    var running = accountBalance(account, transactions.filter { it.date < range.start })
+fun balanceSeries(account: Account, transactions: List<Txn>, range: ClosedRange<LocalDate>): List<BalancePoint> =
+    balanceSeriesFrom(accountBalance(account, transactions.filter { it.date < range.start }), account, transactions, range)
+
+/**
+ * A2.11: то же, но начальный остаток периода ([startBalance] — остаток на конец дня перед [range]) уже посчитан
+ * снаружи (SQL-агрегатом), а [transactions] — только операции внутри [range]: таблица целиком в память не нужна.
+ */
+fun balanceSeriesFrom(
+    startBalance: Money,
+    account: Account,
+    transactions: List<Txn>,
+    range: ClosedRange<LocalDate>,
+): List<BalancePoint> {
+    var running = startBalance
     val byDate = transactions.filter { it.date in range }.groupBy { it.date }
 
     val points = mutableListOf<BalancePoint>()

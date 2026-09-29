@@ -723,4 +723,18 @@ class TxnEntryViewModelTest {
         assertEquals("acc-rub", savedState.get<String>("txn_entry.account_id"))
         assertEquals(EntryKind.EXPENSE.name, savedState.get<String>("txn_entry.kind"))
     }
+
+    // A2.11: экран ввода не подписывается на всю таблицу, а нажатие цифры не пересчитывает «частые».
+    @Test
+    fun `entry screen never subscribes to the whole txn table and digits do not refetch`() = runTest(dispatcher) {
+        val fakes = Fakes().apply { seed() }
+        val model = vm(fakes)
+        backgroundScope.observe(model)
+        advanceUntilIdle()
+
+        model.pressDigit('1'); model.pressDigit('2'); model.pressDigit('3')
+        advanceUntilIdle()
+
+        assertEquals(0, fakes.txnDao.observeAllCalls)
+    }
 }

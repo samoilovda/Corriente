@@ -76,4 +76,33 @@ class TxnDaoAggregatesInstrumentedTest {
         assertEquals(true, db.txnDao().observeAnyBefore("2026-02-02").first())
         assertEquals(false, db.txnDao().observeAnyBefore("2026-02-01").first())
     }
+
+    // A2.11: остаток «до» и операции счёта за диапазон совпадают с чистой balanceSeries; межвалютные переводы — отдельным запросом.
+    @Test
+    fun accountRangeQueriesMatchThePureBalanceSeries() = runBlocking {
+        val txns = listOf(
+            TxnEntity("i", TxnKind.INCOME, "2026-01-01", 0, 0, "cash", 5_000_00, "RUB"),
+            TxnEntity("e", TxnKind.EXPENSE, "2026-02-01", 0, 0, "cash", 1_250_00, "RUB"),
+            TxnEntity(
+                "t", TxnKind.TRANSFER, "2026-02-10", 0, 0, "cash", 8_695_00, "RUB",
+                toAccountId = "card", toAmountMinor = 100_00, toCurrencyCode = "USD",
+            ),
+            TxnEntity("e2", TxnKind.EXPENSE, "2026-03-05", 0, 0, "cash", 100_00, "RUB"),
+        )
+        db.txnDao().insertAll(txns)
+        val account = db.accountDao().getById("cash")!!.toDomain()
+        val range = java.time.LocalDate.of(2026, 2, 5)..java.time.LocalDate.of(2026, 3, 10)
+
+        val delta = db.txnDao().observeAccountDeltaBefore("cash", range.start.toString()).first()
+        val inRange = db.txnDao().observeForAccountInRange("cash", range.start.toString(), range.endInclusive.toString())
+            .first().map { it.toDomain() }
+        val fromSql = com.corriente.data.usecase.balanceSeriesFrom(
+            Money(Minor(account.openingBalance.amount.raw + delta), account.currency), account, inRange, range,
+        )
+
+        assertEquals(com.corriente.data.usecase.balanceSeries(account, txns.map { it.toDomain() }, range), fromSql)
+        assertEquals(listOf("t"), db.txnDao().observeCrossCurrencyTransfers().first().map { it.id })
+        // приёмник перевода тоже видит его в своём диапазоне и в остатке «до»
+        assertEquals(100_00L, db.txnDao().observeAccountDeltaBefore("card", "2026-03-01").first())
+    }
 }

@@ -12,9 +12,11 @@ import com.corriente.data.model.Account
 import com.corriente.data.repository.AccountRepository
 import com.corriente.data.repository.CurrencyRepository
 import com.corriente.data.repository.TxnRepository
-import com.corriente.data.usecase.balanceSeries
+import com.corriente.data.usecase.balanceSeriesFrom
 import com.corriente.money.Currency
 import com.corriente.money.CurrencyCode
+import com.corriente.money.Minor
+import com.corriente.money.Money
 import com.corriente.money.MoneyFormatter
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -63,33 +65,45 @@ class AccountBalanceViewModel(
         today().let { Form(accountId = initialAccountId, anchor = it, customStart = it.withDayOfMonth(1), customEnd = it) },
     )
 
+    /**
+     * A2.11: никакой подписки на всю таблицу операций — остаток на начало периода приходит SQL-агрегатом
+     * ([TxnRepository.observeAccountDeltaBefore]), операции — только выбранного счёта и только за период.
+     */
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
     val uiState: StateFlow<AccountBalanceUiState> = form.flatMapLatest { f ->
-        combine(accounts.observeAll(), txns.observeAll(), currencies.observeAll()) { allAccounts, allTxns, allCurrencies ->
+        val range = periodRange(f.mode, f.anchor, f.customStart, f.customEnd)
+        combine(accounts.observeAll(), currencies.observeAll()) { allAccounts, allCurrencies ->
             val active = allAccounts.filterNot { it.isArchived }
-            val account = active.firstOrNull { it.id == f.accountId } ?: active.firstOrNull()
-            val range = periodRange(f.mode, f.anchor, f.customStart, f.customEnd)
-
+            Triple(active, active.firstOrNull { it.id == f.accountId } ?: active.firstOrNull(), allCurrencies)
+        }.flatMapLatest { (active, account, allCurrencies) ->
             if (account == null) {
-                AccountBalanceUiState(accounts = active, periodMode = f.mode, periodLabel = periodLabel(f.mode, range))
+                kotlinx.coroutines.flow.flowOf(
+                    AccountBalanceUiState(accounts = active, periodMode = f.mode, periodLabel = periodLabel(f.mode, range)),
+                )
             } else {
                 val byCode = allCurrencies.associateBy { it.code.code }
                 val currency = byCode[account.currency.code] ?: fallbackCurrency(account.currency)
-                val series = balanceSeries(account, allTxns, range)
-                AccountBalanceUiState(
-                    accounts = active,
-                    selectedAccountId = account.id,
-                    periodMode = f.mode,
-                    periodLabel = periodLabel(f.mode, range),
-                    points = series.map { point ->
-                        BalancePointUi(
-                            date = point.date,
-                            valueMinor = point.balance.amount.raw,
-                            amountText = MoneyFormatter.format(point.balance, currency),
-                        )
-                    },
-                    currentBalanceText = series.lastOrNull()?.let { MoneyFormatter.format(it.balance, currency) },
-                )
+                combine(
+                    txns.observeForAccountInRange(account.id, range.start, range.endInclusive),
+                    txns.observeAccountDeltaBefore(account.id, range.start),
+                ) { inRange, deltaBefore ->
+                    val start = Money(Minor(Math.addExact(account.openingBalance.amount.raw, deltaBefore)), account.currency)
+                    val series = balanceSeriesFrom(start, account, inRange, range)
+                    AccountBalanceUiState(
+                        accounts = active,
+                        selectedAccountId = account.id,
+                        periodMode = f.mode,
+                        periodLabel = periodLabel(f.mode, range),
+                        points = series.map { point ->
+                            BalancePointUi(
+                                date = point.date,
+                                valueMinor = point.balance.amount.raw,
+                                amountText = MoneyFormatter.format(point.balance, currency),
+                            )
+                        },
+                        currentBalanceText = series.lastOrNull()?.let { MoneyFormatter.format(it.balance, currency) },
+                    )
+                }
             }
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), AccountBalanceUiState())

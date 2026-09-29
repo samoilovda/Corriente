@@ -12,6 +12,7 @@ import com.corriente.data.db.entity.CategoryKind
 import com.corriente.data.model.Account
 import com.corriente.data.model.Category
 import com.corriente.data.model.Txn
+import com.corriente.data.quickentry.FREQUENT_ENTRIES_WINDOW_DAYS
 import com.corriente.data.quickentry.FREQUENT_ENTRY_SUGGESTIONS_LIMIT
 import com.corriente.data.quickentry.FrequentEntry
 import com.corriente.data.quickentry.FrequentEntryKind
@@ -30,11 +31,14 @@ import com.corriente.money.MoneyFormatter
 import com.corriente.money.applyCalcOrNull
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -291,14 +295,28 @@ class TxnEntryViewModel(
         val categoryId: String?,
     )
 
+    /**
+     * R2.2/A2.11: «частые» — отдельный поток от окна последних [FREQUENT_ENTRIES_WINDOW_DAYS] дней, пересчитывается
+     * только при изменении операций, а не на каждую нажатую цифру (раньше `frequentEntries` считался внутри `combine`
+     * вместе с `form`). Только для нового ввода — при редактировании строка «частые» не нужна.
+     */
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    private val frequent: Flow<List<FrequentEntry>> = if (editingTxnId == null) {
+        val now = today()
+        txns.observeRange(now.minusDays(FREQUENT_ENTRIES_WINDOW_DAYS), now)
+            .map { frequentEntries(it, now, FREQUENT_ENTRY_SUGGESTIONS_LIMIT) }
+            .distinctUntilChanged()
+    } else {
+        kotlinx.coroutines.flow.flowOf(emptyList())
+    }
+
     val uiState: StateFlow<TxnEntryUiState> = combine(
         form,
         accounts.observeAll(),
         currencies.observeAll(),
         categories.observeAllForLookup(),
-        // R2.2: только для нового ввода — при редактировании строка «частые» не нужна.
-        if (editingTxnId == null) txns.observeAll() else kotlinx.coroutines.flow.flowOf<List<Txn>>(emptyList()),
-    ) { f, allAccounts, allCurrencies, allCategories, allTxns ->
+        frequent,
+    ) { f, allAccounts, allCurrencies, allCategories, frequentList ->
         val byCode = allCurrencies.associateBy { it.code.code }
         fun option(account: Account) = AccountOption(
             id = account.id,
@@ -327,7 +345,7 @@ class TxnEntryViewModel(
         }
         val activeAccountsById = allAccounts.filterNot { it.isArchived }.associateBy { it.id }
         val categoryNamesById = allCategories.associate { it.id to it.name }
-        val frequentOptions = frequentEntries(allTxns, today(), FREQUENT_ENTRY_SUGGESTIONS_LIMIT)
+        val frequentOptions = frequentList
             .mapNotNull { entry ->
                 val account = activeAccountsById[entry.accountId] ?: return@mapNotNull null
                 val currencyMeta = byCode[entry.currencyCode]

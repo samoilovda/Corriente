@@ -15,6 +15,7 @@ import com.corriente.data.repository.CurrencyRepository
 import com.corriente.data.repository.TxnRepository
 import com.corriente.data.widget.MAX_PINNED_CURRENCIES
 import com.corriente.data.widget.MAX_QUICK_CATEGORIES
+import com.corriente.data.widget.QUICK_CATEGORY_WINDOW_DAYS
 import com.corriente.data.widget.WidgetConfig
 import com.corriente.data.widget.WidgetConfigStore
 import com.corriente.data.widget.defaultPinnedCurrencies
@@ -98,7 +99,8 @@ class WidgetSettingsViewModel(
         currencyRepository.observeActive(),
         accountRepository.observeActive(),
         categoryRepository.observeActive(),
-        txnRepository.observeAll(),
+        // A2.11: авто-подбор валют (30 дн.) и категорий (60 дн.) смотрит только недавнее окно, не всю таблицу.
+        txnRepository.observeRange(today().minusDays(QUICK_CATEGORY_WINDOW_DAYS), today()),
         configStore.config,
     ) { currencies, accounts, categories, txns, config ->
         widgetSettingsUiState(currencies, accounts, categories, txns, config, today())

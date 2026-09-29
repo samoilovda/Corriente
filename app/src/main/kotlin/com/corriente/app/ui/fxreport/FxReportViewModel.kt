@@ -47,7 +47,7 @@ class FxReportViewModel(
 ) : ViewModel() {
 
     val uiState: StateFlow<FxReportUiState> = combine(
-        txns.observeAll(),
+        txns.observeCrossCurrencyTransfers(), // A2.11: не вся таблица — fxDeals и так берёт только межвалютные переводы
         currencies.observeAll(),
     ) { allTxns, allCurrencies ->
         val byCode = allCurrencies.associateBy { it.code }

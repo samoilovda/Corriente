@@ -34,6 +34,21 @@ class FakeTxnDao : TxnDao {
     override fun observeRange(from: String, to: String): Flow<List<TxnEntity>> =
         rows.map { list -> list.filter { it.date >= from && it.date <= to } }
 
+    override fun observeForAccountInRange(accountId: String, from: String, to: String): Flow<List<TxnEntity>> =
+        rows.map { list -> list.filter { (it.accountId == accountId || it.toAccountId == accountId) && it.date >= from && it.date <= to } }
+
+    override fun observeAccountDeltaBefore(accountId: String, before: String): Flow<Long> = rows.map { list ->
+        var sum = 0L
+        list.filter { it.date < before }.forEach { t ->
+            if (t.accountId == accountId) sum += if (t.kind == TxnKind.INCOME) t.amountMinor else -t.amountMinor
+            if (t.kind == TxnKind.TRANSFER && t.toAccountId == accountId) sum += t.toAmountMinor!!
+        }
+        sum
+    }
+
+    override fun observeCrossCurrencyTransfers(): Flow<List<TxnEntity>> =
+        rows.map { list -> list.filter { it.kind == TxnKind.TRANSFER && it.currencyCode != it.toCurrencyCode } }
+
     override fun observeAnyBefore(before: String): Flow<Boolean> = rows.map { list -> list.any { it.date < before } }
 
     override fun observeAnyExist(): Flow<Boolean> = rows.map { it.isNotEmpty() }

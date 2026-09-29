@@ -26,6 +26,37 @@ interface TxnDao {
     @Query("SELECT * FROM txn WHERE account_id = :accountId OR to_account_id = :accountId ORDER BY date DESC, created_at DESC")
     fun observeForAccount(accountId: String): Flow<List<TxnEntity>>
 
+    /** A2.11: операции счёта (источник или приёмник) за диапазон [from]..[to] включительно — «Динамика по счёту». */
+    @Query(
+        """
+        SELECT * FROM txn
+        WHERE (account_id = :accountId OR to_account_id = :accountId) AND date >= :from AND date <= :to
+        ORDER BY date DESC, created_at DESC
+        """,
+    )
+    fun observeForAccountInRange(accountId: String, from: String, to: String): Flow<List<TxnEntity>>
+
+    /**
+     * A2.11: сумма движений счёта [accountId] за все дни строго до [before] (в валюте счёта) — начальный остаток
+     * периода для графика считается в SQL, а не сканом всей таблицы в памяти.
+     */
+    @Query(
+        """
+        SELECT COALESCE(SUM(delta), 0) FROM (
+            SELECT CASE kind WHEN 'INCOME' THEN amount_minor ELSE -amount_minor END AS delta
+            FROM txn WHERE account_id = :accountId AND date < :before
+            UNION ALL
+            SELECT to_amount_minor AS delta
+            FROM txn WHERE kind = 'TRANSFER' AND to_account_id = :accountId AND date < :before
+        )
+        """,
+    )
+    fun observeAccountDeltaBefore(accountId: String, before: String): Flow<Long>
+
+    /** A2.11: только межвалютные переводы — вход отчёта «мои курсы обмена» (`fxDeals` другого и не смотрит). */
+    @Query("SELECT * FROM txn WHERE kind = 'TRANSFER' AND currency_code != to_currency_code ORDER BY date DESC, created_at DESC")
+    fun observeCrossCurrencyTransfers(): Flow<List<TxnEntity>>
+
     @Query("SELECT * FROM txn ORDER BY date DESC, created_at DESC")
     fun observeAll(): Flow<List<TxnEntity>>
 
