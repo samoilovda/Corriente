@@ -146,7 +146,7 @@ fun AccountsScreen(
             onDismiss = viewModel::closeEditor,
             onSave = viewModel::save,
             onArchive = { current.editingId?.let(viewModel::archive); viewModel.closeEditor() },
-            onDelete = { current.editingId?.let(viewModel::deleteIfUnused); viewModel.closeEditor() },
+            onDelete = { current.editingId?.let(viewModel::deleteIfUnused) },
         )
     }
 }
@@ -236,6 +236,18 @@ private fun AccountEditorDialog(
     var includeInTotal by rememberSaveable(editor) { mutableStateOf(editor.includeInTotal) }
     var color by rememberSaveable(editor) { mutableIntStateOf(editor.color) }
     var icon by rememberSaveable(editor) { mutableStateOf(editor.icon) }
+    var confirmDelete by rememberSaveable(editor) { mutableStateOf(false) }
+
+    if (confirmDelete) {
+        AlertDialog(
+            onDismissRequest = { confirmDelete = false },
+            text = { Text(stringResource(R.string.accounts_delete_confirm, editor.name)) },
+            confirmButton = {
+                TextButton(onClick = { confirmDelete = false; onDelete() }) { Text(stringResource(R.string.accounts_delete)) }
+            },
+            dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text(stringResource(R.string.cancel)) } },
+        )
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -300,7 +312,17 @@ private fun AccountEditorDialog(
                 if (editor.editingId != null) {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         TextButton(onClick = onArchive) { Text(stringResource(R.string.accounts_archive)) }
-                        TextButton(onClick = onDelete) { Text(stringResource(R.string.accounts_delete)) }
+                        // A2.2: «Удалить» — только для неиспользуемого счёта; у используемого — подсказка.
+                        if (!editor.currencyLocked) {
+                            TextButton(onClick = { confirmDelete = true }) { Text(stringResource(R.string.accounts_delete)) }
+                        }
+                    }
+                    if (editor.currencyLocked) {
+                        Text(
+                            stringResource(R.string.delete_blocked_account_transactions),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                     }
                 }
             }

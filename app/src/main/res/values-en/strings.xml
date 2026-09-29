@@ -190,6 +190,14 @@
     <string name="accounts_error_currency_fixed">The currency is already fixed by the first transaction</string>
     <string name="accounts_error_archive">Could not archive the account</string>
     <string name="accounts_error_unarchive">Could not restore the account from archive</string>
+    <string name="delete_blocked_account_transactions">The account has transactions — it can only be archived</string>
+    <string name="delete_blocked_account_recurrences">A recurring rule refers to the account — delete the rule or archive the account</string>
+    <string name="delete_blocked_category_transactions">The category has transactions — it can only be archived or merged into another one</string>
+    <string name="delete_blocked_category_budgets">A budget is set on the category — delete the budget or archive the category</string>
+    <string name="delete_blocked_category_recurrences">A recurring rule refers to the category — delete the rule or archive the category</string>
+    <string name="delete_blocked_category_subcategories">The category has subcategories — delete or move them first</string>
+    <string name="accounts_delete_confirm">Delete the account "%1$s"? This cannot be undone.</string>
+    <string name="categories_delete_confirm">Delete the category "%1$s"? This cannot be undone.</string>
     <string name="accounts_error_delete">Could not delete the account</string>
 
     <string name="account_kind_cash">Cash</string>

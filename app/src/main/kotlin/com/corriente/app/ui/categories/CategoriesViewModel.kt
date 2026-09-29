@@ -5,6 +5,9 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.corriente.app.R
 import com.corriente.app.ui.common.WritingViewModel
+import com.corriente.app.ui.common.blockedMessage
+import com.corriente.data.repository.DeleteBlocker
+import com.corriente.data.repository.DeleteResult
 import com.corriente.app.ui.common.looksLikeConstraintViolation
 import com.corriente.app.ui.common.uiMessage
 import com.corriente.data.db.entity.CategoryKind
@@ -43,6 +46,8 @@ data class CategoryEditor(
     val icon: String,
     /** true — у категории есть подкатегории: её нельзя сделать подкатегорией и нельзя слить. */
     val hasChildren: Boolean,
+    /** A2.2: чем занята категория — пусто, значит её можно удалить; иначе только архивировать/слить. */
+    val deleteBlockers: Set<DeleteBlocker> = emptySet(),
 )
 
 /** Кандидат на слияние: активная категория того же типа, без подкатегорий, не сама [from]. */
@@ -95,6 +100,7 @@ class CategoriesViewModel(private val repository: CategoryRepository) : WritingV
                 color = category.color,
                 icon = category.icon.orEmpty(),
                 hasChildren = branchesContainChild(category.id),
+                deleteBlockers = repository.blockers(category.id),
             )
         }
     }
@@ -136,8 +142,14 @@ class CategoriesViewModel(private val repository: CategoryRepository) : WritingV
         launchWrite(onError = { uiMessage(R.string.categories_error_unarchive) }) { repository.unarchive(id) }
     }
 
+    /** A2.2: закрывает редактор только при удалении; отказ репозитория — сообщение с причиной. */
     fun deleteIfUnused(id: String) {
-        launchWrite(onError = { uiMessage(R.string.categories_error_delete) }) { repository.deleteIfUnused(id) }
+        launchWrite(onError = { uiMessage(R.string.categories_error_delete) }) {
+            when (val result = repository.deleteIfUnused(id)) {
+                DeleteResult.Deleted, DeleteResult.NotFound -> closeEditor()
+                is DeleteResult.Blocked -> postMessage(result.reasons.blockedMessage(forAccount = false))
+            }
+        }
     }
 
     /**

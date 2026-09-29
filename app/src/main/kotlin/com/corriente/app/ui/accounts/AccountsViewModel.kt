@@ -6,6 +6,8 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.corriente.app.R
 import com.corriente.app.ui.categories.CategoryPalette
 import com.corriente.app.ui.common.WritingViewModel
+import com.corriente.app.ui.common.blockedMessage
+import com.corriente.data.repository.DeleteResult
 import com.corriente.app.ui.common.uiMessage
 import com.corriente.data.db.entity.AccountKind
 import com.corriente.data.model.Account
@@ -221,8 +223,14 @@ class AccountsViewModel(
         launchWrite(onError = { uiMessage(R.string.accounts_error_unarchive) }) { accounts.unarchive(id) }
     }
 
+    /** A2.2: закрывает редактор только при удалении; отказ репозитория — сообщение с причиной. */
     fun deleteIfUnused(id: String) {
-        launchWrite(onError = { uiMessage(R.string.accounts_error_delete) }) { accounts.deleteIfUnused(id) }
+        launchWrite(onError = { uiMessage(R.string.accounts_error_delete) }) {
+            when (val result = accounts.deleteIfUnused(id)) {
+                DeleteResult.Deleted, DeleteResult.NotFound -> closeEditor()
+                is DeleteResult.Blocked -> postMessage(result.reasons.blockedMessage(forAccount = true))
+            }
+        }
     }
 
     companion object {

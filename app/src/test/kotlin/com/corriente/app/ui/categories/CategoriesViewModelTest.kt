@@ -170,4 +170,39 @@ class CategoriesViewModelTest {
         advanceUntilIdle()
         assertTrue(vm.uiState.value.expense.isEmpty())
     }
+
+    // A2.2: категория с бюджетом — «Удалить» не молчит: причина в сообщении, редактор остаётся открытым.
+    @Test
+    fun `deleting a category that a budget refers to explains why and keeps the editor open`() = runTest(dispatcher) {
+        val (vm, dao) = build()
+        backgroundScope.observe(vm)
+        backgroundScope.launch { vm.messages.collect {} }
+        vm.startCreate(CategoryKind.EXPENSE); advanceUntilIdle()
+        vm.save(CategoryForm("Еда", CategoryKind.EXPENSE, null, 1, null)); advanceUntilIdle()
+        val food = vm.uiState.value.expense.single().category
+        dao.budgetCategories += food.id
+
+        vm.startEdit(food); advanceUntilIdle()
+        assertEquals(setOf(com.corriente.data.repository.DeleteBlocker.BUDGETS), vm.editor.value!!.deleteBlockers)
+        vm.deleteIfUnused(food.id); advanceUntilIdle()
+
+        assertEquals(com.corriente.app.R.string.delete_blocked_category_budgets, vm.messages.value?.resId)
+        assertEquals(listOf("Еда"), vm.uiState.value.expense.map { it.category.name })
+        assertTrue(vm.editor.value != null)
+    }
+
+    @Test
+    fun `deleting an unused category removes it and closes the editor`() = runTest(dispatcher) {
+        val (vm, _) = build()
+        backgroundScope.observe(vm)
+        vm.startCreate(CategoryKind.EXPENSE); advanceUntilIdle()
+        vm.save(CategoryForm("Еда", CategoryKind.EXPENSE, null, 1, null)); advanceUntilIdle()
+        val food = vm.uiState.value.expense.single().category
+        vm.startEdit(food); advanceUntilIdle()
+
+        vm.deleteIfUnused(food.id); advanceUntilIdle()
+
+        assertTrue(vm.uiState.value.expense.isEmpty())
+        assertNull(vm.editor.value)
+    }
 }

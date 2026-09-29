@@ -50,6 +50,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.corriente.app.R
+import com.corriente.app.ui.common.messageRes
+import com.corriente.data.repository.DeleteBlocker
 import com.corriente.app.corrienteContainer
 import com.corriente.app.ui.common.rememberMessageSnackbarState
 import com.corriente.data.db.entity.CategoryKind
@@ -132,7 +134,7 @@ fun CategoriesScreen(
             onDismiss = viewModel::closeEditor,
             onSave = viewModel::save,
             onArchive = { current.editingId?.let(viewModel::archive); viewModel.closeEditor() },
-            onDelete = { current.editingId?.let(viewModel::deleteIfUnused); viewModel.closeEditor() },
+            onDelete = { current.editingId?.let(viewModel::deleteIfUnused) },
             onMerge = { current.editingId?.let { id -> mergeSourceOf(id, state)?.let(viewModel::startMerge) } },
         )
     }
@@ -193,6 +195,18 @@ private fun CategoryEditorDialog(
     var parentId by rememberSaveable(editor) { mutableStateOf(editor.parentId) }
     var color by rememberSaveable(editor) { mutableIntStateOf(editor.color) }
     var icon by rememberSaveable(editor) { mutableStateOf(editor.icon) }
+    var confirmDelete by rememberSaveable(editor) { mutableStateOf(false) }
+
+    if (confirmDelete) {
+        AlertDialog(
+            onDismissRequest = { confirmDelete = false },
+            text = { Text(stringResource(R.string.categories_delete_confirm, editor.name)) },
+            confirmButton = {
+                TextButton(onClick = { confirmDelete = false; onDelete() }) { Text(stringResource(R.string.categories_delete)) }
+            },
+            dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text(stringResource(R.string.cancel)) } },
+        )
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -252,7 +266,16 @@ private fun CategoryEditorDialog(
                         if (!editor.hasChildren) {
                             TextButton(onClick = onMerge) { Text(stringResource(R.string.categories_merge)) }
                         }
-                        TextButton(onClick = onDelete) { Text(stringResource(R.string.categories_delete)) }
+                        if (editor.deleteBlockers.isEmpty()) {
+                            TextButton(onClick = { confirmDelete = true }) { Text(stringResource(R.string.categories_delete)) }
+                        }
+                    }
+                    if (editor.deleteBlockers.isNotEmpty()) {
+                        Text(
+                            stringResource(DeleteBlocker.entries.first { it in editor.deleteBlockers }.messageRes(forAccount = false)),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                     }
                 }
             }

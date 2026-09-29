@@ -301,4 +301,23 @@ class AccountsViewModelTest {
 
         assertTrue(vm.editor.value!!.currencyLocked)
     }
+
+    // A2.2: счёт с операциями — «Удалить» не молчит: причина в сообщении, счёт на месте, редактор открыт.
+    @Test
+    fun `deleting an account that has transactions explains why`() = runTest(dispatcher) {
+        val (vm, dao, _) = build()
+        backgroundScope.observe(vm)
+        backgroundScope.launch { vm.messages.collect {} }
+        vm.startCreate(); advanceUntilIdle()
+        vm.save(AccountForm("Карта", CurrencyCode("RUB"), AccountKind.CARD, "0", includeInTotal = true)); advanceUntilIdle()
+        val account = activeRows(vm).single().account
+        dao.markHasTransactions(account.id)
+        vm.startEdit(account); advanceUntilIdle()
+
+        vm.deleteIfUnused(account.id); advanceUntilIdle()
+
+        assertEquals(com.corriente.app.R.string.delete_blocked_account_transactions, vm.messages.value?.resId)
+        assertEquals(1, activeRows(vm).size)
+        assertTrue(vm.editor.value != null)
+    }
 }

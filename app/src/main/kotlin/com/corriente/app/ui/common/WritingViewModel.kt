@@ -42,6 +42,10 @@ abstract class WritingViewModel(
         _messages.value = null
     }
 
+    protected fun postMessage(message: UiMessage) {
+        _messages.value = message
+    }
+
     /** Показать сообщение вне пути записи (напр. «валюта уже зафиксирована»). */
     protected fun postMessage(resId: Int, vararg args: Any) {
         _messages.value = uiMessage(resId, *args)

@@ -190,6 +190,14 @@
     <string name="accounts_error_currency_fixed">Валюта уже зафиксирована первой операцией</string>
     <string name="accounts_error_archive">Не удалось заархивировать счёт</string>
     <string name="accounts_error_unarchive">Не удалось вернуть счёт из архива</string>
+    <string name="delete_blocked_account_transactions">У счёта есть операции — его можно только архивировать</string>
+    <string name="delete_blocked_account_recurrences">На счёт ссылается повторяющееся правило — удалите правило или архивируйте счёт</string>
+    <string name="delete_blocked_category_transactions">У категории есть операции — её можно только архивировать или объединить с другой</string>
+    <string name="delete_blocked_category_budgets">На категорию заведён бюджет — удалите бюджет или архивируйте категорию</string>
+    <string name="delete_blocked_category_recurrences">На категорию ссылается повторяющееся правило — удалите правило или архивируйте категорию</string>
+    <string name="delete_blocked_category_subcategories">У категории есть подкатегории — сначала удалите или перенесите их</string>
+    <string name="accounts_delete_confirm">Удалить счёт «%1$s»? Это нельзя отменить.</string>
+    <string name="categories_delete_confirm">Удалить категорию «%1$s»? Это нельзя отменить.</string>
     <string name="accounts_error_delete">Не удалось удалить счёт</string>
 
     <string name="account_kind_cash">Наличные</string>
