@@ -3,12 +3,12 @@ package com.corriente.data.usecase
 import com.corriente.money.CurrencyCode
 import com.corriente.money.Minor
 import com.corriente.money.Money
+import java.math.BigDecimal
+import java.math.MathContext
+import java.math.RoundingMode
 
 /** R3.4: меньше сделок по паре — сравнивать курс не с чем (ADR-013: курсы не берём из сети). */
 private const val MIN_DEALS_FOR_ESTIMATE = 3
-
-/** Масштаб [FxDeal.rateMicros] — курс, умноженный на 1e6 (см. `FxReport.kt`). */
-private const val RATE_SCALE_MICROS = 1_000_000L
 
 /**
  * R3.4: во что обходится отклонение курса каждой сделки от медианного курса той же пары —
@@ -30,18 +30,12 @@ data class ConversionCostEstimate(
 )
 
 /**
- * Курс сделки, приведённый к единому направлению «[quote] за единицу [base]» — вне зависимости
- * от того, была сама сделка `base → quote` или `quote → base`. Для второго случая курс
- * [FxDeal.rateMicros] уже посчитан как `quote/base`-наоборот (`base` за единицу `quote`),
- * поэтому берём обратную величину той же точности (I-4: округление один раз — здесь целочисленное
- * деление, оценочная величина отчёта, не хранится).
+ * Курс сделки, приведённый к единому направлению «[quote] за единицу [base]» — вне зависимости от того, была сама
+ * сделка `base → quote` или `quote → base` (для второй берётся обратная величина). A2.14: считается в [BigDecimal] —
+ * это отношение сумм, не деньги; итог округляется один раз до минорных единиц (I-4).
  */
-private fun normalizedRateMicros(deal: FxDeal, base: CurrencyCode): Long =
-    if (deal.from.currency == base) {
-        deal.rateMicros
-    } else {
-        Math.multiplyExact(RATE_SCALE_MICROS, RATE_SCALE_MICROS) / deal.rateMicros
-    }
+private fun normalizedRate(deal: FxDeal, base: CurrencyCode): BigDecimal =
+    if (deal.from.currency == base) deal.rate else BigDecimal.ONE.divide(deal.rate, MathContext.DECIMAL128)
 
 /**
  * Сумма сделки, реально выраженная в [quote] — для `base → quote` это принятая сумма (`to`),
@@ -51,15 +45,15 @@ private fun normalizedRateMicros(deal: FxDeal, base: CurrencyCode): Long =
 private fun quoteAmountMinor(deal: FxDeal, quote: CurrencyCode): Long =
     if (deal.to.currency == quote) deal.to.amount.raw else deal.from.amount.raw
 
-/** Медиана отсортированного по возрастанию списка: середина — либо один элемент, либо среднее двух. */
-internal fun medianMicros(values: List<Long>): Long {
-    require(values.isNotEmpty()) { "medianMicros: values must not be empty" }
+/** Медиана: середина отсортированного списка — либо один элемент, либо среднее двух. */
+internal fun median(values: List<BigDecimal>): BigDecimal {
+    require(values.isNotEmpty()) { "median: values must not be empty" }
     val sorted = values.sorted()
     val mid = sorted.size / 2
     return if (sorted.size % 2 == 1) {
         sorted[mid]
     } else {
-        Math.addExact(sorted[mid - 1], sorted[mid]) / 2
+        sorted[mid - 1].add(sorted[mid]).divide(BigDecimal(2), MathContext.DECIMAL128)
     }
 }
 
@@ -75,23 +69,28 @@ fun conversionCost(deals: List<FxDeal>): List<ConversionCostEstimate> =
     deals.groupBy { unorderedPairKey(it.from.currency, it.to.currency) }
         .map { (pairKey, pairDeals) ->
             val (base, quote) = pairKey
-            if (pairDeals.size < MIN_DEALS_FOR_ESTIMATE) {
+            if (pairDeals.size < MIN_DEALS_FOR_ESTIMATE || pairDeals.any { it.rate.signum() <= 0 }) {
                 ConversionCostEstimate(base, quote, pairDeals.size, cost = null)
             } else {
-                val rates = pairDeals.map { normalizedRateMicros(it, base) }
-                val median = medianMicros(rates)
+                val rates = pairDeals.map { normalizedRate(it, base) }
+                val median = median(rates)
                 // «Сколько стоили конвертации» — это цена отклонения от медианы в любую сторону
                 // (и переплата, и недоплата — обе означают, что курс сделки был не «типичным» для
                 // вас), поэтому суммируем модуль отклонения каждой сделки, а не знаковую сумму,
                 // где переплаты и недоплаты гасили бы друг друга и прятали реальный разброс.
-                var totalMinor = 0L
+                var total = BigDecimal.ZERO
                 pairDeals.forEachIndexed { i, deal ->
-                    val deviation = Math.subtractExact(rates[i], median)
-                    val quoteMinor = quoteAmountMinor(deal, quote)
-                    val dealCostMinor = kotlin.math.abs(Math.multiplyExact(deviation, quoteMinor) / median)
-                    totalMinor = Math.addExact(totalMinor, dealCostMinor)
+                    total = total.add(
+                        rates[i].subtract(median).abs().multiply(BigDecimal(quoteAmountMinor(deal, quote)))
+                            .divide(median, MathContext.DECIMAL128),
+                    )
                 }
-                ConversionCostEstimate(base, quote, pairDeals.size, Money(Minor(totalMinor), quote))
+                // Округление ровно один раз, до минорных единиц (I-4); не помещается в Long — «недостаточно данных».
+                val totalMinor = runCatching { total.setScale(0, RoundingMode.HALF_UP).longValueExact() }.getOrNull()
+                ConversionCostEstimate(
+                    base, quote, pairDeals.size,
+                    cost = totalMinor?.let { Money(Minor(it), quote) },
+                )
             }
         }
         .sortedWith(compareBy({ it.baseCurrency.code }, { it.quoteCurrency.code }))

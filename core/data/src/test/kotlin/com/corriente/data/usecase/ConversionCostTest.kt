@@ -85,12 +85,9 @@ class ConversionCostTest {
         assertEquals(3, result.dealCount)
         assertEquals(gbp, result.cost!!.currency)
         assertTrue(result.cost.amount.raw > 0)
-        // |85-90|/90 и |95-90|/90 от суммы в GBP каждой сделки (100 EUR по своему курсу), сложенные по модулю.
-        val gbp1 = Math.multiplyExact(100_00L, 85_000_000L) / 1_000_000L
-        val gbp3 = Math.multiplyExact(100_00L, 95_000_000L) / 1_000_000L
-        val cost1 = kotlin.math.abs(Math.multiplyExact(-5_000_000L, gbp1) / 90_000_000L)
-        val cost3 = kotlin.math.abs(Math.multiplyExact(5_000_000L, gbp3) / 90_000_000L)
-        assertEquals(cost1 + cost3, result.cost.amount.raw)
+        // |85-90|/90 · 8500.00 + |95-90|/90 · 9500.00 = 472.2222… + 527.7777… = 1000.00 GBP — сумма точная, округляется
+        // ровно один раз в конце (I-4), а не по сделкам с потерей копеек.
+        assertEquals(100_000L, result.cost.amount.raw)
     }
 
     // Ключевое требование R3.4: A→B и B→A — одна и та же пара, а не две разные.
@@ -133,8 +130,44 @@ class ConversionCostTest {
 
     @Test
     fun `median of an even-sized list averages the two middle values`() {
-        assertEquals(15L, medianMicros(listOf(10L, 20L)))
-        assertEquals(20L, medianMicros(listOf(10L, 20L, 30L)))
-        assertEquals(25L, medianMicros(listOf(40L, 10L, 30L, 20L)))
+        fun bd(vararg v: Long) = v.map { java.math.BigDecimal(it) }
+        assertEquals(0, java.math.BigDecimal(15).compareTo(median(bd(10, 20))))
+        assertEquals(0, java.math.BigDecimal(20).compareTo(median(bd(10, 20, 30))))
+        assertEquals(0, java.math.BigDecimal(25).compareTo(median(bd(40, 10, 30, 20))))
+    }
+
+    // A2.14: курс порядка 1e-7 (IRR → USD и подобные) раньше давал rateMicros = 0 и деление на ноль в combine → краш экрана.
+    @Test
+    fun `tiny rates do not divide by zero and are estimated from the exact rate`() {
+        val irr = CurrencyCode("IRR")
+        fun tiny(id: String, month: Int, irrMinor: Long, usdMinor: Long) = FxDeal(
+            txnId = id, date = LocalDate.of(2026, month, 1),
+            from = Money(Minor(irrMinor), irr), to = Money(Minor(usdMinor), usd),
+            rateLabel = "", rateMicros = 0L, // округление до 1e-6 обнуляет курс
+            rate = java.math.BigDecimal(usdMinor).divide(java.math.BigDecimal(irrMinor), java.math.MathContext.DECIMAL64)
+                .movePointLeft(0),
+        )
+        val deals = listOf(
+            tiny("a", 1, 10_000_000_000L, 100L),
+            tiny("b", 2, 10_000_000_000L, 101L),
+            tiny("c", 3, 10_000_000_000L, 110L),
+        )
+
+        val result = conversionCost(deals).single()
+
+        assertEquals(3, result.dealCount)
+        assertTrue(result.cost != null && result.cost!!.amount.raw > 0)
+    }
+
+    // A2.14: крупные суммы не переполняют Math.multiplyExact — либо число, либо «недостаточно данных», не краш.
+    @Test
+    fun `huge amounts do not overflow`() {
+        val big = 900_000_000_000_000_000L
+        val deals = listOf(
+            eurToGbp("a", LocalDate.of(2026, 1, 1), 1_000_00, 90_000_000).copy(to = Money(Minor(big), gbp)),
+            eurToGbp("b", LocalDate.of(2026, 2, 1), 1_000_00, 80_000_000).copy(to = Money(Minor(big), gbp)),
+            eurToGbp("c", LocalDate.of(2026, 3, 1), 1_000_00, 100_000_000).copy(to = Money(Minor(big), gbp)),
+        )
+        conversionCost(deals) // не бросает
     }
 }

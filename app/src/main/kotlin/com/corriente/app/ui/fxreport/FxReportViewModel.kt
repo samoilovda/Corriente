@@ -75,7 +75,8 @@ class FxReportViewModel(
         // conversionCost (ADR-013: сравниваем только собственные сделки, курсы из сети не берём).
         val thisYear = today().year
         val dealsThisYear = fxPairs.flatMap { it.deals }.filter { it.date.year == thisYear }
-        val conversionCosts = conversionCost(dealsThisYear).map { estimate ->
+        // A2.14: оценка — вспомогательная; любая ошибка расчёта даёт пустой список («нет данных»), а не краш экрана.
+        val conversionCosts = runCatching { conversionCost(dealsThisYear) }.getOrDefault(emptyList()).map { estimate ->
             ConversionCostUi(
                 title = "${estimate.baseCurrency.code} ↔ ${estimate.quoteCurrency.code}",
                 dealCount = estimate.dealCount,

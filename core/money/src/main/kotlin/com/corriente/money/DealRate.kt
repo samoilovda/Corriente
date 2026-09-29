@@ -1,6 +1,7 @@
 package com.corriente.money
 
 import java.math.BigDecimal
+import java.math.MathContext
 import java.math.RoundingMode
 
 /**
@@ -13,7 +14,10 @@ import java.math.RoundingMode
  */
 object DealRate {
 
-    /** Точность внутреннего представления курса — с запасом, до показа не округляем. */
+    /** Точность внутреннего представления курса — 20 значащих цифр (A2.14: мелкие курсы вроде 1e-7 не схлопываются в 0). */
+    private val RATE_PRECISION = MathContext(20, RoundingMode.HALF_UP)
+
+    /** Точность обратных пересчётов сумм по курсу — знаков после запятой (сумма потом округляется один раз, I-4). */
     private const val RATE_SCALE = 10
 
     private fun Minor.toMajor(currency: Currency): BigDecimal =
@@ -29,7 +33,7 @@ object DealRate {
         }
         val fromMajor = from.amount.toMajor(fromCurrency)
         if (fromMajor.signum() == 0) return null
-        return to.amount.toMajor(toCurrency).divide(fromMajor, RATE_SCALE, RoundingMode.HALF_UP)
+        return to.amount.toMajor(toCurrency).divide(fromMajor, RATE_PRECISION)
     }
 
     private val CODE_RATE = Regex("""\d{1,12}([.,]\d{1,10})?""")

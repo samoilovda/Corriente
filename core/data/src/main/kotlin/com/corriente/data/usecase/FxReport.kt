@@ -5,6 +5,7 @@ import com.corriente.money.Currency
 import com.corriente.money.CurrencyCode
 import com.corriente.money.DealRate
 import com.corriente.money.Money
+import java.math.BigDecimal
 import java.math.RoundingMode
 import java.time.LocalDate
 
@@ -23,6 +24,12 @@ data class FxDeal(
     val to: Money,
     val rateLabel: String,
     val rateMicros: Long,
+    /**
+     * Точный курс сделки (`to/from`, 20 значащих цифр) — отношение сумм, не деньги. A2.14: оценка «стоимости
+     * конвертаций» считается по нему, а не по [rateMicros]: тот округлён до 1e-6 и для мелких курсов (< 1e-5) неточен
+     * или нулевой.
+     */
+    val rate: BigDecimal = BigDecimal(rateMicros).movePointLeft(6),
 )
 
 data class FxPair(
@@ -51,7 +58,9 @@ fun fxDeals(
                 from = txn.fromAmount,
                 to = txn.toAmount,
                 rateLabel = label,
-                rateMicros = rate.movePointRight(6).setScale(0, RoundingMode.HALF_UP).toLong(),
+                rateMicros = rate.movePointRight(6).setScale(0, RoundingMode.HALF_UP).toBigInteger()
+                    .let { if (it.bitLength() > 63) Long.MAX_VALUE else it.toLong() }, // только для графика
+                rate = rate,
             )
         }
 
