@@ -115,7 +115,7 @@ class Stage2AcceptanceTest {
             val j2 = launch { listVm.uiState.collect {} }
             advanceUntilIdle()
             val section = listVm.uiState.value.sections.single { it.date == march }
-            assertEquals(listOf("-1 000.00 ₽"), section.totals)
+            assertEquals(listOf("-1\u00A0000.00\u00A0₽"), section.totals)
             assertTrue(section.rows.any { it.isTransfer })   // перевод в списке показан
             j2.cancel()
         }

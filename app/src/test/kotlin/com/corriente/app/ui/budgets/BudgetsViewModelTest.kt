@@ -68,7 +68,7 @@ class BudgetsViewModelTest {
 
         val row = model.uiState.value.rows.single()
         assertEquals("Еда", row.categoryName)
-        assertEquals("100.00 ₽", row.amountText)
+        assertEquals("100.00\u00A0₽", row.amountText)
         assertEquals(null, model.uiState.value.editor)
     }
 
@@ -110,7 +110,7 @@ class BudgetsViewModelTest {
         model.save()
         advanceUntilIdle()
 
-        assertEquals("200.00 ₽", model.uiState.value.rows.single().amountText)
+        assertEquals("200.00\u00A0₽", model.uiState.value.rows.single().amountText)
         assertEquals(null, model.uiState.value.editor)
     }
 

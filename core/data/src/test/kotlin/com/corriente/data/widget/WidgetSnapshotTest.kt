@@ -61,7 +61,7 @@ class WidgetSnapshotTest {
         )
 
         assertEquals(
-            listOf(CurrencyLine("RUB", "750.00 ₽"), CurrencyLine("USD", "900.00 $")),
+            listOf(CurrencyLine("RUB", "750.00\u00A0₽"), CurrencyLine("USD", "900.00\u00A0$")),
             snapshot.balances,
         )
         assertEquals("cash", snapshot.activeAccountId)
@@ -99,7 +99,7 @@ class WidgetSnapshotTest {
             today = today,
             computedAt = 0L,
         )
-        assertEquals(listOf(CurrencyLine("RUB", "420.00 ₽")), snapshot.monthExpenses)
+        assertEquals(listOf(CurrencyLine("RUB", "420.00\u00A0₽")), snapshot.monthExpenses)
     }
 
     // F2.2 — тот же набор операций, разный `today`: месячный итог должен меняться на смене месяца.
@@ -119,8 +119,8 @@ class WidgetSnapshotTest {
             today = day,
             computedAt = 0L,
         )
-        assertEquals(listOf(CurrencyLine("RUB", "300.00 ₽")), snap(LocalDate.of(2026, 8, 31)).monthExpenses)
-        assertEquals(listOf(CurrencyLine("RUB", "120.00 ₽")), snap(LocalDate.of(2026, 9, 1)).monthExpenses)
+        assertEquals(listOf(CurrencyLine("RUB", "300.00\u00A0₽")), snap(LocalDate.of(2026, 8, 31)).monthExpenses)
+        assertEquals(listOf(CurrencyLine("RUB", "120.00\u00A0₽")), snap(LocalDate.of(2026, 9, 1)).monthExpenses)
     }
 
     @Test

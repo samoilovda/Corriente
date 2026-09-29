@@ -76,6 +76,6 @@ class TxnEntryFlowInstrumentedTest {
         // MoneyFormatter (I-25): знак «-», точка десятичная, независимо от локали устройства.
         // Сумма встречается и в строке операции, и в подытоге дня (единственный расход за день) —
         // поэтому onAllNodesWithText + первый, а не onNodeWithText (тот требует ровно один узел).
-        composeRule.onAllNodesWithText("-12.50 ₽").onFirst().assertExists()
+        composeRule.onAllNodesWithText("-12.50\u00A0₽").onFirst().assertExists()
     }
 }

@@ -81,7 +81,7 @@ class RecurringViewModelTest {
 
         val row = model.uiState.value.rows.single()
         assertEquals("Аренда", row.categoryName)
-        assertEquals("5 000.00 ₽", row.amountText)
+        assertEquals("5\u00A0000.00\u00A0₽", row.amountText)
         assertEquals(RecurrenceRule.DayOfMonth(1), row.rule)
         assertEquals(null, model.uiState.value.editor)
     }
@@ -125,7 +125,7 @@ class RecurringViewModelTest {
         model.save()
         advanceUntilIdle()
 
-        assertEquals("200.00 ₽", model.uiState.value.rows.single().amountText)
+        assertEquals("200.00\u00A0₽", model.uiState.value.rows.single().amountText)
     }
 
     @Test

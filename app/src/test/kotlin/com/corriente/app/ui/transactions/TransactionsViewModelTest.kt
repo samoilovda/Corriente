@@ -76,12 +76,12 @@ class TransactionsViewModelTest {
         )
         assertEquals(listOf(d2, d1), sections.map { it.date })
         // день d2: доход 3000 − расход 1500 = +1500 ₽; перевод в итог не входит
-        assertEquals(listOf("1 500.00 ₽"), sections.first().totals)
-        assertEquals(listOf("-20.00 $"), sections.last().totals)
+        assertEquals(listOf("1\u00A0500.00\u00A0₽"), sections.first().totals)
+        assertEquals(listOf("-20.00\u00A0$"), sections.last().totals)
         // строки: расход со знаком минус, доход со знаком плюс, перевод — обе суммы
         val d2Rows = sections.first().rows.associateBy { it.id }
-        assertEquals("-1 500.00 ₽", d2Rows.getValue("e1").amountText)
-        assertEquals("+3 000.00 ₽", d2Rows.getValue("i1").amountText)
+        assertEquals("-1\u00A0500.00\u00A0₽", d2Rows.getValue("e1").amountText)
+        assertEquals("+3\u00A0000.00\u00A0₽", d2Rows.getValue("i1").amountText)
         assertTrue(d2Rows.getValue("t").amountText.contains("→"))
         assertEquals(false, d2Rows.getValue("t").editable)
     }
@@ -94,7 +94,7 @@ class TransactionsViewModelTest {
             filter = TxnFilter(), accountNames = emptyMap(), categoryNames = emptyMap(),
             currenciesByCode = currenciesByCode,
         )
-        assertEquals(listOf("1 750.00 ₽"), sections.single().totals)
+        assertEquals(listOf("1\u00A0750.00\u00A0₽"), sections.single().totals)
     }
 
     @Test
@@ -104,7 +104,7 @@ class TransactionsViewModelTest {
             filter = TxnFilter(), accountNames = emptyMap(), categoryNames = emptyMap(),
             currenciesByCode = currenciesByCode,
         )
-        assertEquals(listOf("-100.00 ₽", "-5.00 $"), sections.single().totals)
+        assertEquals(listOf("-100.00\u00A0₽", "-5.00\u00A0$"), sections.single().totals)
     }
 
     @Test(expected = ArithmeticException::class)

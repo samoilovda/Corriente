@@ -3,10 +3,14 @@ package com.corriente.money
 /**
  * Форматирование [Money] для показа пользователю. Инвариант I-25: никаких `NumberFormat`,
  * `DecimalFormat` или иных locale-зависимых форматтеров в денежном пути — результат не должен
- * зависеть от `Locale.setDefault()`. Группировка тысяч — пробелом, дробная часть — точкой;
+ * зависеть от `Locale.setDefault()`. Группировка тысяч и отступ перед символом валюты — неразрывный пробел
+ * [NBSP] (A3.5: обычный пробел позволял переносу строки разорвать сумму посередине), дробная часть — точка;
  * это фиксированный стиль приложения, а не локаль устройства.
  */
 object MoneyFormatter {
+
+    /** U+00A0: тысячи и отступ перед символом валюты не переносятся на новую строку. */
+    const val NBSP: Char = '\u00A0'
 
     /**
      * Форматирует по [Currency.displayScale] (не по `minorUnits` — ARCHITECTURE.md §2.1,
@@ -32,22 +36,27 @@ object MoneyFormatter {
         val fractionDigits = padded.takeLast(minorUnits)
 
         val groupedInteger = groupThousands(integerDigits)
+        val shownFraction = if (displayScale > 0) roundFraction(fractionDigits, displayScale) else ""
+
+        // A3.5: знак — только если показанная величина ненулевая: при displayScale < minorUnits «-50» тийинов
+        // усекается до «0» и раньше выводилось как «-0 сум».
+        val shownIsZero = integerDigits.all { it == '0' } && shownFraction.all { it == '0' }
 
         val sb = StringBuilder()
-        if (negative) sb.append('-')
+        if (negative && !shownIsZero) sb.append('-')
         sb.append(groupedInteger)
         if (displayScale > 0) {
             sb.append('.')
-            sb.append(roundFraction(fractionDigits, displayScale))
+            sb.append(shownFraction)
         }
-        sb.append(' ').append(currency.symbol)
+        sb.append(NBSP).append(currency.symbol)
         return sb.toString()
     }
 
     private fun groupThousands(digits: String): String {
         val sb = StringBuilder()
         for ((index, char) in digits.reversed().withIndex()) {
-            if (index != 0 && index % 3 == 0) sb.append(' ')
+            if (index != 0 && index % 3 == 0) sb.append(NBSP)
             sb.append(char)
         }
         return sb.reverse().toString()
