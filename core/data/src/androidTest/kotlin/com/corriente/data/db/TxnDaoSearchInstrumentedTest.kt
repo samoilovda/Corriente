@@ -89,4 +89,45 @@ class TxnDaoSearchInstrumentedTest {
             db.txnDao().search(buildFtsPrefixQuery("новый"), buildLikePattern("новый")).first().map { it.id },
         )
     }
+
+    // A1.10: регистр не влияет на поиск по заметке (кириллица) — `simple`-токенайзер FTS4 сворачивает
+    // регистр только у ASCII, `unicode61` — у всего Unicode.
+    @Test
+    fun noteSearchIgnoresCyrillicCase() = runBlocking {
+        val original = db.txnDao().getById("byNote")!!
+        db.txnDao().update(original.copy(note = "Кофе с Молоком"))
+
+        assertEquals(
+            listOf("byNote"),
+            db.txnDao().search(buildFtsPrefixQuery("кофе"), buildLikePattern("кофе")).first().map { it.id },
+        )
+        assertEquals(
+            listOf("byNote"),
+            db.txnDao().search(buildFtsPrefixQuery("МОЛОК"), buildLikePattern("МОЛОК")).first().map { it.id },
+        )
+    }
+
+    // A1.10: «ё» и «е» — разные буквы для unicode61 (диакритику снимает только у латиницы/комбинируемых
+    // знаков, «ё» — отдельный символ U+0451 без разложения); поиск «елка» не находит «Ёлка». Фиксируем
+    // фактическое поведение, чтобы смена токенайзера не прошла незамеченной.
+    @Test
+    fun yoAndYeAreDistinctForNoteSearch() = runBlocking {
+        val original = db.txnDao().getById("byNote")!!
+        db.txnDao().update(original.copy(note = "Ёлка на праздник"))
+
+        assertEquals(
+            listOf("byNote"),
+            db.txnDao().search(buildFtsPrefixQuery("ёлка"), buildLikePattern("ёлка")).first().map { it.id },
+        )
+        assertTrue(db.txnDao().search(buildFtsPrefixQuery("елка"), buildLikePattern("елка")).first().isEmpty())
+    }
+
+    // A1.10: поиск префиксный — «молок» находит «молоком» (форма `"молок"*` находила только точное слово).
+    @Test
+    fun noteSearchMatchesWordPrefixes() = runBlocking {
+        assertEquals(
+            listOf("byNote"),
+            db.txnDao().search(buildFtsPrefixQuery("молок"), buildLikePattern("молок")).first().map { it.id },
+        )
+    }
 }

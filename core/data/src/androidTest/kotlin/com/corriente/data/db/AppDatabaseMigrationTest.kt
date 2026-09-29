@@ -246,6 +246,48 @@ class AppDatabaseMigrationTest {
         db.close()
     }
 
+    // A1.10 — миграция v6 → v7: индекс txn_fts пересоздан с unicode61 и перестроен; заметки, введённые до
+    // миграции, находятся без учёта регистра, триггеры продолжают работать.
+    @Test
+    fun migration6to7RebuildsFtsWithUnicode61() {
+        helper.createDatabase(testDbName, 6).apply {
+            execSQL(
+                "INSERT INTO currency(code, minor_units, display_scale, symbol, is_active, display_order) VALUES ('RUB', 2, 2, '₽', 1, 0)",
+            )
+            execSQL(
+                """
+                INSERT INTO account(id, name, currency_code, kind, opening_balance_minor, color, display_order, is_archived, include_in_total)
+                VALUES ('a1', 'Нал', 'RUB', 'CASH', 0, 0, 0, 0, 1)
+                """.trimIndent(),
+            )
+            execSQL(
+                """
+                INSERT INTO txn(id, kind, date, created_at, updated_at, account_id, amount_minor, currency_code, note)
+                VALUES ('t1', 'EXPENSE', '2026-01-01', 0, 0, 'a1', 100, 'RUB', 'Кофе с молоком')
+                """.trimIndent(),
+            )
+            close()
+        }
+
+        val db = helper.runMigrationsAndValidate(testDbName, 7, true, AppDatabase.MIGRATION_6_7)
+
+        db.query("SELECT docid FROM txn_fts WHERE txn_fts MATCH 'кофе*'").use { c ->
+            assertEquals(true, c.moveToFirst())
+        }
+        // триггер синхронизации жив: новая операция сразу индексируется
+        db.execSQL(
+            """
+            INSERT INTO txn(id, kind, date, created_at, updated_at, account_id, amount_minor, currency_code, note)
+            VALUES ('t2', 'EXPENSE', '2026-01-02', 0, 0, 'a1', 100, 'RUB', 'ЧАЙ')
+            """.trimIndent(),
+        )
+        db.query("SELECT COUNT(*) FROM txn_fts WHERE txn_fts MATCH 'чай*'").use { c ->
+            assertEquals(true, c.moveToFirst())
+            assertEquals(1, c.getInt(0))
+        }
+        db.close()
+    }
+
     // A1.11: вся цепочка 1 → текущая, затем открытие настоящим Room.databaseBuilder — только он при
     // открытии сверяет схему со скомпилированной моделью сущностей (MigrationTestHelper сверяет с
     // JSON-файлами, которые для v3–v5 написаны вручную).

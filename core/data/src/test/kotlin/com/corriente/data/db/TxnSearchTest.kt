@@ -8,12 +8,17 @@ class TxnSearchTest {
 
     @Test
     fun `single word becomes a quoted prefix token`() {
-        assertEquals("\"кофе\"*", buildFtsPrefixQuery("кофе"))
+        assertEquals("\"кофе*\"", buildFtsPrefixQuery("кофе"))
     }
 
     @Test
     fun `multiple words become several prefix tokens implicitly ANDed`() {
-        assertEquals("\"кофе\"* \"трав\"*", buildFtsPrefixQuery("кофе  трав"))
+        assertEquals("\"кофе*\" \"трав*\"", buildFtsPrefixQuery("кофе  трав"))
+    }
+
+    @Test
+    fun `words are lowercased so the quoted prefix token matches the folded index`() {
+        assertEquals("\"молок*\"", buildFtsPrefixQuery("МОЛОК"))
     }
 
     @Test
@@ -24,7 +29,7 @@ class TxnSearchTest {
 
     @Test
     fun `quotes inside a word are escaped by doubling`() {
-        assertEquals("\"a\"\"b\"*", buildFtsPrefixQuery("a\"b"))
+        assertEquals("\"a\"\"b*\"", buildFtsPrefixQuery("a\"b"))
     }
 
     @Test

@@ -44,7 +44,7 @@ import com.corriente.data.seed.ISO_CURRENCIES
         BudgetEntity::class,
         RecurrenceEntity::class,
     ],
-    version = 6,
+    version = AppDatabase.SCHEMA_VERSION,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -61,8 +61,8 @@ abstract class AppDatabase : RoomDatabase() {
     companion object {
         const val DB_NAME = "corriente.db"
 
-        /** Держать в синхроне с `version` в аннотации [Database]. */
-        const val SCHEMA_VERSION = 6
+        /** Единственный источник версии: аннотация [Database] и `BackupRepository` берут её отсюда. */
+        const val SCHEMA_VERSION = 7
 
         /**
          * v1 → v2 (F1.5): `category.import_batch_id` — чтобы откат импорта удалял только свои
@@ -192,8 +192,53 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
-        val ALL_MIGRATIONS: Array<Migration> =
-            arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
+        /**
+         * v6 → v7 (A1.10): `txn_fts` с токенайзером `unicode61` — поиск по заметке нечувствителен к регистру
+         * кириллицы. Триггеры и таблица пересоздаются, индекс перестраивается из `txn` командой `rebuild`
+         * (заметки, введённые до миграции, находятся).
+         */
+        val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                FTS_TRIGGER_SUFFIXES.forEach { db.execSQL("DROP TRIGGER IF EXISTS `room_fts_content_sync_txn_fts_$it`") }
+                db.execSQL("DROP TABLE IF EXISTS `txn_fts`")
+                db.execSQL("CREATE VIRTUAL TABLE IF NOT EXISTS `txn_fts` USING FTS4(`note`, tokenize=unicode61, content=`txn`)")
+                db.execSQL(
+                    """
+                    CREATE TRIGGER IF NOT EXISTS `room_fts_content_sync_txn_fts_BEFORE_UPDATE` BEFORE UPDATE ON `txn` BEGIN
+                    DELETE FROM `txn_fts` WHERE `docid`=OLD.`rowid`;
+                    END
+                    """.trimIndent(),
+                )
+                db.execSQL(
+                    """
+                    CREATE TRIGGER IF NOT EXISTS `room_fts_content_sync_txn_fts_BEFORE_DELETE` BEFORE DELETE ON `txn` BEGIN
+                    DELETE FROM `txn_fts` WHERE `docid`=OLD.`rowid`;
+                    END
+                    """.trimIndent(),
+                )
+                db.execSQL(
+                    """
+                    CREATE TRIGGER IF NOT EXISTS `room_fts_content_sync_txn_fts_AFTER_UPDATE` AFTER UPDATE ON `txn` BEGIN
+                    INSERT INTO `txn_fts`(`docid`, `note`) VALUES (NEW.`rowid`, NEW.`note`);
+                    END
+                    """.trimIndent(),
+                )
+                db.execSQL(
+                    """
+                    CREATE TRIGGER IF NOT EXISTS `room_fts_content_sync_txn_fts_AFTER_INSERT` AFTER INSERT ON `txn` BEGIN
+                    INSERT INTO `txn_fts`(`docid`, `note`) VALUES (NEW.`rowid`, NEW.`note`);
+                    END
+                    """.trimIndent(),
+                )
+                db.execSQL("INSERT INTO `txn_fts`(`txn_fts`) VALUES('rebuild')")
+            }
+        }
+
+        private val FTS_TRIGGER_SUFFIXES = listOf("BEFORE_UPDATE", "BEFORE_DELETE", "AFTER_UPDATE", "AFTER_INSERT")
+
+        val ALL_MIGRATIONS: Array<Migration> = arrayOf(
+            MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7,
+        )
 
         /**
          * Вставляет [DEFAULT_CATEGORIES] сырым SQL — только когда в `category` нет ни одной строки.

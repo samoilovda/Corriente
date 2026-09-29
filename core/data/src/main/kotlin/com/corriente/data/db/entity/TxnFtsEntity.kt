@@ -2,6 +2,7 @@ package com.corriente.data.db.entity
 
 import androidx.room.Entity
 import androidx.room.Fts4
+import androidx.room.FtsOptions
 
 /**
  * R2.1: полнотекстовый индекс по заметке операции. `contentEntity = TxnEntity::class` —
@@ -13,8 +14,11 @@ import androidx.room.Fts4
  * Схема v2 → v3 ([com.corriente.data.db.AppDatabase.MIGRATION_2_3]) создаёт эту таблицу и триггеры
  * вручную (то же самое, что Room сгенерировал бы при первой установке) и наполняет её из уже
  * существующих строк `txn` — иначе установленные до этой версии операции не находились бы поиском.
+ *
+ * A1.10: токенайзер `unicode61` — стандартный `simple` сворачивает регистр только у ASCII, и «Кофе» не находилось по
+ * запросу «кофе». Схема v6 → v7 ([com.corriente.data.db.AppDatabase.MIGRATION_6_7]) пересоздаёт таблицу.
  */
-@Fts4(contentEntity = TxnEntity::class)
+@Fts4(contentEntity = TxnEntity::class, tokenizer = FtsOptions.TOKENIZER_UNICODE61)
 @Entity(tableName = "txn_fts")
 data class TxnFtsEntity(
     val note: String?,
