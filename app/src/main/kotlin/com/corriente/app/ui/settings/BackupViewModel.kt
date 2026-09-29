@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.corriente.data.backup.BackupInvalidException
+import com.corriente.data.backup.BackupProblem
 import com.corriente.data.backup.BackupIo
 import com.corriente.data.backup.BackupVersionException
 import kotlinx.coroutines.Dispatchers
@@ -23,7 +24,7 @@ sealed interface BackupResult {
     data object Imported : BackupResult
     data class VersionMismatch(val fileVersion: Int, val appVersion: Int) : BackupResult
     /** Файл читается, но не проходит проверку целостности (F1.4). */
-    data class Invalid(val problems: List<String>) : BackupResult
+    data class Invalid(val problems: List<BackupProblem>) : BackupResult
     data object Failed : BackupResult
 }
 

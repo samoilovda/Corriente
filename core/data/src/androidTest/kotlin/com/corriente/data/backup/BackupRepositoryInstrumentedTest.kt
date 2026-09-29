@@ -11,6 +11,8 @@ import com.corriente.data.db.entity.CurrencyEntity
 import com.corriente.data.db.entity.ImportBatchEntity
 import com.corriente.data.db.entity.TxnEntity
 import com.corriente.data.db.entity.TxnKind
+import com.corriente.data.model.toDomain
+import com.corriente.data.repository.toDomain
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -150,5 +152,59 @@ class BackupRepositoryInstrumentedTest {
         """.trimIndent()
         val error = runCatching { backup.restore(ByteArrayInputStream(fromFuture.toByteArray())) }.exceptionOrNull()
         assert(error is BackupVersionException) { "expected BackupVersionException, got $error" }
+    }
+
+    // A1.12: свойство — если validate не нашёл проблем, restorePayload проходит, и всё читается доменной
+    // моделью; иначе restorePayload отказывает ДО записи и текущая БД не меняется.
+    @Test
+    fun validateEmptyImpliesRestoreSucceedsAndEverythingReadable() = runBlocking {
+        val base = BackupPayload(
+            schemaVersion = AppDatabase.SCHEMA_VERSION, exportedAt = 0,
+            currencies = listOf(CurrencyBackup("RUB", 2, 2, "₽", true, 0), CurrencyBackup("USD", 2, 2, "$", true, 1)),
+            accounts = listOf(
+                AccountBackup("a", "Нал", "RUB", "CASH", 0, 0, null, 0, false, true),
+                AccountBackup("b", "Карта", "USD", "CARD", 0, 0, null, 0, false, true),
+            ),
+            categories = listOf(CategoryBackup("c", "Еда", "EXPENSE", null, 0, null, "USER", 0, false, null)),
+            transactions = listOf(
+                TxnBackup("t1", "EXPENSE", "2026-01-01", 0, 0, "a", 100, "RUB", null, null, null, "c", null, null, "h1"),
+                TxnBackup("t2", "TRANSFER", "2026-01-02", 0, 0, "a", 100, "RUB", "b", 2, "USD", null, null, null, null),
+            ),
+            importBatches = emptyList(), importAliases = emptyList(), appSettings = emptyList(),
+        )
+        val mutations: List<(BackupPayload) -> BackupPayload> = listOf(
+            { it },
+            { it.copy(currencies = it.currencies.map { c -> if (c.code == "RUB") c.copy(code = "rub") else c }) },
+            { it.copy(currencies = it.currencies.map { c -> if (c.code == "RUB") c.copy(minorUnits = 5) else c }) },
+            { it.copy(currencies = it.currencies.map { c -> if (c.code == "RUB") c.copy(displayScale = 3) else c }) },
+            { it.copy(accounts = it.accounts.map { a -> if (a.id == "a") a.copy(kind = "WALLET") else a }) },
+            { it.copy(accounts = it.accounts + it.accounts.first()) },
+            { it.copy(categories = it.categories.map { c -> c.copy(origin = "ROBOT") }) },
+            { it.copy(categories = it.categories + it.categories.first().copy(id = "c2")) }, // тот же (name, kind)
+            { it.copy(transactions = it.transactions.map { t -> if (t.id == "t1") t.copy(currencyCode = "USD") else t }) },
+            { it.copy(transactions = it.transactions.map { t -> if (t.id == "t2") t.copy(toCurrencyCode = "RUB") else t }) },
+            { it.copy(transactions = it.transactions.map { t -> if (t.id == "t2") t.copy(toAccountId = "a") else t }) },
+            { it.copy(transactions = it.transactions.map { t -> t.copy(importHash = "same") }) },
+            { it.copy(transactions = it.transactions + it.transactions.first()) },
+        )
+        db.currencyDao().insertAll(listOf(CurrencyEntity("RUB", 2, 2, "₽", isActive = true)))
+        db.accountDao().insert(AccountEntity("keep", "Прежний", "RUB", AccountKind.CASH, 0, 0))
+
+        var restored = 0
+        mutations.forEach { mutate ->
+            val payload = mutate(base)
+            if (BackupRepository.validate(payload).isEmpty()) {
+                backup.restorePayload(payload)
+                db.currencyDao().observeAll().first().forEach { it.toDomain() }
+                db.accountDao().observeAll().first().forEach { it.toDomain() }
+                db.categoryDao().observeAll().first().forEach { it.toDomain() }
+                db.txnDao().observeAll().first().forEach { it.toDomain() }
+                restored++
+            } else {
+                val error = runCatching { backup.restorePayload(payload) }.exceptionOrNull()
+                assert(error is BackupInvalidException) { "expected BackupInvalidException, got $error" }
+            }
+        }
+        assertEquals(1, restored) // только неизменённый файл
     }
 }

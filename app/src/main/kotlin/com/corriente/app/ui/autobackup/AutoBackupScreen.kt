@@ -42,6 +42,7 @@ import com.corriente.app.backup.AutoBackupWorker
 import com.corriente.app.backup.SafBackupFile
 import com.corriente.app.corrienteContainer
 import com.corriente.app.ui.settings.BackupResultDialog
+import com.corriente.app.ui.settings.backupProblemsSummary
 import com.corriente.app.ui.settings.BackupViewModel
 import com.corriente.data.backup.BACKUP_RETENTION_CHOICES
 import com.corriente.data.backup.BackupSummary
@@ -257,12 +258,7 @@ private fun VerifyResultDialog(result: VerifyResult, onDismiss: () -> Unit) {
                     SummaryText(R.string.backup_verify_current, result.currentSummary)
                 }
                 is VerifyResult.Invalid -> {
-                    val shown = result.problems.take(3).joinToString("\n") { "• $it" }
-                    val rest = result.problems.size - 3
-                    Text(
-                        stringResource(R.string.backup_verify_invalid) + "\n" + shown +
-                            if (rest > 0) "\n" + stringResource(R.string.backup_result_invalid_more, rest) else "",
-                    )
+                    Text(stringResource(R.string.backup_verify_invalid) + "\n" + backupProblemsSummary(result.problems))
                 }
                 VerifyResult.Failed -> Text(stringResource(R.string.backup_verify_failed))
             }

@@ -20,6 +20,7 @@ import java.io.InputStream
 import com.corriente.app.backup.SafBackupFolder
 import com.corriente.data.backup.AutoBackupConfig
 import com.corriente.data.backup.AutoBackupSettings
+import com.corriente.data.backup.BackupProblem
 import com.corriente.data.backup.BackupRepository
 import com.corriente.data.backup.BackupSummary
 import com.corriente.data.db.AppDatabase
@@ -48,7 +49,7 @@ data class AutoBackupUiState(
 sealed interface VerifyResult {
     data class Success(val fileSummary: BackupSummary, val currentSummary: BackupSummary) : VerifyResult
     /** Файл синтаксически валиден, но не проходит проверку целостности (F1.4/R1.4). */
-    data class Invalid(val problems: List<String>) : VerifyResult
+    data class Invalid(val problems: List<BackupProblem>) : VerifyResult
     data object Failed : VerifyResult
 }
 

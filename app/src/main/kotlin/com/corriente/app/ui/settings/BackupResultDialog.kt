@@ -24,10 +24,7 @@ fun BackupResultDialog(result: BackupResult, onDismiss: () -> Unit) {
                     is BackupResult.VersionMismatch ->
                         stringResource(R.string.backup_result_version, result.fileVersion, result.appVersion)
                     is BackupResult.Invalid -> {
-                        val shown = result.problems.take(3).joinToString("\n") { "• $it" }
-                        val rest = result.problems.size - 3
-                        stringResource(R.string.backup_result_invalid) + "\n" + shown +
-                            if (rest > 0) "\n" + stringResource(R.string.backup_result_invalid_more, rest) else ""
+                        stringResource(R.string.backup_result_invalid) + "\n" + backupProblemsSummary(result.problems)
                     }
                     BackupResult.Failed -> stringResource(R.string.backup_result_failed)
                 },

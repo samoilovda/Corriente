@@ -153,7 +153,7 @@ class BackupRoundTripTest {
         val problems = BackupRepository.validate(
             payloadOf(expenseEntity("t1"), budgets = listOf(budgetEntity("b1"), budgetEntity("b2", categoryId = null))),
         )
-        assertEquals(emptyList<String>(), problems)
+        assertEquals(emptyList<BackupProblem>(), problems)
     }
 
     @Test
@@ -187,7 +187,7 @@ class BackupRoundTripTest {
         val problems = BackupRepository.validate(
             payloadOf(expenseEntity("t1"), recurrences = listOf(recurrenceEntity("r1"), everyNDays)),
         )
-        assertEquals(emptyList<String>(), problems)
+        assertEquals(emptyList<BackupProblem>(), problems)
     }
 
     @Test
@@ -208,21 +208,25 @@ class BackupRoundTripTest {
 
     @Test
     fun `validate returns no problems for a consistent payload`() {
-        assertEquals(emptyList<String>(), BackupRepository.validate(payloadOf(expenseEntity("t1"))))
+        assertEquals(emptyList<BackupProblem>(), BackupRepository.validate(payloadOf(expenseEntity("t1"))))
     }
 
     @Test
     fun `validate flags a dangling account reference`() {
         val problems = BackupRepository.validate(payloadOf(expenseEntity("t1").copy(accountId = "ghost")))
-        assertEquals(1, problems.size)
-        assert(problems.single().contains("ghost")) { problems.toString() }
+        assertEquals(
+            listOf(BackupProblem.DanglingReference(BackupEntity.TRANSACTION, "t1", BackupEntity.ACCOUNT, "ghost")),
+            problems,
+        )
     }
 
     @Test
     fun `validate flags a non-positive amount, an unknown currency and a bad date`() {
         val bad = expenseEntity("t1").copy(amountMinor = 0, currencyCode = "ZZZ", date = "not-a-date")
         val problems = BackupRepository.validate(payloadOf(bad))
-        assertEquals(3, problems.size)
+        assert(problems.any { it is BackupProblem.NonPositiveAmount }) { problems.toString() }
+        assert(problems.any { it is BackupProblem.DanglingReference && it.target == BackupEntity.CURRENCY }) { problems.toString() }
+        assert(problems.any { it is BackupProblem.InvalidValue && it.field == BackupField.DATE }) { problems.toString() }
     }
 
     @Test
@@ -232,8 +236,8 @@ class BackupRoundTripTest {
             accountId = "acc", amountMinor = 100, currencyCode = "RUB", categoryId = "cat",
         )
         val problems = BackupRepository.validate(payloadOf(halfTransfer))
-        assert(problems.any { it.contains("вторая сторона") }) { problems.toString() }
-        assert(problems.any { it.contains("категори") }) { problems.toString() }
+        assert(problems.contains(BackupProblem.BadTransfer("tr", TransferIssue.MISSING_SECOND_SIDE))) { problems.toString() }
+        assert(problems.contains(BackupProblem.BadTransfer("tr", TransferIssue.HAS_CATEGORY))) { problems.toString() }
     }
 
     // Отдельно - именно та особенность, из-за которой перевод вообще существует одной строкой

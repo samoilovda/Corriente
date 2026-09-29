@@ -18,6 +18,9 @@ import com.corriente.data.db.entity.RecurrenceEntity
 import com.corriente.data.db.entity.RecurrenceRuleType
 import com.corriente.data.db.entity.TxnEntity
 import com.corriente.data.db.entity.TxnKind
+import com.corriente.data.model.toDomain
+import com.corriente.data.repository.toDomain
+import com.corriente.money.CurrencyCode
 import kotlinx.coroutines.flow.first
 import kotlinx.serialization.json.Json
 import java.io.InputStream
@@ -159,86 +162,183 @@ class BackupRepository(private val db: AppDatabase) : BackupIo {
         }
 
         /**
-         * Проверка полезной нагрузки бэкапа до записи (F1.4). Чистая функция — тестируется без БД.
-         * @return список человекочитаемых проблем; пустой — файл можно восстанавливать.
+         * Проверка полезной нагрузки бэкапа до записи (F1.4, A1.12). Чистая функция — тестируется без БД.
+         * @return структурированные проблемы ([BackupProblem]); пустой список — файл можно восстанавливать:
+         * `toEntity()`, вставка и `toDomain()` для каждой записи гарантированно проходят.
          */
-        fun validate(payload: BackupPayload): List<String> {
-            val problems = mutableListOf<String>()
+        fun validate(payload: BackupPayload): List<BackupProblem> {
+            val problems = mutableListOf<BackupProblem>()
+            fun invalid(e: BackupEntity, ref: String, f: BackupField, v: Any?) {
+                problems += BackupProblem.InvalidValue(e, ref, f, v.toString())
+            }
+            fun dangling(e: BackupEntity, ref: String, t: BackupEntity, id: String) {
+                problems += BackupProblem.DanglingReference(e, ref, t, id)
+            }
+            fun <T> dupes(entity: BackupEntity, items: List<T>, key: (T) -> String?) {
+                val seen = HashSet<String>()
+                items.forEach { item ->
+                    val k = key(item) ?: return@forEach
+                    if (!seen.add(k)) problems += BackupProblem.DuplicateKey(entity, k)
+                }
+            }
+            fun codeFormatOk(code: String) = runCatching { CurrencyCode(code) }.isSuccess
+            fun <E : Enum<E>> enumOk(values: Array<E>, name: String) = values.any { it.name == name }
+            fun dateOk(text: String) = runCatching { LocalDate.parse(text) }.isSuccess
+
+            // --- уникальность (иначе вставка падает на PRIMARY KEY / уникальном индексе) ---
+            dupes(BackupEntity.CURRENCY, payload.currencies) { it.code }
+            dupes(BackupEntity.ACCOUNT, payload.accounts) { it.id }
+            dupes(BackupEntity.CATEGORY, payload.categories) { it.id }
+            dupes(BackupEntity.CATEGORY, payload.categories) { "${it.name}|${it.kind}" }
+            dupes(BackupEntity.TRANSACTION, payload.transactions) { it.id }
+            dupes(BackupEntity.TRANSACTION, payload.transactions) { it.importHash }
+            dupes(BackupEntity.IMPORT_BATCH, payload.importBatches) { it.id }
+            dupes(BackupEntity.BUDGET, payload.budgets) { it.id }
+            dupes(BackupEntity.RECURRENCE, payload.recurrences) { it.id }
+
+            // --- справочник валют ---
+            payload.currencies.forEach { c ->
+                if (!codeFormatOk(c.code)) invalid(BackupEntity.CURRENCY, c.code, BackupField.CURRENCY_CODE, c.code)
+                if (c.minorUnits !in 0..4) invalid(BackupEntity.CURRENCY, c.code, BackupField.MINOR_UNITS, c.minorUnits)
+                else if (c.displayScale !in 0..c.minorUnits) {
+                    invalid(BackupEntity.CURRENCY, c.code, BackupField.DISPLAY_SCALE, c.displayScale)
+                }
+            }
             val currencyCodes = payload.currencies.mapTo(HashSet()) { it.code }
-            val accountIds = payload.accounts.mapTo(HashSet()) { it.id }
-            val categoryIds = payload.categories.mapTo(HashSet()) { it.id }
+            val accountCurrency = payload.accounts.associate { it.id to it.currencyCode }
+            val accountIds = accountCurrency.keys
+            val categoryById = payload.categories.associateBy { it.id }
             val batchIds = payload.importBatches.mapTo(HashSet()) { it.id }
 
             payload.accounts.forEach { a ->
-                if (a.currencyCode !in currencyCodes) {
-                    problems += "счёт «${a.name}»: валюты ${a.currencyCode} нет в справочнике"
+                if (!codeFormatOk(a.currencyCode)) invalid(BackupEntity.ACCOUNT, a.id, BackupField.CURRENCY_CODE, a.currencyCode)
+                else if (a.currencyCode !in currencyCodes) {
+                    dangling(BackupEntity.ACCOUNT, a.id, BackupEntity.CURRENCY, a.currencyCode)
                 }
+                if (!enumOk(AccountKind.values(), a.kind)) invalid(BackupEntity.ACCOUNT, a.id, BackupField.ACCOUNT_KIND, a.kind)
             }
             payload.categories.forEach { c ->
-                if (c.parentId != null && c.parentId !in categoryIds) {
-                    problems += "категория «${c.name}»: родитель ${c.parentId} не найден"
+                if (!enumOk(CategoryKind.values(), c.kind)) invalid(BackupEntity.CATEGORY, c.id, BackupField.KIND, c.kind)
+                if (!enumOk(CategoryOrigin.values(), c.origin)) invalid(BackupEntity.CATEGORY, c.id, BackupField.ORIGIN, c.origin)
+                if (c.parentId != null) {
+                    val parent = categoryById[c.parentId]
+                    when {
+                        parent == null -> dangling(BackupEntity.CATEGORY, c.id, BackupEntity.CATEGORY, c.parentId)
+                        c.parentId == c.id || parent.parentId != null -> problems += BackupProblem.NestedCategory(c.id)
+                    }
                 }
             }
+            payload.importAliases.forEach { al ->
+                val ref = "${al.sourceApp}/${al.sourceValue}"
+                if (!enumOk(ImportAliasKind.values(), al.kind)) invalid(BackupEntity.IMPORT_ALIAS, ref, BackupField.ALIAS_KIND, al.kind)
+            }
+
             payload.transactions.forEach { t ->
-                val tag = "операция ${t.id}"
-                if (t.accountId !in accountIds) problems += "$tag: счёт ${t.accountId} не найден"
-                if (t.currencyCode !in currencyCodes) problems += "$tag: валюты ${t.currencyCode} нет в справочнике"
-                if (t.categoryId != null && t.categoryId !in categoryIds) {
-                    problems += "$tag: категория ${t.categoryId} не найдена"
+                val ref = t.id
+                if (t.accountId !in accountIds) dangling(BackupEntity.TRANSACTION, ref, BackupEntity.ACCOUNT, t.accountId)
+                if (!codeFormatOk(t.currencyCode)) invalid(BackupEntity.TRANSACTION, ref, BackupField.CURRENCY_CODE, t.currencyCode)
+                else if (t.currencyCode !in currencyCodes) {
+                    dangling(BackupEntity.TRANSACTION, ref, BackupEntity.CURRENCY, t.currencyCode)
+                }
+                accountCurrency[t.accountId]?.let { expected ->
+                    if (t.currencyCode != expected) {
+                        problems += BackupProblem.CurrencyMismatch(BackupEntity.TRANSACTION, ref, t.currencyCode, expected)
+                    }
+                }
+                if (t.categoryId != null && t.categoryId !in categoryById) {
+                    dangling(BackupEntity.TRANSACTION, ref, BackupEntity.CATEGORY, t.categoryId)
                 }
                 if (t.importBatchId != null && t.importBatchId !in batchIds) {
-                    problems += "$tag: батч импорта ${t.importBatchId} не найден"
+                    dangling(BackupEntity.TRANSACTION, ref, BackupEntity.IMPORT_BATCH, t.importBatchId)
                 }
-                if (t.amountMinor <= 0) problems += "$tag: сумма ${t.amountMinor} не положительна"
-                if (runCatching { LocalDate.parse(t.date) }.isFailure) {
-                    problems += "$tag: дата «${t.date}» не разбирается"
-                }
+                if (t.amountMinor <= 0) problems += BackupProblem.NonPositiveAmount(BackupEntity.TRANSACTION, ref, t.amountMinor)
+                if (!dateOk(t.date)) invalid(BackupEntity.TRANSACTION, ref, BackupField.DATE, t.date)
                 when (t.kind) {
                     "TRANSFER" -> {
                         if (t.toAccountId == null || t.toAmountMinor == null || t.toCurrencyCode == null) {
-                            problems += "$tag: у перевода не заполнена вторая сторона"
+                            problems += BackupProblem.BadTransfer(ref, TransferIssue.MISSING_SECOND_SIDE)
                         } else {
-                            if (t.toAccountId !in accountIds) problems += "$tag: счёт-получатель ${t.toAccountId} не найден"
-                            if (t.toCurrencyCode !in currencyCodes) problems += "$tag: валюты получателя ${t.toCurrencyCode} нет"
-                            if (t.toAmountMinor <= 0) problems += "$tag: сумма получателя ${t.toAmountMinor} не положительна"
+                            if (t.toAccountId !in accountIds) dangling(BackupEntity.TRANSACTION, ref, BackupEntity.ACCOUNT, t.toAccountId)
+                            if (t.toAccountId == t.accountId) problems += BackupProblem.BadTransfer(ref, TransferIssue.SAME_ACCOUNT)
+                            if (!codeFormatOk(t.toCurrencyCode)) invalid(BackupEntity.TRANSACTION, ref, BackupField.TO_CURRENCY_CODE, t.toCurrencyCode)
+                            else if (t.toCurrencyCode !in currencyCodes) {
+                                dangling(BackupEntity.TRANSACTION, ref, BackupEntity.CURRENCY, t.toCurrencyCode)
+                            }
+                            accountCurrency[t.toAccountId]?.let { expected ->
+                                if (t.toCurrencyCode != expected) {
+                                    problems += BackupProblem.CurrencyMismatch(BackupEntity.TRANSACTION, ref, t.toCurrencyCode, expected)
+                                }
+                            }
+                            if (t.toAmountMinor <= 0) {
+                                problems += BackupProblem.NonPositiveAmount(BackupEntity.TRANSACTION, ref, t.toAmountMinor)
+                            }
                         }
-                        if (t.categoryId != null) problems += "$tag: у перевода не должно быть категории"
+                        if (t.categoryId != null) problems += BackupProblem.BadTransfer(ref, TransferIssue.HAS_CATEGORY)
                     }
 
-                    "EXPENSE", "INCOME" -> if (
-                        t.toAccountId != null || t.toAmountMinor != null || t.toCurrencyCode != null
-                    ) {
-                        problems += "$tag: у расхода/дохода не должно быть второй стороны"
+                    "EXPENSE", "INCOME" -> {
+                        if (t.toAccountId != null || t.toAmountMinor != null || t.toCurrencyCode != null) {
+                            problems += BackupProblem.UnexpectedSecondSide(ref)
+                        }
                     }
 
-                    else -> problems += "$tag: неизвестный тип «${t.kind}»"
+                    else -> invalid(BackupEntity.TRANSACTION, ref, BackupField.KIND, t.kind)
                 }
             }
             payload.budgets.forEach { b ->
-                val tag = "бюджет ${b.id}"
-                if (b.currencyCode !in currencyCodes) problems += "$tag: валюты ${b.currencyCode} нет в справочнике"
-                if (b.categoryId != null && b.categoryId !in categoryIds) problems += "$tag: категория ${b.categoryId} не найдена"
-                if (b.amountMinor < 0) problems += "$tag: сумма ${b.amountMinor} отрицательна"
-                if (runCatching { LocalDate.parse(b.startsOn) }.isFailure) problems += "$tag: дата «${b.startsOn}» не разбирается"
-                if (b.period != "MONTH") problems += "$tag: неизвестный период «${b.period}»"
+                val ref = b.id
+                if (!codeFormatOk(b.currencyCode)) invalid(BackupEntity.BUDGET, ref, BackupField.CURRENCY_CODE, b.currencyCode)
+                else if (b.currencyCode !in currencyCodes) dangling(BackupEntity.BUDGET, ref, BackupEntity.CURRENCY, b.currencyCode)
+                if (b.categoryId != null && b.categoryId !in categoryById) {
+                    dangling(BackupEntity.BUDGET, ref, BackupEntity.CATEGORY, b.categoryId)
+                }
+                if (b.amountMinor < 0) problems += BackupProblem.NonPositiveAmount(BackupEntity.BUDGET, ref, b.amountMinor)
+                if (!dateOk(b.startsOn)) invalid(BackupEntity.BUDGET, ref, BackupField.DATE, b.startsOn)
+                if (b.period != "MONTH") invalid(BackupEntity.BUDGET, ref, BackupField.PERIOD, b.period)
             }
             payload.recurrences.forEach { r ->
-                val tag = "правило ${r.id}"
-                if (r.accountId !in accountIds) problems += "$tag: счёт ${r.accountId} не найден"
-                if (r.currencyCode !in currencyCodes) problems += "$tag: валюты ${r.currencyCode} нет в справочнике"
-                if (r.categoryId != null && r.categoryId !in categoryIds) problems += "$tag: категория ${r.categoryId} не найдена"
-                if (r.amountMinor <= 0) problems += "$tag: сумма ${r.amountMinor} не положительна"
-                if (r.kind !in setOf("EXPENSE", "INCOME")) problems += "$tag: неподдерживаемый вид «${r.kind}»"
-                if (runCatching { LocalDate.parse(r.nextRunOn) }.isFailure) problems += "$tag: дата «${r.nextRunOn}» не разбирается"
+                val ref = r.id
+                if (r.accountId !in accountIds) dangling(BackupEntity.RECURRENCE, ref, BackupEntity.ACCOUNT, r.accountId)
+                if (!codeFormatOk(r.currencyCode)) invalid(BackupEntity.RECURRENCE, ref, BackupField.CURRENCY_CODE, r.currencyCode)
+                else if (r.currencyCode !in currencyCodes) {
+                    dangling(BackupEntity.RECURRENCE, ref, BackupEntity.CURRENCY, r.currencyCode)
+                }
+                accountCurrency[r.accountId]?.let { expected ->
+                    if (r.currencyCode != expected) {
+                        problems += BackupProblem.CurrencyMismatch(BackupEntity.RECURRENCE, ref, r.currencyCode, expected)
+                    }
+                }
+                if (r.categoryId != null && r.categoryId !in categoryById) {
+                    dangling(BackupEntity.RECURRENCE, ref, BackupEntity.CATEGORY, r.categoryId)
+                }
+                if (r.amountMinor <= 0) problems += BackupProblem.NonPositiveAmount(BackupEntity.RECURRENCE, ref, r.amountMinor)
+                if (r.kind !in setOf("EXPENSE", "INCOME")) invalid(BackupEntity.RECURRENCE, ref, BackupField.KIND, r.kind)
+                if (!dateOk(r.nextRunOn)) invalid(BackupEntity.RECURRENCE, ref, BackupField.DATE, r.nextRunOn)
                 when (r.ruleType) {
                     "DAY_OF_MONTH" -> if (r.dayOfMonth == null || r.dayOfMonth !in 1..31) {
-                        problems += "$tag: некорректный день месяца ${r.dayOfMonth}"
+                        invalid(BackupEntity.RECURRENCE, ref, BackupField.DAY_OF_MONTH, r.dayOfMonth)
                     }
                     "EVERY_N_DAYS" -> if (r.intervalDays == null || r.intervalDays < 1) {
-                        problems += "$tag: некорректный интервал ${r.intervalDays}"
+                        invalid(BackupEntity.RECURRENCE, ref, BackupField.INTERVAL, r.intervalDays)
                     }
-                    else -> problems += "$tag: неизвестное правило «${r.ruleType}»"
+                    else -> invalid(BackupEntity.RECURRENCE, ref, BackupField.RULE_TYPE, r.ruleType)
                 }
+            }
+
+            // Страховка: если явные проверки что-то упустили — не даём файлу дойти до БД, где `toDomain()`
+            // уронит каждый экран. Только для записей без найденных проблем (иначе дубль сообщений).
+            if (problems.isEmpty()) {
+                fun <T> readable(entity: BackupEntity, items: List<T>, ref: (T) -> String, read: (T) -> Unit) {
+                    items.forEach { runCatching { read(it) }.onFailure { e ->
+                        problems += BackupProblem.Unreadable(entity, ref(it), e.message ?: e.javaClass.simpleName)
+                    } }
+                }
+                readable(BackupEntity.CURRENCY, payload.currencies, { it.code }) { it.toEntity().toDomain() }
+                readable(BackupEntity.ACCOUNT, payload.accounts, { it.id }) { it.toEntity().toDomain() }
+                readable(BackupEntity.CATEGORY, payload.categories, { it.id }) { it.toEntity().toDomain() }
+                readable(BackupEntity.TRANSACTION, payload.transactions, { it.id }) { it.toEntity().toDomain() }
+                readable(BackupEntity.BUDGET, payload.budgets, { it.id }) { it.toEntity().toDomain() }
+                readable(BackupEntity.RECURRENCE, payload.recurrences, { it.id }) { it.toEntity().toDomain() }
             }
             return problems
         }
@@ -249,7 +349,7 @@ class BackupVersionException(val fileVersion: Int, val appVersion: Int) :
     IllegalStateException("Backup schema version $fileVersion is newer than app's $appVersion")
 
 /** Файл бэкапа синтаксически валиден, но нарушает целостность (F1.4). */
-class BackupInvalidException(val problems: List<String>) :
+class BackupInvalidException(val problems: List<BackupProblem>) :
     IllegalStateException("Backup payload failed validation: ${problems.joinToString("; ")}")
 
 // --- entity <-> backup DTO ---
