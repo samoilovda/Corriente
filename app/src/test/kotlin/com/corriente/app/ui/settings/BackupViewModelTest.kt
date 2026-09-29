@@ -69,4 +69,17 @@ class BackupViewModelTest {
         assertEquals(BackupResult.Failed, vm.result.value)
         assertFalse(vm.busy.value)
     }
+
+    // A2.1: не открылся файл для экспорта — Failed, а не падение.
+    @Test
+    fun `exportTo reports Failed when the output cannot be opened`() = runTest(dispatcher) {
+        val vm = BackupViewModel(GatedBackup(), io = dispatcher)
+        backgroundScope.launch { vm.result.collect {} }
+
+        vm.exportTo { throw SecurityException("permission denied") }
+        advanceUntilIdle()
+
+        assertEquals(BackupResult.Failed, vm.result.value)
+        assertFalse(vm.busy.value)
+    }
 }

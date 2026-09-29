@@ -46,10 +46,13 @@ class BackupViewModel(
     private val _busy = MutableStateFlow(false)
     val busy: StateFlow<Boolean> = _busy
 
-    fun export(output: OutputStream) {
+    fun export(output: OutputStream) = exportTo { output }
+
+    /** A2.1: [open] (поток на файл, выбранный через SAF) вызывается на IO внутри `runCatching`. */
+    fun exportTo(open: () -> OutputStream) {
         _busy.value = true
         viewModelScope.launch(io) {
-            _result.value = runCatching { output.use { backup.export(it) } }
+            _result.value = runCatching { open().use { backup.export(it) } }
                 .fold(onSuccess = { BackupResult.Exported }, onFailure = { BackupResult.Failed })
             _busy.value = false
         }

@@ -56,6 +56,8 @@
     <string name="backup_problem_nested_category">%1$s: вложенность категорий глубже одного уровня</string>
     <string name="backup_problem_kind_mismatch">%1$s: вид операции не соответствует виду категории</string>
     <string name="backup_problem_unreadable">%1$s: запись не читается (%2$s)</string>
+    <string name="file_saved">Сохранено</string>
+    <string name="file_save_failed">Не удалось сохранить файл</string>
     <string name="backup_result_invalid_more">…и ещё %1$d</string>
     <string name="backup_share">Отправить бэкап</string>
     <string name="backup_share_hint">Через системный шеринг — Диск, почта, что угодно</string>

@@ -2,10 +2,14 @@ package com.corriente.app.ui.common
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.corriente.app.R
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import java.io.OutputStream
+import kotlin.coroutines.CoroutineContext
 
 /**
  * Одно сообщение пользователю (ошибка записи, подтверждение). Текста здесь нет —
@@ -25,7 +29,10 @@ fun uiMessage(resId: Int, vararg args: Any): UiMessage = UiMessage(resId, args.t
  *
  * Никаких generic-обвязок (BUILD_PLAN.md §0 правило 4): три члена и один метод.
  */
-abstract class WritingViewModel : ViewModel() {
+abstract class WritingViewModel(
+    /** Контекст для файлового ввода-вывода (A2.1); в тестах подменяется тестовым диспетчером. */
+    protected val io: CoroutineContext = Dispatchers.IO,
+) : ViewModel() {
 
     private val _messages = MutableStateFlow<UiMessage?>(null)
     val messages: StateFlow<UiMessage?> = _messages
@@ -38,6 +45,25 @@ abstract class WritingViewModel : ViewModel() {
     /** Показать сообщение вне пути записи (напр. «валюта уже зафиксирована»). */
     protected fun postMessage(resId: Int, vararg args: Any) {
         _messages.value = uiMessage(resId, *args)
+    }
+
+    /**
+     * A2.1: записывает файл, выбранный пользователем через SAF. [open] (открытие `ContentResolver`-потока — может
+     * бросить `FileNotFoundException`/`SecurityException`, а у медленного провайдера — подвесить поток) и [bytes]
+     * выполняются на [io] внутри `try`; итог — сообщение «Сохранено»/«Не удалось сохранить», а не падение.
+     */
+    protected fun writeFile(open: () -> OutputStream, bytes: () -> ByteArray) {
+        viewModelScope.launch(io) {
+            val ok = try {
+                open().use { it.write(bytes()) }
+                true
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Throwable) {
+                false
+            }
+            postMessage(if (ok) R.string.file_saved else R.string.file_save_failed)
+        }
     }
 
     /**

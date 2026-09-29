@@ -68,7 +68,7 @@ fun SettingsScreen(
         ActivityResultContracts.CreateDocument("application/json"),
     ) { uri ->
         if (uri != null) {
-            context.contentResolver.openOutputStream(uri)?.let(backupViewModel::export)
+            backupViewModel.exportTo { context.contentResolver.openOutputStream(uri) ?: throw java.io.FileNotFoundException(uri.toString()) }
         }
     }
     val importLauncher = rememberLauncherForActivityResult(
@@ -167,7 +167,7 @@ fun SettingsScreen(
             confirmButton = {
                 TextButton(onClick = {
                     pendingImportUri = null
-                    context.contentResolver.openInputStream(uri)?.let(backupViewModel::restore)
+                    backupViewModel.restoreFrom { context.contentResolver.openInputStream(uri) ?: throw java.io.FileNotFoundException(uri.toString()) }
                 }) { Text(stringResource(R.string.backup_import_confirm_button)) }
             },
             dismissButton = {

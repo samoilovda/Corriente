@@ -196,4 +196,39 @@ class TransactionsViewModelTest {
             assertEquals(2, vm.uiState.value.sections.size)
             assertEquals(false, vm.uiState.value.canLoadEarlier)
         }
+
+    // A2.1: экспорт CSV — ошибка провайдера даёт сообщение, а не падение; успех — «Сохранено».
+    private fun exportVm(): TransactionsViewModel {
+        val accountDao = FakeAccountDao()
+        return TransactionsViewModel(
+            TxnRepository(FakeTxnDao(), accountDao), AccountRepository(accountDao),
+            CategoryRepository(FakeCategoryDao()),
+            CurrencyRepository(FakeCurrencyDao(listOf(CurrencyEntity("RUB", 2, 2, "₽", true, 0)))),
+            today = { d2 }, io = dispatcher,
+        )
+    }
+
+    @Test
+    fun `csv export reports a failed stream as a message instead of crashing`() = runTest(dispatcher) {
+        val vm = exportVm()
+        backgroundScope.launch { vm.messages.collect {} }
+
+        vm.exportCsvTo { throw java.io.FileNotFoundException("gone") }
+        advanceUntilIdle()
+
+        assertEquals(com.corriente.app.R.string.file_save_failed, vm.messages.value?.resId)
+    }
+
+    @Test
+    fun `csv export writes the file and confirms`() = runTest(dispatcher) {
+        val vm = exportVm()
+        backgroundScope.launch { vm.messages.collect {} }
+        val out = java.io.ByteArrayOutputStream()
+
+        vm.exportCsvTo { out }
+        advanceUntilIdle()
+
+        assertTrue(out.size() > 0)
+        assertEquals(com.corriente.app.R.string.file_saved, vm.messages.value?.resId)
+    }
 }

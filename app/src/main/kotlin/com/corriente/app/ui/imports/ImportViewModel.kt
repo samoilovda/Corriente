@@ -101,11 +101,14 @@ class ImportViewModel(private val importer: MonefyImportRepository) : ViewModel(
     private var fileName: String = "monefy.csv"
     private val decisions = mutableMapOf<ReviewRef, ReviewDecision>()
 
-    fun preview(input: InputStream, fileName: String) {
+    fun preview(input: InputStream, fileName: String) = previewFrom(fileName) { input }
+
+    /** A2.1: [open] (поток на файл, выбранный через SAF) вызывается на IO внутри `runCatching`. */
+    fun previewFrom(fileName: String, open: () -> InputStream) {
         _state.value = ImportUiState.Working
         viewModelScope.launch(Dispatchers.IO) {
             _state.value = runCatching {
-                val csv = input.use { it.reader(Charsets.UTF_8).readText() }
+                val csv = open().use { it.reader(Charsets.UTF_8).readText() }
                 plan = MonefyImportPlanner.plan(
                     MonefyCsvParser.parse(csv),
                     existingAccounts = importer.existingAccountCurrencies(),

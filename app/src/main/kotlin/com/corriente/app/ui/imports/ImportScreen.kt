@@ -75,7 +75,7 @@ fun ImportScreen(
     ) { uri ->
         if (uri != null) {
             val name = uri.lastPathSegment?.substringAfterLast('/') ?: "monefy.csv"
-            context.contentResolver.openInputStream(uri)?.let { viewModel.preview(it, name) }
+            viewModel.previewFrom(name) { context.contentResolver.openInputStream(uri) ?: throw java.io.FileNotFoundException(uri.toString()) }
         }
     }
 

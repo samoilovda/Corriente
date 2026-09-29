@@ -56,6 +56,8 @@
     <string name="backup_problem_nested_category">%1$s: categories may be nested only one level deep</string>
     <string name="backup_problem_kind_mismatch">%1$s: the transaction kind does not match the category kind</string>
     <string name="backup_problem_unreadable">%1$s: the record cannot be read (%2$s)</string>
+    <string name="file_saved">Saved</string>
+    <string name="file_save_failed">Could not save the file</string>
     <string name="backup_result_invalid_more">…and %1$d more</string>
     <string name="backup_share">Share backup</string>
     <string name="backup_share_hint">Via system sharing — Drive, email, anything</string>

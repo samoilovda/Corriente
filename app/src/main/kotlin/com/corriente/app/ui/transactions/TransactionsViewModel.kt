@@ -1,6 +1,6 @@
 package com.corriente.app.ui.transactions
 
-import androidx.lifecycle.ViewModel
+import com.corriente.app.ui.common.WritingViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
@@ -276,8 +276,9 @@ class TransactionsViewModel(
     accounts: AccountRepository,
     categories: CategoryRepository,
     currencies: CurrencyRepository,
+    io: kotlin.coroutines.CoroutineContext = kotlinx.coroutines.Dispatchers.IO,
     private val today: () -> LocalDate = LocalDate::now,
-) : ViewModel() {
+) : WritingViewModel(io) {
 
     private val filter = MutableStateFlow(TxnFilter())
 
@@ -379,6 +380,9 @@ class TransactionsViewModel(
      * в [uiState] сейчас (те же секции по дням, тот же порядок), суммы уже отформатированы
      * [com.corriente.money.MoneyFormatter] (I-25).
      */
+    /** A2.1: CSV списка в файл, выбранный через SAF ([open] вызывается на IO). */
+    fun exportCsvTo(open: () -> java.io.OutputStream) = writeFile(open) { exportCsv().toByteArray(Charsets.UTF_8) }
+
     fun exportCsv(): String {
         val rows = uiState.value.sections.flatMap { section ->
             section.rows.map { row ->

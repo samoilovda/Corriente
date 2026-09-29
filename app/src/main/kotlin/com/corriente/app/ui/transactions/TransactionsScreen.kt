@@ -39,6 +39,8 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material3.SnackbarHost
+import com.corriente.app.ui.common.rememberMessageSnackbarState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -70,6 +72,8 @@ fun TransactionsScreen(
     ),
 ) {
     val state by viewModel.uiState.collectAsState()
+    val message by viewModel.messages.collectAsState()
+    val snackbarState = rememberMessageSnackbarState(message, viewModel::consumeMessage)
     var showFilters by remember { mutableStateOf(false) }
     val context = LocalContext.current
 
@@ -78,13 +82,12 @@ fun TransactionsScreen(
         ActivityResultContracts.CreateDocument("text/csv"),
     ) { uri ->
         if (uri != null) {
-            context.contentResolver.openOutputStream(uri)?.use {
-                it.write(viewModel.exportCsv().toByteArray(Charsets.UTF_8))
-            }
+            viewModel.exportCsvTo { context.contentResolver.openOutputStream(uri) ?: throw java.io.FileNotFoundException(uri.toString()) }
         }
     }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarState) },
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.nav_transactions)) },
