@@ -34,6 +34,9 @@ interface AccountDao {
     @Query("SELECT EXISTS(SELECT 1 FROM txn WHERE account_id = :accountId OR to_account_id = :accountId)")
     suspend fun hasTransactions(accountId: String): Boolean
 
+    @Query("SELECT EXISTS(SELECT 1 FROM recurrence WHERE account_id = :accountId)")
+    suspend fun hasRecurrences(accountId: String): Boolean
+
     /**
      * A1.6/A1.7: счёт «используется», если на него ссылается операция **или** повторяющееся правило —
      * от этого зависят блокировка валюты (I-23) и возможность физического удаления.

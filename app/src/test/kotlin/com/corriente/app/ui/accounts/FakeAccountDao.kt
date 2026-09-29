@@ -47,6 +47,8 @@ class FakeAccountDao(private val withTransactions: MutableSet<String> = mutableS
         withRecurrences += accountId
     }
 
+    override suspend fun hasRecurrences(accountId: String): Boolean = accountId in withRecurrences
+
     override suspend fun isInUse(accountId: String): Boolean =
         accountId in withTransactions || accountId in withRecurrences
 

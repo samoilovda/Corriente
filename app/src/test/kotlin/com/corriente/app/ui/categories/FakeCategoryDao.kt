@@ -52,6 +52,23 @@ class FakeCategoryDao : CategoryDao() {
 
     override suspend fun hasTransactions(categoryId: String): Boolean = txnCategory.containsValue(categoryId)
 
+    val budgetCategories = mutableSetOf<String>()
+    val recurrenceCategories = mutableSetOf<String>()
+
+    override suspend fun hasBudgets(categoryId: String): Boolean = categoryId in budgetCategories
+
+    override suspend fun hasRecurrences(categoryId: String): Boolean = categoryId in recurrenceCategories
+
+    override suspend fun dropDuplicateBudgets(fromId: String, intoId: String) {}
+
+    override suspend fun reassignBudgets(fromId: String, intoId: String) {
+        if (budgetCategories.remove(fromId)) budgetCategories += intoId
+    }
+
+    override suspend fun reassignRecurrences(fromId: String, intoId: String) {
+        if (recurrenceCategories.remove(fromId)) recurrenceCategories += intoId
+    }
+
     override suspend fun childCount(parentId: String): Int = rows.value.count { it.parentId == parentId }
 
     override suspend fun reassignTransactions(fromId: String, intoId: String) {

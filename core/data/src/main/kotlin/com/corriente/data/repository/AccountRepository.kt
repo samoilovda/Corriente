@@ -108,11 +108,18 @@ class AccountRepository(private val dao: AccountDao) {
         dao.update(existing.copy(isArchived = false))
     }
 
-    /** Физическое удаление разрешено только для счёта без единой операции — иначе см. [archive]. */
-    suspend fun deleteIfUnused(id: String): Boolean {
-        if (dao.isInUse(id)) return false
-        val existing = dao.getById(id) ?: return false
+    /** Чем занят счёт (A1.7): операции и/или повторяющиеся правила. */
+    suspend fun blockers(id: String): Set<DeleteBlocker> = buildSet {
+        if (dao.hasTransactions(id)) add(DeleteBlocker.TRANSACTIONS)
+        if (dao.hasRecurrences(id)) add(DeleteBlocker.RECURRENCES)
+    }
+
+    /** Физическое удаление разрешено только для неиспользуемого счёта — иначе [DeleteResult.Blocked], см. [archive]. */
+    suspend fun deleteIfUnused(id: String): DeleteResult {
+        val existing = dao.getById(id) ?: return DeleteResult.NotFound
+        val reasons = blockers(id)
+        if (reasons.isNotEmpty()) return DeleteResult.Blocked(reasons)
         dao.delete(existing)
-        return true
+        return DeleteResult.Deleted
     }
 }

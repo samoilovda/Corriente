@@ -71,7 +71,7 @@ class AccountRepositoryTest {
         val (repository, dao) = repo()
         val id = repository.newRubAccount(dao)
 
-        assertTrue(repository.deleteIfUnused(id))
+        assertEquals(DeleteResult.Deleted, repository.deleteIfUnused(id))
         assertNull(repository.getById(id))
     }
 
@@ -81,7 +81,7 @@ class AccountRepositoryTest {
         val id = repository.newRubAccount(dao)
         dao.markHasTransactions(id)
 
-        assertFalse(repository.deleteIfUnused(id))
+        assertEquals(DeleteResult.Blocked(setOf(DeleteBlocker.TRANSACTIONS)), repository.deleteIfUnused(id))
         assertEquals(id, repository.getById(id)?.id)
     }
 
@@ -113,6 +113,6 @@ class AccountRepositoryTest {
         }.exceptionOrNull()
         assertTrue(failure is IllegalStateException)
         assertEquals("RUB", repository.getById(id)?.currency?.code)
-        assertEquals(false, repository.deleteIfUnused(id))
+        assertEquals(DeleteResult.Blocked(setOf(DeleteBlocker.RECURRENCES)), repository.deleteIfUnused(id))
     }
 }

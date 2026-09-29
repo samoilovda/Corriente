@@ -91,7 +91,30 @@ class CategoryRepositoryTest {
         val (repository, dao) = repo()
         val c = repository.create("Еда", CategoryKind.EXPENSE, color = 0)
         dao.attachTransaction("t1", c.id)
-        assertFalse(repository.deleteIfUnused(c.id))
+        assertEquals(DeleteResult.Blocked(setOf(DeleteBlocker.TRANSACTIONS)), repository.deleteIfUnused(c.id))
         assertEquals(c.id, repository.getById(c.id)?.id)
+    }
+
+    // A1.7: бюджет, правило и подкатегория тоже держат категорию — с причиной, без падения на FK.
+    @Test
+    fun `deleteIfUnused explains every blocker`() = runTest {
+        val (repository, dao) = repo()
+        val c = repository.create("Еда", CategoryKind.EXPENSE, color = 0)
+        repository.create("Кафе", CategoryKind.EXPENSE, parentId = c.id, color = 0)
+        dao.budgetCategories += c.id
+        dao.recurrenceCategories += c.id
+
+        assertEquals(
+            DeleteResult.Blocked(setOf(DeleteBlocker.BUDGETS, DeleteBlocker.RECURRENCES, DeleteBlocker.SUBCATEGORIES)),
+            repository.deleteIfUnused(c.id),
+        )
+    }
+
+    @Test
+    fun `deleteIfUnused removes an unused category`() = runTest {
+        val (repository, _) = repo()
+        val c = repository.create("Еда", CategoryKind.EXPENSE, color = 0)
+        assertEquals(DeleteResult.Deleted, repository.deleteIfUnused(c.id))
+        assertNull(repository.getById(c.id))
     }
 }

@@ -53,6 +53,8 @@ class FakeAccountDao(
         accountsWithRecurrences += accountId
     }
 
+    override suspend fun hasRecurrences(accountId: String): Boolean = accountId in accountsWithRecurrences
+
     override suspend fun isInUse(accountId: String): Boolean =
         accountId in accountsWithTransactions || accountId in accountsWithRecurrences
 

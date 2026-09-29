@@ -76,12 +76,21 @@ class CategoryRepository(private val dao: CategoryDao) {
         dao.update(existing.copy(isArchived = false))
     }
 
-    /** Физическое удаление — только если категорией никто не пользуется (нет операций и подкатегорий). */
-    suspend fun deleteIfUnused(id: String): Boolean {
-        if (dao.hasTransactions(id) || dao.childCount(id) > 0) return false
-        val existing = dao.getById(id) ?: return false
+    /** Чем занята категория (A1.7): операции, бюджеты, повторяющиеся правила, подкатегории. */
+    suspend fun blockers(id: String): Set<DeleteBlocker> = buildSet {
+        if (dao.hasTransactions(id)) add(DeleteBlocker.TRANSACTIONS)
+        if (dao.hasBudgets(id)) add(DeleteBlocker.BUDGETS)
+        if (dao.hasRecurrences(id)) add(DeleteBlocker.RECURRENCES)
+        if (dao.childCount(id) > 0) add(DeleteBlocker.SUBCATEGORIES)
+    }
+
+    /** Физическое удаление — только если категорией никто не пользуется; иначе [DeleteResult.Blocked] с причинами. */
+    suspend fun deleteIfUnused(id: String): DeleteResult {
+        val existing = dao.getById(id) ?: return DeleteResult.NotFound
+        val reasons = blockers(id)
+        if (reasons.isNotEmpty()) return DeleteResult.Blocked(reasons)
         dao.delete(existing)
-        return true
+        return DeleteResult.Deleted
     }
 
     /**

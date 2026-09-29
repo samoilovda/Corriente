@@ -24,6 +24,10 @@ interface ImportBatchDao {
     /**
      * F1.5: IMPORT-категории именно [batchId], на которые больше не ссылается ни одна операция.
      * Раньше чистило категории всех батчей — откат одного импорта задевал чужие.
+     *
+     * A1.7: «осиротевшая» — ещё и без бюджетов, повторяющихся правил и подкатегорий: их FK (NO ACTION)
+     * иначе делали откат невозможным. Занятые категории остаются (и сообщаются в
+     * [countInUseImportCategoriesForBatch]).
      */
     @Query(
         """
@@ -31,9 +35,16 @@ interface ImportBatchDao {
         WHERE origin = 'IMPORT'
           AND import_batch_id = :batchId
           AND id NOT IN (SELECT DISTINCT category_id FROM txn WHERE category_id IS NOT NULL)
+          AND id NOT IN (SELECT category_id FROM budget WHERE category_id IS NOT NULL)
+          AND id NOT IN (SELECT category_id FROM recurrence WHERE category_id IS NOT NULL)
+          AND id NOT IN (SELECT parent_id FROM category WHERE parent_id IS NOT NULL)
         """
     )
     suspend fun deleteOrphanedImportCategoriesForBatch(batchId: String)
+
+    /** A1.7: сколько IMPORT-категорий батча остаётся после отката, потому что ими пользуются. */
+    @Query("SELECT COUNT(*) FROM category WHERE origin = 'IMPORT' AND import_batch_id = :batchId")
+    suspend fun countInUseImportCategoriesForBatch(batchId: String): Int
 
     @Query("DELETE FROM import_batch")
     suspend fun deleteAll()

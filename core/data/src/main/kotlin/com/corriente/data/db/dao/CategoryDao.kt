@@ -40,16 +40,48 @@ abstract class CategoryDao {
     @Query("SELECT EXISTS(SELECT 1 FROM txn WHERE category_id = :categoryId)")
     abstract suspend fun hasTransactions(categoryId: String): Boolean
 
+    /** A1.7: на категорию ссылается бюджет — иначе FK `budget.category_id` (NO ACTION) не даст её удалить. */
+    @Query("SELECT EXISTS(SELECT 1 FROM budget WHERE category_id = :categoryId)")
+    abstract suspend fun hasBudgets(categoryId: String): Boolean
+
+    /** A1.7: на категорию ссылается повторяющееся правило (FK `recurrence.category_id`). */
+    @Query("SELECT EXISTS(SELECT 1 FROM recurrence WHERE category_id = :categoryId)")
+    abstract suspend fun hasRecurrences(categoryId: String): Boolean
+
     @Query("SELECT COUNT(*) FROM category WHERE parent_id = :parentId")
     abstract suspend fun childCount(parentId: String): Int
 
     @Query("UPDATE txn SET category_id = :intoId WHERE category_id = :fromId")
     abstract suspend fun reassignTransactions(fromId: String, intoId: String)
 
-    /** Слияние (T1.4): операции категории [fromId] переезжают на [intoId], исходная удаляется. */
+    /**
+     * A1.7: бюджеты [fromId], у которых в [intoId] уже есть бюджет в той же валюте, удаляются — остаётся
+     * бюджет целевой категории (два бюджета на пару «категория, валюта» неоднозначны).
+     */
+    @Query(
+        """
+        DELETE FROM budget WHERE category_id = :fromId
+          AND currency_code IN (SELECT currency_code FROM budget WHERE category_id = :intoId)
+        """,
+    )
+    abstract suspend fun dropDuplicateBudgets(fromId: String, intoId: String)
+
+    @Query("UPDATE budget SET category_id = :intoId WHERE category_id = :fromId")
+    abstract suspend fun reassignBudgets(fromId: String, intoId: String)
+
+    @Query("UPDATE recurrence SET category_id = :intoId WHERE category_id = :fromId")
+    abstract suspend fun reassignRecurrences(fromId: String, intoId: String)
+
+    /**
+     * Слияние (T1.4): операции, бюджеты и повторяющиеся правила категории [fromId] переезжают на [intoId]
+     * (A1.7; при конфликте бюджетов в одной валюте остаётся бюджет [intoId]), исходная удаляется.
+     */
     @Transaction
     open suspend fun merge(fromId: String, intoId: String) {
         reassignTransactions(fromId, intoId)
+        dropDuplicateBudgets(fromId, intoId)
+        reassignBudgets(fromId, intoId)
+        reassignRecurrences(fromId, intoId)
         val from = getById(fromId) ?: return
         delete(from)
     }
