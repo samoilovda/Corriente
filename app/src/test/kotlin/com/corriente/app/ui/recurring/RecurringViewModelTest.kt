@@ -15,6 +15,7 @@ import com.corriente.data.repository.CategoryRepository
 import com.corriente.data.repository.CurrencyRepository
 import com.corriente.data.recurrence.RecurrenceRule
 import com.corriente.data.repository.RecurrenceRepository
+import com.corriente.app.ui.txnentry.FakeTxnDao
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -51,7 +52,7 @@ class RecurringViewModelTest {
     }
 
     private fun vm(fakes: Fakes) = RecurringViewModel(
-        recurrenceRepository = RecurrenceRepository(fakes.recurrenceDao),
+        recurrenceRepository = RecurrenceRepository(fakes.recurrenceDao, FakeTxnDao()),
         accountRepository = AccountRepository(fakes.accountDao),
         categoryRepository = CategoryRepository(fakes.categoryDao),
         currencyRepository = CurrencyRepository(fakes.currencyDao),

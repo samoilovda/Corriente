@@ -43,7 +43,7 @@ class RecurrenceMaterializerInstrumentedTest {
         val ctx = InstrumentationRegistry.getInstrumentation().targetContext
         db = Room.inMemoryDatabaseBuilder(ctx, AppDatabase::class.java).allowMainThreadQueries().build()
         txns = TxnRepository(db.txnDao(), db.accountDao())
-        recurrences = RecurrenceRepository(db.recurrenceDao())
+        recurrences = RecurrenceRepository(db.recurrenceDao(), db.txnDao())
         runBlocking {
             db.currencyDao().insertAll(listOf(CurrencyEntity("RUB", 2, 2, "₽", isActive = true)))
             db.accountDao().insert(AccountEntity("cash", "Наличные", "RUB", AccountKind.CASH, 0, 0))
@@ -136,5 +136,24 @@ class RecurrenceMaterializerInstrumentedTest {
         val entity = db.recurrenceDao().getById(created.id)!!
         assertEquals(RecurrenceRuleType.DAY_OF_MONTH, entity.ruleType)
         assertEquals(31, entity.dayOfMonth)
+    }
+
+    // A0.1: materialize -> update -> materialize в тот же день — ровно одна операция.
+    @Test
+    fun editingRuleAfterMaterializationDoesNotCreateDuplicate() = runBlocking {
+        val today = LocalDate.of(2026, 9, 23)
+        val rule = recurrences.create(
+            kind = TxnKind.EXPENSE, accountId = "cash", categoryId = null,
+            amount = Money(Minor(50_000_00), rub), note = "Аренда",
+            rule = RecurrenceRule.DayOfMonth(23), startsOn = today,
+        )
+        RecurrenceMaterializer.materializeDue(today, recurrences, txns, "[авто]")
+        recurrences.update(
+            rule.id, "cash", null, Money(Minor(55_000_00), rub), "Аренда 2",
+            RecurrenceRule.DayOfMonth(23), today,
+        )
+        RecurrenceMaterializer.materializeDue(today, recurrences, txns, "[авто]")
+
+        assertEquals(1, txns.observeAll().first().size)
     }
 }

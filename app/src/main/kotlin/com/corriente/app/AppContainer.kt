@@ -50,7 +50,7 @@ class AppContainer(context: Context) {
     val appLockSettings: AppLockSettings by lazy { AppLockSettings(database.appSettingDao()) }
     val monefyImportRepository: MonefyImportRepository by lazy { MonefyImportRepository(database) }
     val budgetRepository: BudgetRepository by lazy { BudgetRepository(database.budgetDao()) }
-    val recurrenceRepository: RecurrenceRepository by lazy { RecurrenceRepository(database.recurrenceDao()) }
+    val recurrenceRepository: RecurrenceRepository by lazy { RecurrenceRepository(database.recurrenceDao(), database.txnDao()) }
     val widgetConfigStore: WidgetConfigStore by lazy { WidgetConfigStore(appContext) }
 
     val accountBalanceUseCase: AccountBalanceUseCase by lazy {

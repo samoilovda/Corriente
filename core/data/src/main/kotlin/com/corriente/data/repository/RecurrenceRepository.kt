@@ -1,6 +1,7 @@
 package com.corriente.data.repository
 
 import com.corriente.data.db.dao.RecurrenceDao
+import com.corriente.data.db.dao.TxnDao
 import com.corriente.data.db.entity.TxnKind
 import com.corriente.data.model.Recurrence
 import com.corriente.data.model.toDomain
@@ -18,7 +19,7 @@ import java.util.UUID
  * CHECK — тот же T0.4-стиль, что в [TxnRepository]/[BudgetRepository]): перевод не поддерживается
  * шаблоном — у него две стороны, а "аренда/подписка/зарплата" в этом не нуждаются.
  */
-class RecurrenceRepository(private val dao: RecurrenceDao) {
+class RecurrenceRepository(private val dao: RecurrenceDao, private val txnDao: TxnDao) {
 
     fun observeAll(): Flow<List<Recurrence>> = dao.observeAll().map { list -> list.map { it.toDomain() } }
 
@@ -53,7 +54,15 @@ class RecurrenceRepository(private val dao: RecurrenceDao) {
         return recurrence
     }
 
-    /** Правка шаблона (R2.4) — расписание пересчитывается заново от [today], как при создании. */
+    /**
+     * Правка шаблона (R2.4, A0.1). Инвариант: после правки ни одна дата ≤ даты последней созданной
+     * правилом операции не может снова оказаться в `dueDates`.
+     *
+     * Правило (тип + параметр) не изменилось — [Recurrence.nextRunOn] не трогаем: правка суммы, заметки,
+     * счёта, категории действует со следующего запуска. Изменилось — расписание пересчитывается от
+     * `max(today, дата последней созданной операции + 1)`; если операции нет, но сегодняшняя дата уже
+     * обработана (`nextRunOn > today`), — от `today + 1`.
+     */
     suspend fun update(
         id: String,
         accountId: String,
@@ -64,14 +73,25 @@ class RecurrenceRepository(private val dao: RecurrenceDao) {
         today: LocalDate,
     ) {
         require(amount.amount.raw > 0) { "Recurrence amount must be positive" }
-        val existing = requireNotNull(dao.getById(id)) { "Recurrence $id not found" }
-        val updated = existing.toDomain().copy(
+        val existing = requireNotNull(dao.getById(id)) { "Recurrence $id not found" }.toDomain()
+        val nextRunOn = if (rule == existing.rule) {
+            existing.nextRunOn
+        } else {
+            val lastDate = existing.lastCreatedTxnId
+                ?.let { txnDao.getById(it) }
+                ?.let { LocalDate.parse(it.date) }
+            var lowerBound = today
+            if (lastDate != null && !lastDate.isBefore(lowerBound)) lowerBound = lastDate.plusDays(1)
+            if (lastDate == null && existing.nextRunOn.isAfter(today)) lowerBound = today.plusDays(1)
+            firstOccurrenceOnOrAfter(rule, lowerBound)
+        }
+        val updated = existing.copy(
             accountId = accountId,
             categoryId = categoryId,
             amount = amount,
             note = note,
             rule = rule,
-            nextRunOn = firstOccurrenceOnOrAfter(rule, today),
+            nextRunOn = nextRunOn,
         )
         dao.update(updated.toEntity())
     }
