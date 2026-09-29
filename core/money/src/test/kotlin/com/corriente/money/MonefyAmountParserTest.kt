@@ -103,4 +103,15 @@ class MonefyAmountParserTest {
         )
         assertEquals(false, MonefyAmountParser.parseLenient("1.500", rub).roundedFromExcessPrecision)
     }
+
+    // A3.6: запятая — только разделитель тысяч; всё остальное — ошибка строки, а не молчаливое «4912».
+    @Test
+    fun `a comma that is not a thousands separator is rejected`() {
+        listOf("49,12", "1,2,3", "1,23,456", ",500", "5,", "1,2345", "12,34.5", "-49,12").forEach { raw ->
+            org.junit.Assert.assertThrows(raw, IllegalArgumentException::class.java) { MonefyAmountParser.parse(raw, rub) }
+        }
+        listOf("1,234", "12,345", "-1,250.75", "123,456,789.50", "0,000").forEach { raw ->
+            MonefyAmountParser.parse(raw, rub) // не бросает
+        }
+    }
 }

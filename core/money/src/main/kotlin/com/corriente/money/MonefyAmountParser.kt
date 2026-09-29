@@ -37,9 +37,12 @@ object MonefyAmountParser {
      * Бросает только на действительно нечисловой строке.
      */
     fun parseLenient(raw: String, currency: Currency): Lenient {
-        val cleaned = raw.trim().replace(",", "")
-        require(cleaned.isNotEmpty()) { "Empty amount" }
-        require(DECIMAL_PATTERN.matches(cleaned)) { "Not a valid Monefy amount: '$raw'" }
+        val trimmed = raw.trim()
+        require(trimmed.isNotEmpty()) { "Empty amount" }
+        // A3.6: запятая допустима только как разделитель тысяч (группы ровно по три цифры). Раньше все запятые
+        // молча удалялись: «49,12» (десятичная запятая другого экспорта) превращалось в 4912, «1,2,3» — в 123.
+        require(AMOUNT_PATTERN.matches(trimmed)) { "Not a valid Monefy amount: '$raw'" }
+        val cleaned = trimmed.replace(",", "")
 
         val negative = cleaned.startsWith("-")
         val unsigned = cleaned.removePrefix("-")
@@ -57,5 +60,5 @@ object MonefyAmountParser {
         return Lenient(Minor(if (negative) -minorValue else minorValue), hasExcess)
     }
 
-    private val DECIMAL_PATTERN = Regex("-?\\d+(\\.\\d+)?")
+    private val AMOUNT_PATTERN = Regex("-?(\\d{1,3}(,\\d{3})+|\\d+)(\\.\\d+)?")
 }
