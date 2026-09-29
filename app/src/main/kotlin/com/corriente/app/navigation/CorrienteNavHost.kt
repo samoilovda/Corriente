@@ -216,9 +216,9 @@ fun CorrienteNavHost(deepLinkIntent: Intent? = null, onDeepLinkConsumed: () -> U
                             restoreState = true
                         }
                     },
-                    initialKind = EntryKind.valueOf(
-                        entry.arguments?.getString("kind") ?: EntryKind.EXPENSE.name,
-                    ),
+                    // Неизвестный kind из deep link — расход, а не IllegalArgumentException.
+                    initialKind = EntryKind.entries.firstOrNull { it.name == entry.arguments?.getString("kind") }
+                        ?: EntryKind.EXPENSE,
                 )
             }
             composable(

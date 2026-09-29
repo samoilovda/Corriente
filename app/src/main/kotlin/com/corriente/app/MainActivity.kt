@@ -32,7 +32,9 @@ class MainActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge() // F2.4: Android 15+ включает edge-to-edge принудительно — берём под контроль
         super.onCreate(savedInstanceState)
-        pendingDeepLinkIntent = intent
+        // A2.8: при пересоздании (поворот, смерть процесса) intent ярлыка всё ещё лежит в getIntent() —
+        // повторно его обрабатывать нельзя: стек навигации сбросился бы на экран ярлыка.
+        if (savedInstanceState == null) pendingDeepLinkIntent = intent
         setContent {
             CorrienteTheme {
                 Surface(modifier = Modifier.fillMaxSize()) {
@@ -41,7 +43,11 @@ class MainActivity : FragmentActivity() {
                     AppLockGate {
                         CorrienteNavHost(
                             deepLinkIntent = pendingDeepLinkIntent,
-                            onDeepLinkConsumed = { pendingDeepLinkIntent = null },
+                            onDeepLinkConsumed = {
+                                pendingDeepLinkIntent = null
+                                // обработанный ярлык больше не должен читаться из getIntent()
+                                setIntent(Intent(intent).apply { data = null })
+                            },
                         )
                     }
                 }
