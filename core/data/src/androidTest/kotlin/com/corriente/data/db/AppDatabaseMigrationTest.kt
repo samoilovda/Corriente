@@ -3,6 +3,7 @@ package com.corriente.data.db
 import androidx.room.testing.MigrationTestHelper
 import androidx.sqlite.db.framework.FrameworkSQLiteOpenHelperFactory
 import androidx.test.platform.app.InstrumentationRegistry
+import kotlinx.coroutines.flow.first
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Rule
@@ -243,5 +244,33 @@ class AppDatabaseMigrationTest {
             assertEquals("u1", c.getString(0))
         }
         db.close()
+    }
+
+    // A1.11: вся цепочка 1 → текущая, затем открытие настоящим Room.databaseBuilder — только он при
+    // открытии сверяет схему со скомпилированной моделью сущностей (MigrationTestHelper сверяет с
+    // JSON-файлами, которые для v3–v5 написаны вручную).
+    @Test
+    fun migrateAll_thenOpenWithRoom(): Unit = kotlinx.coroutines.runBlocking {
+        helper.createDatabase(testDbName, 1).close()
+
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val db = androidx.room.Room.databaseBuilder(context, AppDatabase::class.java, testDbName)
+            .addMigrations(*AppDatabase.ALL_MIGRATIONS)
+            .build()
+        try {
+            db.openHelper.writableDatabase // бросит IllegalStateException при расхождении схемы
+            db.currencyDao().observeAll().first()
+            db.accountDao().observeAll().first()
+            db.categoryDao().observeAll().first()
+            db.txnDao().observeAll().first()
+            db.txnDao().search("a*", "%a%").first()
+            db.importBatchDao().getAll()
+            db.importAliasDao().getForApp("MONEFY", com.corriente.data.db.entity.ImportAliasKind.CATEGORY)
+            db.appSettingDao().getAll()
+            db.budgetDao().getAll()
+            db.recurrenceDao().getAll()
+        } finally {
+            db.close()
+        }
     }
 }

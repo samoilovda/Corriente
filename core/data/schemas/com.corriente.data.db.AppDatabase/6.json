@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 6,
-    "identityHash": "placeholder0000000000000000v6",
+    "identityHash": "f3b5abd21b8de2ca33295c870a1ec1d6",
     "entities": [
       {
         "tableName": "currency",
@@ -589,13 +589,12 @@
           {
             "fieldPath": "note",
             "columnName": "note",
-            "affinity": "TEXT",
-            "notNull": false
+            "affinity": "TEXT"
           }
         ],
         "primaryKey": {
-          "columnNames": [],
-          "autoGenerate": false
+          "autoGenerate": false,
+          "columnNames": []
         },
         "ftsVersion": "FTS4",
         "ftsOptions": {
@@ -609,10 +608,10 @@
           "preferredOrder": "ASC"
         },
         "contentSyncTriggers": [
-          "CREATE TRIGGER IF NOT EXISTS `room_fts_content_sync_txn_fts_BEFORE_UPDATE` BEFORE UPDATE ON `txn` BEGIN DELETE FROM `txn_fts` WHERE `docid`=OLD.`rowid`; END",
-          "CREATE TRIGGER IF NOT EXISTS `room_fts_content_sync_txn_fts_BEFORE_DELETE` BEFORE DELETE ON `txn` BEGIN DELETE FROM `txn_fts` WHERE `docid`=OLD.`rowid`; END",
-          "CREATE TRIGGER IF NOT EXISTS `room_fts_content_sync_txn_fts_AFTER_UPDATE` AFTER UPDATE ON `txn` BEGIN INSERT INTO `txn_fts`(`docid`, `note`) VALUES (NEW.`rowid`, NEW.`note`); END",
-          "CREATE TRIGGER IF NOT EXISTS `room_fts_content_sync_txn_fts_AFTER_INSERT` AFTER INSERT ON `txn` BEGIN INSERT INTO `txn_fts`(`docid`, `note`) VALUES (NEW.`rowid`, NEW.`note`); END"
+          "CREATE TRIGGER IF NOT EXISTS room_fts_content_sync_txn_fts_BEFORE_UPDATE BEFORE UPDATE ON `txn` BEGIN DELETE FROM `txn_fts` WHERE `docid`=OLD.`rowid`; END",
+          "CREATE TRIGGER IF NOT EXISTS room_fts_content_sync_txn_fts_BEFORE_DELETE BEFORE DELETE ON `txn` BEGIN DELETE FROM `txn_fts` WHERE `docid`=OLD.`rowid`; END",
+          "CREATE TRIGGER IF NOT EXISTS room_fts_content_sync_txn_fts_AFTER_UPDATE AFTER UPDATE ON `txn` BEGIN INSERT INTO `txn_fts`(`docid`, `note`) VALUES (NEW.`rowid`, NEW.`note`); END",
+          "CREATE TRIGGER IF NOT EXISTS room_fts_content_sync_txn_fts_AFTER_INSERT AFTER INSERT ON `txn` BEGIN INSERT INTO `txn_fts`(`docid`, `note`) VALUES (NEW.`rowid`, NEW.`note`); END"
         ]
       },
       {
@@ -628,8 +627,7 @@
           {
             "fieldPath": "categoryId",
             "columnName": "category_id",
-            "affinity": "TEXT",
-            "notNull": false
+            "affinity": "TEXT"
           },
           {
             "fieldPath": "currencyCode",
@@ -732,8 +730,7 @@
           {
             "fieldPath": "categoryId",
             "columnName": "category_id",
-            "affinity": "TEXT",
-            "notNull": false
+            "affinity": "TEXT"
           },
           {
             "fieldPath": "amountMinor",
@@ -750,8 +747,7 @@
           {
             "fieldPath": "note",
             "columnName": "note",
-            "affinity": "TEXT",
-            "notNull": false
+            "affinity": "TEXT"
           },
           {
             "fieldPath": "ruleType",
@@ -762,14 +758,12 @@
           {
             "fieldPath": "dayOfMonth",
             "columnName": "day_of_month",
-            "affinity": "INTEGER",
-            "notNull": false
+            "affinity": "INTEGER"
           },
           {
             "fieldPath": "intervalDays",
             "columnName": "interval_days",
-            "affinity": "INTEGER",
-            "notNull": false
+            "affinity": "INTEGER"
           },
           {
             "fieldPath": "nextRunOn",
@@ -780,8 +774,7 @@
           {
             "fieldPath": "lastCreatedTxnId",
             "columnName": "last_created_txn_id",
-            "affinity": "TEXT",
-            "notNull": false
+            "affinity": "TEXT"
           }
         ],
         "primaryKey": {
@@ -858,7 +851,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'placeholder0000000000000000v6')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'f3b5abd21b8de2ca33295c870a1ec1d6')"
     ]
   }
 }
