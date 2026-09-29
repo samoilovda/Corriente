@@ -54,7 +54,6 @@
     <string name="backup_problem_transfer_same_account">%1$s: a transfer to the same account</string>
     <string name="backup_problem_unexpected_second_side">%1$s: an expense/income must not have a second side</string>
     <string name="backup_problem_nested_category">%1$s: categories may be nested only one level deep</string>
-    <string name="backup_problem_kind_mismatch">%1$s: the transaction kind does not match the category kind</string>
     <string name="backup_problem_unreadable">%1$s: the record cannot be read (%2$s)</string>
     <string name="file_saved">Saved</string>
     <string name="file_save_failed">Could not save the file</string>

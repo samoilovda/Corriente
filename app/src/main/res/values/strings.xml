@@ -54,7 +54,6 @@
     <string name="backup_problem_transfer_same_account">%1$s: перевод на тот же счёт</string>
     <string name="backup_problem_unexpected_second_side">%1$s: у расхода/дохода не должно быть второй стороны</string>
     <string name="backup_problem_nested_category">%1$s: вложенность категорий глубже одного уровня</string>
-    <string name="backup_problem_kind_mismatch">%1$s: вид операции не соответствует виду категории</string>
     <string name="backup_problem_unreadable">%1$s: запись не читается (%2$s)</string>
     <string name="file_saved">Сохранено</string>
     <string name="file_save_failed">Не удалось сохранить файл</string>

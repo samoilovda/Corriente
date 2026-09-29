@@ -7,6 +7,7 @@ import com.corriente.app.R
 import com.corriente.app.ui.common.WritingViewModel
 import com.corriente.app.ui.common.uiMessage
 import com.corriente.app.ui.txnentry.EntryKind
+import com.corriente.data.db.entity.CategoryKind
 import com.corriente.data.repository.AccountRepository
 import com.corriente.data.repository.CurrencyRepository
 import com.corriente.data.repository.TxnRepository
@@ -60,6 +61,8 @@ class QuickEntryViewModel(
     private val categoryId: String?,
     private val categoryName: String,
     initialAccountId: String?,
+    /** A2.5: вид категории виджета — определяет вид окна по умолчанию; null (категория неизвестна) — расход. */
+    categoryKind: CategoryKind? = null,
     private val today: () -> LocalDate = LocalDate::now,
 ) : WritingViewModel() {
 
@@ -70,7 +73,11 @@ class QuickEntryViewModel(
         val saving: Boolean = false,
     )
 
-    private val form = MutableStateFlow(Form(selectedAccountId = initialAccountId))
+    /** Вид операции, к которому относится категория окна: расходная категория — расход, доходная — доход. */
+    private val categoryEntryKind: EntryKind =
+        if (categoryKind == CategoryKind.INCOME) EntryKind.INCOME else EntryKind.EXPENSE
+
+    private val form = MutableStateFlow(Form(kind = categoryEntryKind, selectedAccountId = initialAccountId))
 
     private val _finished = MutableStateFlow(false)
     val finished: StateFlow<Boolean> = _finished
@@ -92,7 +99,8 @@ class QuickEntryViewModel(
         val selectedId = f.selectedAccountId?.takeIf { id -> options.any { it.id == id } } ?: options.firstOrNull()?.id
         QuickEntryUiState(
             kind = f.kind,
-            categoryName = categoryName,
+            // A2.5: при переключении на другой вид категория окна не подходит — «Без категории».
+            categoryName = if (f.kind == categoryEntryKind) categoryName else "",
             accounts = options,
             selectedAccountId = selectedId,
             amount = f.amount,
@@ -142,14 +150,15 @@ class QuickEntryViewModel(
         val minor = state.amount.toMinorOrNull(currency) ?: return false
         val money = Money(minor, currency.code)
         val kind = state.kind
+        val effectiveCategoryId = categoryId.takeIf { kind == categoryEntryKind }
         form.update { it.copy(saving = true) }
         launchWrite(
             onError = { form.update { f -> f.copy(saving = false) }; uiMessage(R.string.quick_expense_save_failed) },
             onSuccess = { _finished.value = true },
         ) {
             when (kind) {
-                EntryKind.EXPENSE -> txnRepository.addExpense(accountId, money, categoryId, today(), null)
-                EntryKind.INCOME -> txnRepository.addIncome(accountId, money, categoryId, today(), null)
+                EntryKind.EXPENSE -> txnRepository.addExpense(accountId, money, effectiveCategoryId, today(), null)
+                EntryKind.INCOME -> txnRepository.addIncome(accountId, money, effectiveCategoryId, today(), null)
             }
         }
         return true
@@ -163,11 +172,12 @@ class QuickEntryViewModel(
             categoryId: String?,
             categoryName: String,
             initialAccountId: String?,
+            categoryKind: CategoryKind? = null,
         ) = viewModelFactory {
             initializer {
                 QuickEntryViewModel(
                     txnRepository, accountRepository, currencyRepository,
-                    categoryId, categoryName, initialAccountId,
+                    categoryId, categoryName, initialAccountId, categoryKind,
                 )
             }
         }

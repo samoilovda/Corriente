@@ -38,6 +38,7 @@ import com.corriente.app.applock.AppLockGate
 import com.corriente.app.corrienteContainer
 import com.corriente.app.ui.theme.CorrienteTheme
 import com.corriente.app.ui.txnentry.EntryKind
+import com.corriente.data.db.entity.CategoryKind
 import kotlinx.coroutines.flow.first
 
 /**
@@ -69,7 +70,10 @@ class QuickExpenseActivity : FragmentActivity() {
                     // счёта в этом окне живёт только в ViewModel и не пишется обратно в конфиг.
                     var loading by remember { mutableStateOf(true) }
                     var initialAccountId by remember { mutableStateOf<String?>(null) }
+                    var categoryKind by remember { mutableStateOf<CategoryKind?>(null) }
                     LaunchedEffect(Unit) {
+                        // A2.5: вид окна по умолчанию = вид категории (доходная категория — «Доход»).
+                        categoryKind = categoryId?.let { container.categoryRepository.getById(it)?.kind }
                         val config = container.widgetConfigStore.config.first()
                         val accounts = container.accountRepository.observeActive().first()
                         val resolved = accounts.firstOrNull { it.id == config.activeAccountId } ?: accounts.firstOrNull()
@@ -86,6 +90,7 @@ class QuickExpenseActivity : FragmentActivity() {
                             categoryId = categoryId,
                             categoryName = categoryName,
                             initialAccountId = initialAccountId,
+                            categoryKind = categoryKind,
                             onDone = ::finish,
                         )
                     }
@@ -105,11 +110,12 @@ private fun QuickEntryContent(
     categoryId: String?,
     categoryName: String,
     initialAccountId: String?,
+    categoryKind: CategoryKind?,
     onDone: () -> Unit,
     viewModel: QuickEntryViewModel = viewModel(
         factory = with(corrienteContainer()) {
             QuickEntryViewModel.factory(
-                txnRepository, accountRepository, currencyRepository, categoryId, categoryName, initialAccountId,
+                txnRepository, accountRepository, currencyRepository, categoryId, categoryName, initialAccountId, categoryKind,
             )
         },
     ),

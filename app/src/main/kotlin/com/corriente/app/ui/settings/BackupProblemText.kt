@@ -31,7 +31,6 @@ fun backupProblemText(problem: BackupProblem): String {
         )
         is BackupProblem.UnexpectedSecondSide -> stringResource(R.string.backup_problem_unexpected_second_side, who)
         is BackupProblem.NestedCategory -> stringResource(R.string.backup_problem_nested_category, who)
-        is BackupProblem.KindMismatch -> stringResource(R.string.backup_problem_kind_mismatch, who)
         is BackupProblem.Unreadable -> stringResource(R.string.backup_problem_unreadable, who, problem.detail)
     }
 }

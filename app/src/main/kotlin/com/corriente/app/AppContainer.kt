@@ -44,7 +44,7 @@ class AppContainer(context: Context) {
     val currencyRepository: CurrencyRepository by lazy { CurrencyRepository(database.currencyDao()) }
     val accountRepository: AccountRepository by lazy { AccountRepository(database.accountDao()) }
     val categoryRepository: CategoryRepository by lazy { CategoryRepository(database.categoryDao()) }
-    val txnRepository: TxnRepository by lazy { TxnRepository(database.txnDao(), database.accountDao()) }
+    val txnRepository: TxnRepository by lazy { TxnRepository(database.txnDao(), database.accountDao(), database.categoryDao()) }
     val backupRepository: BackupRepository by lazy { BackupRepository(database) }
     val autoBackupSettings: AutoBackupSettings by lazy { AutoBackupSettings(database.appSettingDao()) }
     /** R5.2: настройка блокировки приложения (не шифрование — см. AppLockScreen.kt). */

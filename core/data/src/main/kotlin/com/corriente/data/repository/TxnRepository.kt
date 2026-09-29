@@ -3,6 +3,7 @@ package com.corriente.data.repository
 import com.corriente.data.db.buildFtsPrefixQuery
 import com.corriente.data.db.buildLikePattern
 import com.corriente.data.db.dao.AccountDao
+import com.corriente.data.db.dao.CategoryDao
 import com.corriente.data.db.dao.TxnDao
 import com.corriente.data.db.entity.TxnEntity
 import com.corriente.data.db.entity.TxnKind
@@ -28,6 +29,8 @@ import java.util.UUID
 class TxnRepository(
     private val txnDao: TxnDao,
     private val accountDao: AccountDao,
+    /** A2.5: если задан — вид категории проверяется при записи (расход ↔ категория расходов). */
+    private val categoryDao: CategoryDao? = null,
 ) {
     fun observeAll(): Flow<List<Txn>> = txnDao.observeAll().map { list -> list.map { it.toDomain() } }
 
@@ -184,7 +187,8 @@ class TxnRepository(
             note = note,
             updatedAt = System.currentTimeMillis(),
         )
-        validate(updated)
+        // Вид категории проверяем только если её меняют: старые операции с «чужой» категорией (до A2.5) можно править.
+        validate(updated, checkCategoryKind = existing.categoryId != categoryId)
         txnDao.update(updated)
         return updated.toDomain()
     }
@@ -205,7 +209,7 @@ class TxnRepository(
      */
     suspend fun restore(txn: Txn) {
         val entity = txn.toEntity()
-        validate(entity)
+        validate(entity, checkCategoryKind = false) // «как было» — ничего нового не вносим
         txnDao.insert(entity)
     }
 
@@ -213,9 +217,14 @@ class TxnRepository(
      * Единственная проверка правил записи (I-1/I-11/I-15) — та же [requireValidTxn], что и в
      * импорте Monefy (F1.2). Валюты счетов подтягиваются из БД непосредственно перед записью.
      */
-    private suspend fun validate(entity: TxnEntity) {
+    private suspend fun validate(entity: TxnEntity, checkCategoryKind: Boolean = true) {
         val currencyByAccount = listOfNotNull(entity.accountId, entity.toAccountId).distinct()
             .associateWith { accountDao.getById(it)?.currencyCode }
         requireValidTxn(entity) { currencyByAccount[it] }
+        val categoryId = entity.categoryId
+        if (checkCategoryKind && categoryId != null && categoryDao != null) {
+            val kind = categoryDao.getById(categoryId)?.kind
+            requireCategoryMatchesKind(entity) { kind }
+        }
     }
 }

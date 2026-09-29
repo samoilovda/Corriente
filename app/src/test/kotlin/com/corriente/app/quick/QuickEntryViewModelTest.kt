@@ -6,6 +6,7 @@ import com.corriente.app.ui.txnentry.EntryKind
 import com.corriente.app.ui.txnentry.FakeTxnDao
 import com.corriente.data.db.entity.AccountEntity
 import com.corriente.data.db.entity.AccountKind
+import com.corriente.data.db.entity.CategoryKind
 import com.corriente.data.db.entity.CurrencyEntity
 import com.corriente.data.db.entity.TxnKind
 import com.corriente.data.repository.AccountRepository
@@ -63,6 +64,7 @@ class QuickEntryViewModelTest {
         categoryId: String? = "cat-food",
         categoryName: String = "Еда",
         initialAccountId: String? = "acc-rub",
+        categoryKind: CategoryKind? = CategoryKind.EXPENSE,
     ): QuickEntryViewModel = QuickEntryViewModel(
         txnRepository = TxnRepository(fakes.txnDao, fakes.accountDao),
         accountRepository = AccountRepository(fakes.accountDao),
@@ -70,6 +72,7 @@ class QuickEntryViewModelTest {
         categoryId = categoryId,
         categoryName = categoryName,
         initialAccountId = initialAccountId,
+        categoryKind = categoryKind,
         today = { today },
     )
 
@@ -139,7 +142,42 @@ class QuickEntryViewModelTest {
         assertEquals(TxnKind.INCOME, row.kind)
         assertEquals(50000L, row.amountMinor)
         assertEquals("acc-rub", row.accountId)
+        assertNull("расходная категория не годится доходу (A2.5)", row.categoryId)
         assertTrue(model.finished.value)
+    }
+
+    // A2.5: доходная категория (например «Зарплата») открывает окно в режиме «Доход» и сохраняет доход в ней.
+    @Test
+    fun `an income category opens the window on the income branch and keeps the category`() = runTest(dispatcher) {
+        val fakes = Fakes().apply { seed() }
+        val model = vm(fakes, categoryId = "cat-salary", categoryName = "Зарплата", categoryKind = CategoryKind.INCOME)
+        backgroundScope.observe(model)
+        advanceUntilIdle()
+
+        assertEquals(EntryKind.INCOME, model.uiState.value.kind)
+        assertEquals("Зарплата", model.uiState.value.categoryName)
+        model.pressDigit('9')
+        advanceUntilIdle()
+        assertTrue(model.save())
+        advanceUntilIdle()
+
+        val row = fakes.txnDao.rows.value.single()
+        assertEquals(TxnKind.INCOME, row.kind)
+        assertEquals("cat-salary", row.categoryId)
+    }
+
+    // A2.5: переключение на другой вид сбрасывает категорию («Без категории»); возврат её восстанавливает.
+    @Test
+    fun `switching the kind drops a category of the other kind and switching back restores it`() = runTest(dispatcher) {
+        val fakes = Fakes().apply { seed() }
+        val model = vm(fakes)
+        backgroundScope.observe(model)
+        advanceUntilIdle()
+
+        model.setKind(EntryKind.INCOME); advanceUntilIdle()
+        assertEquals("", model.uiState.value.categoryName)
+        model.setKind(EntryKind.EXPENSE); advanceUntilIdle()
+        assertEquals("Еда", model.uiState.value.categoryName)
     }
 
     @Test
@@ -198,9 +236,9 @@ class QuickEntryViewModelTest {
     }
 
     @Test
-    fun `passes the category id through regardless of the selected kind`() = runTest(dispatcher) {
+    fun `passes the category id through only for the kind the category belongs to`() = runTest(dispatcher) {
         val fakes = Fakes().apply { seed() }
-        val model = vm(fakes, categoryId = "cat-salary")
+        val model = vm(fakes, categoryId = "cat-food")
         backgroundScope.observe(model)
         advanceUntilIdle()
 
@@ -210,7 +248,7 @@ class QuickEntryViewModelTest {
         assertTrue(model.save())
         advanceUntilIdle()
 
-        assertEquals("cat-salary", fakes.txnDao.rows.value.single().categoryId)
+        assertNull(fakes.txnDao.rows.value.single().categoryId) // расходная категория — не для дохода (A2.5)
     }
 
     @Test

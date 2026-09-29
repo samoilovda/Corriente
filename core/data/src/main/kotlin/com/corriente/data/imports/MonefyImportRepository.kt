@@ -153,8 +153,12 @@ class MonefyImportRepository(private val db: AppDatabase) {
                 occurrence[naturalKey] = occ + 1
                 return sha256("$SOURCE|$naturalKey|$occ")
             }
+            val categoryKindCache = HashMap<String, CategoryKind?>()
             suspend fun insertTxn(entity: TxnEntity, naturalKey: String) {
                 com.corriente.data.repository.requireValidTxn(entity) { currencyByAccountId[it] }
+                // A2.5: алиас категории мог указать на категорию другого вида — не пишем такую операцию.
+                entity.categoryId?.let { id -> categoryKindCache.getOrPut(id) { db.categoryDao().getById(id)?.kind } }
+                com.corriente.data.repository.requireCategoryMatchesKind(entity) { categoryKindCache[it] }
                 val hash = hashOf(naturalKey)
                 if (db.txnDao().countByImportHash(hash) > 0) {
                     skipped++

@@ -161,4 +161,26 @@ class TxnRepositoryTest {
         assertNull(repo.getById(created.id))
         assertTrue(repo.observeAll().first().isEmpty())
     }
+
+    // A2.5: вид категории обязан совпадать с видом операции.
+    @Test
+    fun `income with an expense category and expense with an income category are rejected`() = runTest {
+        val txnDao = FakeTxnDao()
+        val accountDao = FakeAccountDao()
+        val categoryDao = FakeCategoryDao()
+        categoryDao.insert(com.corriente.data.db.entity.CategoryEntity("food", "Еда", com.corriente.data.db.entity.CategoryKind.EXPENSE, color = 0))
+        categoryDao.insert(com.corriente.data.db.entity.CategoryEntity("salary", "Зарплата", com.corriente.data.db.entity.CategoryKind.INCOME, color = 0))
+        accountDao.insert(AccountEntity("acc", "Нал", "RUB", AccountKind.CASH, 0, 0))
+        val repo = TxnRepository(txnDao, accountDao, categoryDao)
+
+        val incomeInFood = runCatching { repo.addIncome("acc", Money(Minor(100), rub), "food", day) }.exceptionOrNull()
+        val expenseInSalary = runCatching { repo.addExpense("acc", Money(Minor(100), rub), "salary", day) }.exceptionOrNull()
+
+        assertTrue(incomeInFood is IllegalArgumentException)
+        assertTrue(expenseInSalary is IllegalArgumentException)
+        assertTrue(txnDao.rows.value.isEmpty())
+        repo.addExpense("acc", Money(Minor(100), rub), "food", day)
+        repo.addIncome("acc", Money(Minor(100), rub), "salary", day)
+        assertEquals(2, txnDao.rows.value.size)
+    }
 }

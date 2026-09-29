@@ -66,11 +66,6 @@ sealed interface BackupProblem {
         override val entity: BackupEntity get() = BackupEntity.CATEGORY
     }
 
-    /** Вид операции не соответствует виду категории (A2.5). */
-    data class KindMismatch(override val ref: String) : BackupProblem {
-        override val entity: BackupEntity get() = BackupEntity.TRANSACTION
-    }
-
     /** Запись не читается доменной моделью, хотя явные проверки этого не заметили (страховка). */
     data class Unreadable(
         override val entity: BackupEntity, override val ref: String, val detail: String,

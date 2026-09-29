@@ -1,5 +1,6 @@
 package com.corriente.data.repository
 
+import com.corriente.data.db.entity.CategoryKind
 import com.corriente.data.db.entity.TxnEntity
 import com.corriente.data.db.entity.TxnKind
 
@@ -42,4 +43,21 @@ fun requireValidTxn(entity: TxnEntity, accountCurrency: (String) -> String?) {
             "Txn ${entity.id}: expense/income must have no second side (I-11)"
         }
     }
+}
+
+/**
+ * A2.5: вид категории обязан совпадать с видом операции (расход — категория расходов, доход — доходов); у перевода
+ * категории нет (I-11, проверено в [requireValidTxn]). [categoryKind] — вид категории по id, `null` — нет такой
+ * категории.
+ */
+fun requireCategoryMatchesKind(entity: TxnEntity, categoryKind: (String) -> CategoryKind?) {
+    val categoryId = entity.categoryId ?: return
+    val expected = when (entity.kind) {
+        TxnKind.EXPENSE -> CategoryKind.EXPENSE
+        TxnKind.INCOME -> CategoryKind.INCOME
+        TxnKind.TRANSFER -> return
+    }
+    val actual = categoryKind(categoryId)
+        ?: throw IllegalArgumentException("Txn ${entity.id}: category $categoryId not found")
+    require(actual == expected) { "Txn ${entity.id}: ${entity.kind} cannot use a $actual category" }
 }
