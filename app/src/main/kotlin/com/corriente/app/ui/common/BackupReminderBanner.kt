@@ -10,6 +10,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.corriente.app.R
@@ -47,7 +48,7 @@ fun BackupReminderBanner(onClick: () -> Unit) {
         modifier = Modifier.fillMaxWidth(),
     ) {
         Text(
-            text = info.daysAgo?.let { stringResource(R.string.backup_reminder_days, it.toInt()) }
+            text = info.daysAgo?.let { pluralStringResource(R.plurals.backup_reminder_days, it.toInt(), it.toInt()) }
                 ?: stringResource(R.string.backup_reminder_never),
             color = MaterialTheme.colorScheme.onErrorContainer,
             style = MaterialTheme.typography.bodyMedium,

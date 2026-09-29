@@ -55,6 +55,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.corriente.app.R
+import com.corriente.app.ui.report.ResourceReportTexts
 import com.corriente.app.corrienteContainer
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -67,7 +68,10 @@ fun TransactionsScreen(
     onEditTransfer: (String) -> Unit,
     viewModel: TransactionsViewModel = viewModel(
         factory = with(corrienteContainer()) {
-            TransactionsViewModel.factory(txnRepository, accountRepository, categoryRepository, currencyRepository)
+            TransactionsViewModel.factory(
+                txnRepository, accountRepository, categoryRepository, currencyRepository,
+                ResourceReportTexts(LocalContext.current).csvHeaders,
+            )
         },
     ),
 ) {

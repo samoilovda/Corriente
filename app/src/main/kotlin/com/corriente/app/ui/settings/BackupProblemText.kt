@@ -1,6 +1,7 @@
 package com.corriente.app.ui.settings
 
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import com.corriente.app.R
 import com.corriente.data.backup.BackupEntity
@@ -67,5 +68,5 @@ private fun fieldName(field: BackupField): Int = when (field) {
 fun backupProblemsSummary(problems: List<BackupProblem>): String {
     val shown = problems.take(3).map { "• " + backupProblemText(it) }.joinToString("\n")
     val rest = problems.size - 3
-    return shown + if (rest > 0) "\n" + stringResource(R.string.backup_result_invalid_more, rest) else ""
+    return shown + if (rest > 0) "\n" + pluralStringResource(R.plurals.backup_result_invalid_more, rest, rest) else ""
 }

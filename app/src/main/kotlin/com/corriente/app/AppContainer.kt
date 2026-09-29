@@ -36,7 +36,7 @@ class AppContainer(context: Context) {
         // I-20: копия файла БД до того, как Room применит миграцию (схема ещё v1 — no-op).
         PreMigrationBackup.runIfNeeded(appContext, AppDatabase.DB_NAME, AppDatabase.SCHEMA_VERSION)
         Room.databaseBuilder(appContext, AppDatabase::class.java, AppDatabase.DB_NAME)
-            .addCallback(AppDatabase.seedCallback())
+            .addCallback(AppDatabase.seedCallback { id -> defaultCategoryNameRes[id]?.let(appContext::getString) })
             .addMigrations(*AppDatabase.ALL_MIGRATIONS)
             .build()
     }

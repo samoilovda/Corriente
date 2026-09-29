@@ -86,7 +86,7 @@ fun MonefyImportPlan.applyReviewDecisions(decisions: Map<ReviewRef, ReviewDecisi
 
             ReviewDecision.KeepSeparate -> {
                 transfers = transfers.filterNot { it in affected }
-                plainTxns = plainTxns + affected.flatMap { it.toUnpairedHalves() }
+                plainTxns = plainTxns + affected.flatMap { it.toUnpairedHalves(unpairedCategory) }
             }
 
             ReviewDecision.SameCurrency ->
@@ -188,14 +188,14 @@ private fun splitAccountByCurrency(
     )
 }
 
-private fun PlannedTransfer.toUnpairedHalves(): List<PlannedTxn> = listOf(
+private fun PlannedTransfer.toUnpairedHalves(category: String): List<PlannedTxn> = listOf(
     PlannedTxn(
-        line = fromLine, date = date, account = fromAccount, category = UNPAIRED_TRANSFER_CATEGORY,
+        line = fromLine, date = date, account = fromAccount, category = category,
         amountMinor = fromAmountMinor, currency = fromCurrency, kind = MonefyTxnKind.EXPENSE,
         naturalKey = fromNaturalKey, unpairedHalf = true,
     ),
     PlannedTxn(
-        line = toLine, date = date, account = toAccount, category = UNPAIRED_TRANSFER_CATEGORY,
+        line = toLine, date = date, account = toAccount, category = category,
         amountMinor = toAmountMinor, currency = toCurrency, kind = MonefyTxnKind.INCOME,
         naturalKey = toNaturalKey, unpairedHalf = true,
     ),

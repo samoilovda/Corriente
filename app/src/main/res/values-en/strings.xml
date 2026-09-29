@@ -57,7 +57,6 @@
     <string name="backup_problem_unreadable">%1$s: the record cannot be read (%2$s)</string>
     <string name="file_saved">Saved</string>
     <string name="file_save_failed">Could not save the file</string>
-    <string name="backup_result_invalid_more">…and %1$d more</string>
     <string name="backup_share">Share backup</string>
     <string name="backup_share_hint">Via system sharing — Drive, email, anything</string>
 
@@ -68,7 +67,6 @@
     <string name="autobackup_folder">Backup folder</string>
     <string name="autobackup_folder_none">Not chosen</string>
     <string name="autobackup_enabled">Enabled</string>
-    <string name="autobackup_enabled_hint">Once a day, keeps the last %1$d files</string>
     <string name="autobackup_now">Back up now</string>
     <string name="autobackup_last_run">Last backup: %1$s</string>
     <string name="autobackup_last_run_never">No backup has run yet</string>
@@ -90,12 +88,11 @@
     <string name="backup_restore_action">Restore</string>
     <string name="backup_verify_action">Verify file</string>
     <string name="backup_verify_title">File check</string>
-    <string name="backup_verify_current">Currently in the database: %1$d accounts, %2$d categories, %3$d transactions</string>
-    <string name="backup_verify_file">In the file: %1$d accounts, %2$d categories, %3$d transactions</string>
+    <string name="backup_verify_current">Currently in the database — accounts: %1$d, categories: %2$d, transactions: %3$d</string>
+    <string name="backup_verify_file">In the file — accounts: %1$d, categories: %2$d, transactions: %3$d</string>
     <string name="backup_verify_sums">Sums by currency (in minor units, transfers excluded)</string>
     <string name="backup_verify_invalid">The file is corrupted:</string>
     <string name="backup_verify_failed">Could not read the file.</string>
-    <string name="backup_reminder_days">Last backup: %1$d days ago</string>
     <string name="backup_reminder_never">No backup has ever run</string>
 
     <string name="widget_settings">Widget</string>
@@ -152,14 +149,14 @@
     <string name="import_error_write_failed">write failed</string>
     <string name="import_error_account_currency_conflict">Account "%1$s" is already tracked in %2$s, but the file has %3$s. Choose an option in the import preview.</string>
     <string name="import_error_row_prefix">row %1$d: %2$s</string>
-    <string name="import_error_wrong_field_count">expected %1$d fields, got %2$d</string>
+    <string name="import_error_wrong_field_count">field count: expected %1$d, got %2$d</string>
     <string name="import_error_unparseable_date">unrecognized date \'%1$s\'</string>
     <string name="import_error_unparseable_amount">amount \'%1$s\': %2$s</string>
+    <string name="import_unpaired_category">[unpaired transfer]</string>
     <string name="import_error_unparseable_currency">the currency code "%1$s" is not recognised</string>
     <string name="import_error_unparseable_converted_amount">converted amount \'%1$s\': %2$s</string>
     <string name="import_review_account_currency_conflict">account "%1$s" appears with different currencies: %2$s</string>
     <string name="import_review_existing_account_mismatch">account "%1$s" is already tracked in %2$s, but the file has %3$s</string>
-    <string name="import_review_ambiguous_pairing">%1$d identical transfers %2$s → %3$s on %4$s — pairs were built by row order, please confirm</string>
     <string name="import_review_anomalous_currency">transfer %1$s → %2$s on %3$s: an implicit 1.0 rate across different currencies — choose the currency of the received amount</string>
     <string name="import_review_excess_precision">transfer %1$s → %2$s on %3$s: the amount was rounded to the currency\'s precision — confirm or enter the exact amount</string>
 
@@ -297,6 +294,16 @@
     <string name="report_no_category">No category</string>
     <string name="report_chart_monthly">By month</string>
     <string name="report_chart_structure">Category breakdown</string>
+    <string name="report_change_since_month">vs. last month</string>
+    <string name="report_change_since_quarter">vs. last quarter</string>
+    <string name="report_change_since_year">vs. last year</string>
+    <string name="csv_header_category">Category</string>
+    <string name="csv_header_amount">Amount</string>
+    <string name="csv_header_share">Share, %</string>
+    <string name="csv_header_change">Change vs. previous period</string>
+    <string name="csv_header_date">Date</string>
+    <string name="csv_header_account">Account</string>
+    <string name="csv_header_note">Note</string>
     <string name="report_open_fx">Exchange rates</string>
     <string name="report_export_csv">CSV</string>
 
@@ -349,7 +356,6 @@
     <string name="recurring_auto_created_note">Created automatically by a recurring rule</string>
     <string name="recurring_delete_confirm_title">Delete this rule?</string>
     <string name="recurring_row_rule_day_of_month">Day %1$d of every month</string>
-    <string name="recurring_row_rule_every_n_days">Every %1$d days</string>
     <string name="recurring_error_save">Could not save the rule</string>
     <string name="recurring_error_delete">Could not delete the rule</string>
 
@@ -369,4 +375,53 @@
     <!-- R5.3: undo delete. -->
     <string name="txn_deleted_undo_message">Transaction deleted</string>
     <string name="undo">Undo</string>
+    <plurals name="backup_result_invalid_more">
+        <item quantity="one">…and %1$d more</item>
+        <item quantity="other">…and %1$d more</item>
+    </plurals>
+    <plurals name="autobackup_enabled_hint">
+        <item quantity="one">Once a day, keeps the last %1$d file</item>
+        <item quantity="other">Once a day, keeps the last %1$d files</item>
+    </plurals>
+    <plurals name="backup_reminder_days">
+        <item quantity="one">Last backup: %1$d day ago</item>
+        <item quantity="other">Last backup: %1$d days ago</item>
+    </plurals>
+    <plurals name="recurring_row_rule_every_n_days">
+        <item quantity="one">Every %1$d day</item>
+        <item quantity="other">Every %1$d days</item>
+    </plurals>
+    <plurals name="import_review_ambiguous_pairing">
+        <item quantity="one">%1$d identical transfer %2$s → %3$s on %4$s — the pair was built by row order, please confirm</item>
+        <item quantity="other">%1$d identical transfers %2$s → %3$s on %4$s — pairs were built by row order, please confirm</item>
+    </plurals>
+    <string name="seed_cat_exp_groceries">Groceries</string>
+    <string name="seed_cat_exp_dining">Cafes &amp; restaurants</string>
+    <string name="seed_cat_exp_transport">Transport</string>
+    <string name="seed_cat_exp_car">Car</string>
+    <string name="seed_cat_exp_housing">Housing</string>
+    <string name="seed_cat_exp_utilities">Utilities</string>
+    <string name="seed_cat_exp_connectivity">Phone &amp; internet</string>
+    <string name="seed_cat_exp_health">Health</string>
+    <string name="seed_cat_exp_clothing">Clothing &amp; shoes</string>
+    <string name="seed_cat_exp_entertainment">Entertainment</string>
+    <string name="seed_cat_exp_sport">Sports</string>
+    <string name="seed_cat_exp_education">Education</string>
+    <string name="seed_cat_exp_gifts">Gifts</string>
+    <string name="seed_cat_exp_travel">Travel</string>
+    <string name="seed_cat_exp_kids">Kids</string>
+    <string name="seed_cat_exp_pets">Pets</string>
+    <string name="seed_cat_exp_beauty">Beauty &amp; care</string>
+    <string name="seed_cat_exp_subscriptions">Subscriptions</string>
+    <string name="seed_cat_exp_fees">Taxes &amp; fees</string>
+    <string name="seed_cat_exp_other_exp">Other</string>
+    <string name="seed_cat_inc_salary">Salary</string>
+    <string name="seed_cat_inc_bonus">Bonus</string>
+    <string name="seed_cat_inc_sidework">Side income</string>
+    <string name="seed_cat_inc_interest">Deposit interest</string>
+    <string name="seed_cat_inc_dividends">Dividends</string>
+    <string name="seed_cat_inc_gift">Gift</string>
+    <string name="seed_cat_inc_refund">Refund</string>
+    <string name="seed_cat_inc_sale">Sale</string>
+    <string name="seed_cat_inc_other_inc">Other</string>
 </resources>

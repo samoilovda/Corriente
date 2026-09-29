@@ -30,9 +30,6 @@ import java.time.LocalDate
 /** F2.1: сколько месяцев назад от «якоря» строится график «по месяцам». */
 private const val MONTHLY_SERIES_MONTHS = 6L
 
-/** R6.3: только для CSV-экспорта (см. [ReportViewModel.exportCsv]) — экран использует ресурс. */
-private const val NO_CATEGORY_CSV_LABEL = "Без категории"
-
 data class ReportRow(
     val categoryId: String?,
     /** null — «Без категории» (R6.3, ROADMAP.md §8): текст ресурса подставляет экран. */
@@ -115,7 +112,7 @@ internal fun withShares(
             color = total.categoryId?.let { colors[it] } ?: 0,
             changeText = changeSuffix?.let { suffix ->
                 val percent = changes[total.categoryId]
-                val percentText = percent?.let { "%+d %%".format(it) } ?: "—"
+                val percentText = percent?.let { String.format(java.util.Locale.ROOT, "%+d %%", it) } ?: "—"
                 "$percentText $suffix"
             },
         )
@@ -144,6 +141,7 @@ class ReportViewModel(
     private val categories: CategoryRepository,
     private val currencies: CurrencyRepository,
     private val budgets: BudgetRepository,
+    private val texts: ReportTexts = EnglishReportTexts,
     io: kotlin.coroutines.CoroutineContext = kotlinx.coroutines.Dispatchers.IO,
     private val today: () -> LocalDate = LocalDate::now,
 ) : WritingViewModel(io) {
@@ -213,12 +211,7 @@ class ReportViewModel(
         val previousReport = if (selected == null || previous == null) emptyList() else
             categoryReport(allTxns, CurrencyCode(selected), previous, f.kind)
         val changes = periodOverPeriodChange(report, previousReport)
-        val changeSuffix = when (f.mode) {
-            PeriodMode.MONTH -> "к прошлому месяцу"
-            PeriodMode.QUARTER -> "к прошлому кварталу"
-            PeriodMode.YEAR -> "к прошлому году"
-            PeriodMode.CUSTOM -> null
-        }
+        val changeSuffix = texts.changeSuffix(f.mode)
 
         val rows = if (currency == null) emptyList() else
             withShares(report, names, colors, currency, changes, changeSuffix)
@@ -228,7 +221,7 @@ class ReportViewModel(
         val monthly = if (selected == null || currency == null) emptyList() else
             monthlySeries(allTxns, CurrencyCode(selected), f.kind, f.anchor, monthsBack = 6).map { point ->
                 MonthlyBar(
-                    label = "%02d.%02d".format(point.month.monthValue, point.month.year % 100),
+                    label = String.format(java.util.Locale.ROOT, "%02d.%02d", point.month.monthValue, point.month.year % 100),
                     valueMinor = point.total.amount.raw,
                     amountText = MoneyFormatter.format(point.total, currency),
                 )
@@ -329,11 +322,7 @@ class ReportViewModel(
      * доли, сравнение с прошлым периодом из R3.1), суммы уже отформатированы [MoneyFormatter]
      * (I-25 — то же самое число, что на экране, независимо от локали устройства).
      *
-     * R6.3 (ROADMAP.md §8): содержимое CSV-файла (заголовки колонок, «Без категории», текст
-     * сравнения с прошлым периодом) сознательно не локализуется в этом проходе — это данные
-     * экспорта, а не текст экрана, который видит Lint (`HardcodedText` смотрит на Composable),
-     * и `docs/CHANGELOG.md`/итоговый отчёт сессии фиксируют это явным пробелом, а не тихим
-     * упущением.
+     * A2.13: заголовки колонок, «Без категории» и текст сравнения берутся из [texts] (ресурсы приложения).
      */
     /** A2.1: CSV отчёта в файл, выбранный через SAF ([open] вызывается на IO). */
     fun exportCsvTo(open: () -> java.io.OutputStream) = writeFile(open) { exportCsv().toByteArray(Charsets.UTF_8) }
@@ -341,13 +330,13 @@ class ReportViewModel(
     fun exportCsv(): String {
         val rows = uiState.value.rows.map { row ->
             com.corriente.data.export.ReportCsvRow(
-                category = row.name ?: NO_CATEGORY_CSV_LABEL,
+                category = row.name ?: texts.noCategory,
                 amountText = row.amountText,
                 sharePercent = row.sharePercent,
                 changeText = row.changeText ?: "",
             )
         }
-        return com.corriente.data.export.CsvExport.reportCsv(rows)
+        return com.corriente.data.export.CsvExport.reportCsv(rows, texts.csvHeaders)
     }
 
     companion object {
@@ -356,8 +345,9 @@ class ReportViewModel(
             categories: CategoryRepository,
             currencies: CurrencyRepository,
             budgets: BudgetRepository,
+            texts: ReportTexts = EnglishReportTexts,
         ) = viewModelFactory {
-            initializer { ReportViewModel(txns, categories, currencies, budgets) }
+            initializer { ReportViewModel(txns, categories, currencies, budgets, texts) }
         }
     }
 }

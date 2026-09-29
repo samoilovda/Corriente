@@ -19,7 +19,7 @@ data class ReportCsvRow(
     val category: String,
     val amountText: String,
     val sharePercent: Int,
-    /** Текст сравнения с прошлым периодом (R3.1), уже готовый — "+18 % к прошлому месяцу" / "—". */
+    /** Текст сравнения с прошлым периодом (R3.1), уже готовый — "+18 % vs. last month" / "—". */
     val changeText: String,
 )
 
@@ -32,25 +32,35 @@ data class TxnCsvRow(
     val amountText: String,
 )
 
+/**
+ * Заголовки колонок CSV (A2.13): текст — данные экспорта, но язык должен быть языком пользователя, поэтому строит
+ * их `:app` из ресурсов; [ENGLISH] — нейтральный запасной вариант (тесты, превью).
+ */
+data class CsvHeaders(val report: List<String>, val transactions: List<String>) {
+    companion object {
+        val ENGLISH = CsvHeaders(
+            report = listOf("Category", "Amount", "Share, %", "Change vs. previous period"),
+            transactions = listOf("Date", "Account", "Category", "Note", "Amount"),
+        )
+    }
+}
+
 object CsvExport {
 
-    private val REPORT_HEADER = listOf("Категория", "Сумма", "Доля, %", "Изменение к прошлому периоду")
-    private val TXN_HEADER = listOf("Дата", "Счёт", "Категория", "Заметка", "Сумма")
-
-    fun reportCsv(rows: List<ReportCsvRow>): String = csvWriter().writeAllAsString(
-        listOf(REPORT_HEADER) + rows.map { r -> listOf(r.category, r.amountText, r.sharePercent.toString(), r.changeText) },
+    fun reportCsv(rows: List<ReportCsvRow>, headers: CsvHeaders = CsvHeaders.ENGLISH): String = csvWriter().writeAllAsString(
+        listOf(headers.report) + rows.map { r -> listOf(r.category, r.amountText, r.sharePercent.toString(), r.changeText) },
     )
 
-    fun txnCsv(rows: List<TxnCsvRow>): String = csvWriter().writeAllAsString(
-        listOf(TXN_HEADER) + rows.map { r -> listOf(r.date, r.account, r.category, r.note, r.amountText) },
+    fun txnCsv(rows: List<TxnCsvRow>, headers: CsvHeaders = CsvHeaders.ENGLISH): String = csvWriter().writeAllAsString(
+        listOf(headers.transactions) + rows.map { r -> listOf(r.date, r.account, r.category, r.note, r.amountText) },
     )
 
     /** UTF-8 — то же самое, что читает [com.corriente.data.imports.MonefyCsvParser] на импорте. */
-    fun writeReportCsv(rows: List<ReportCsvRow>, out: OutputStream) {
-        out.write(reportCsv(rows).toByteArray(Charsets.UTF_8))
+    fun writeReportCsv(rows: List<ReportCsvRow>, out: OutputStream, headers: CsvHeaders = CsvHeaders.ENGLISH) {
+        out.write(reportCsv(rows, headers).toByteArray(Charsets.UTF_8))
     }
 
-    fun writeTxnCsv(rows: List<TxnCsvRow>, out: OutputStream) {
-        out.write(txnCsv(rows).toByteArray(Charsets.UTF_8))
+    fun writeTxnCsv(rows: List<TxnCsvRow>, out: OutputStream, headers: CsvHeaders = CsvHeaders.ENGLISH) {
+        out.write(txnCsv(rows, headers).toByteArray(Charsets.UTF_8))
     }
 }

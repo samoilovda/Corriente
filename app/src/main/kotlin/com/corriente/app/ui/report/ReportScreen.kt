@@ -59,7 +59,10 @@ fun ReportScreen(
     onOpenFxReport: () -> Unit,
     viewModel: ReportViewModel = viewModel(
         factory = with(corrienteContainer()) {
-            ReportViewModel.factory(txnRepository, categoryRepository, currencyRepository, budgetRepository)
+            ReportViewModel.factory(
+                txnRepository, categoryRepository, currencyRepository, budgetRepository,
+                ResourceReportTexts(LocalContext.current),
+            )
         },
     ),
 ) {

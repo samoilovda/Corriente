@@ -245,7 +245,7 @@ abstract class AppDatabase : RoomDatabase() {
          * Общий код для [seedCallback] (первая установка) и [MIGRATION_5_6] (уже установленные
          * копии). `origin = 'USER'`, `import_batch_id = NULL` — обычные пользовательские категории.
          */
-        private fun seedDefaultCategoriesIfEmpty(db: SupportSQLiteDatabase) {
+        private fun seedDefaultCategoriesIfEmpty(db: SupportSQLiteDatabase, nameOf: (String) -> String? = { null }) {
             db.query("SELECT COUNT(*) FROM category").use { c ->
                 if (!c.moveToFirst() || c.getInt(0) != 0) return
             }
@@ -257,7 +257,7 @@ abstract class AppDatabase : RoomDatabase() {
                         INSERT INTO category(id, name, kind, parent_id, color, icon, origin, display_order, is_archived, import_batch_id)
                         VALUES (?, ?, ?, NULL, ?, ?, 'USER', ?, 0, NULL)
                         """.trimIndent(),
-                        arrayOf<Any>(cat.id, cat.name, cat.kind.name, cat.color, cat.icon, index),
+                        arrayOf<Any>(cat.id, nameOf(cat.id) ?: cat.name, cat.kind.name, cat.color, cat.icon, index),
                     )
                 }
                 db.setTransactionSuccessful()
@@ -275,7 +275,8 @@ abstract class AppDatabase : RoomDatabase() {
          * По умолчанию активны только RUB и USD (текущая базовая валюта пользователя и её будущий
          * преемник, ARCHITECTURE.md §7 вопрос 3) — остальные пользователь включает сам в T1.2.
          */
-        fun seedCallback(): Callback = object : Callback() {
+        /** [categoryName] — локализованное имя типовой категории по её id (A2.13); `null` — русское имя из [DEFAULT_CATEGORIES]. */
+        fun seedCallback(categoryName: (String) -> String? = { null }): Callback = object : Callback() {
             override fun onCreate(db: SupportSQLiteDatabase) {
                 super.onCreate(db)
                 db.beginTransaction()
@@ -296,7 +297,7 @@ abstract class AppDatabase : RoomDatabase() {
                 }
                 // Типовые категории «из коробки» — тот же набор, что кладёт миграция v5→v6
                 // для уже установленных копий (своя транзакция внутри).
-                seedDefaultCategoriesIfEmpty(db)
+                seedDefaultCategoriesIfEmpty(db, categoryName)
             }
         }
     }

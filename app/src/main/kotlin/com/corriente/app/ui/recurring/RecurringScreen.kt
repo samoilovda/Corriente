@@ -38,6 +38,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -173,7 +174,7 @@ private fun recurringRowTitle(row: RecurringRow): String {
 @Composable
 private fun recurringRuleText(rule: RecurrenceRule): String = when (rule) {
     is RecurrenceRule.DayOfMonth -> stringResource(R.string.recurring_row_rule_day_of_month, rule.day)
-    is RecurrenceRule.EveryNDays -> stringResource(R.string.recurring_row_rule_every_n_days, rule.intervalDays)
+    is RecurrenceRule.EveryNDays -> pluralStringResource(R.plurals.recurring_row_rule_every_n_days, rule.intervalDays, rule.intervalDays)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

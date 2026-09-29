@@ -57,7 +57,6 @@
     <string name="backup_problem_unreadable">%1$s: запись не читается (%2$s)</string>
     <string name="file_saved">Сохранено</string>
     <string name="file_save_failed">Не удалось сохранить файл</string>
-    <string name="backup_result_invalid_more">…и ещё %1$d</string>
     <string name="backup_share">Отправить бэкап</string>
     <string name="backup_share_hint">Через системный шеринг — Диск, почта, что угодно</string>
 
@@ -68,7 +67,6 @@
     <string name="autobackup_folder">Папка для бэкапов</string>
     <string name="autobackup_folder_none">Не выбрана</string>
     <string name="autobackup_enabled">Включён</string>
-    <string name="autobackup_enabled_hint">Раз в сутки, хранятся последние %1$d файлов</string>
     <string name="autobackup_now">Сделать бэкап сейчас</string>
     <string name="autobackup_last_run">Последний бэкап: %1$s</string>
     <string name="autobackup_last_run_never">Бэкап ещё не выполнялся</string>
@@ -90,12 +88,11 @@
     <string name="backup_restore_action">Восстановить</string>
     <string name="backup_verify_action">Проверить файл</string>
     <string name="backup_verify_title">Проверка файла</string>
-    <string name="backup_verify_current">Сейчас в базе: %1$d счетов, %2$d категорий, %3$d операций</string>
-    <string name="backup_verify_file">В файле: %1$d счетов, %2$d категорий, %3$d операций</string>
+    <string name="backup_verify_current">Сейчас в базе — счетов: %1$d, категорий: %2$d, операций: %3$d</string>
+    <string name="backup_verify_file">В файле — счетов: %1$d, категорий: %2$d, операций: %3$d</string>
     <string name="backup_verify_sums">Суммы по валютам (в минимальных единицах, без переводов)</string>
     <string name="backup_verify_invalid">Файл повреждён:</string>
     <string name="backup_verify_failed">Не удалось прочитать файл.</string>
-    <string name="backup_reminder_days">Последний бэкап: %1$d дней назад</string>
     <string name="backup_reminder_never">Бэкап ещё ни разу не выполнялся</string>
 
     <string name="widget_settings">Виджет</string>
@@ -152,14 +149,14 @@
     <string name="import_error_write_failed">ошибка записи</string>
     <string name="import_error_account_currency_conflict">Счёт «%1$s» уже ведётся в валюте %2$s, а в файле — %3$s. Выберите вариант в предпросмотре импорта.</string>
     <string name="import_error_row_prefix">строка %1$d: %2$s</string>
-    <string name="import_error_wrong_field_count">ожидалось %1$d полей, получено %2$d</string>
+    <string name="import_error_wrong_field_count">число полей: ожидалось %1$d, получено %2$d</string>
     <string name="import_error_unparseable_date">нераспознанная дата \'%1$s\'</string>
     <string name="import_error_unparseable_amount">сумма \'%1$s\': %2$s</string>
+    <string name="import_unpaired_category">[перевод без пары]</string>
     <string name="import_error_unparseable_currency">код валюты «%1$s» не распознан</string>
     <string name="import_error_unparseable_converted_amount">converted amount \'%1$s\': %2$s</string>
     <string name="import_review_account_currency_conflict">счёт «%1$s» встречается с разными валютами: %2$s</string>
     <string name="import_review_existing_account_mismatch">счёт «%1$s» уже ведётся в валюте %2$s, а в файле — %3$s</string>
-    <string name="import_review_ambiguous_pairing">%1$d одинаковых перевода %2$s → %3$s за %4$s — пары построены по порядку строк, подтвердите</string>
     <string name="import_review_anomalous_currency">перевод %1$s → %2$s за %3$s: неявный курс 1.0 при разных валютах — выберите валюту суммы-приёмника</string>
     <string name="import_review_excess_precision">перевод %1$s → %2$s за %3$s: сумма округлена до точности валюты — подтвердите или введите точную</string>
 
@@ -297,6 +294,16 @@
     <string name="report_no_category">Без категории</string>
     <string name="report_chart_monthly">По месяцам</string>
     <string name="report_chart_structure">Структура категорий</string>
+    <string name="report_change_since_month">к прошлому месяцу</string>
+    <string name="report_change_since_quarter">к прошлому кварталу</string>
+    <string name="report_change_since_year">к прошлому году</string>
+    <string name="csv_header_category">Категория</string>
+    <string name="csv_header_amount">Сумма</string>
+    <string name="csv_header_share">Доля, %</string>
+    <string name="csv_header_change">Изменение к прошлому периоду</string>
+    <string name="csv_header_date">Дата</string>
+    <string name="csv_header_account">Счёт</string>
+    <string name="csv_header_note">Заметка</string>
     <string name="report_open_fx">Курсы обмена</string>
     <string name="report_export_csv">CSV</string>
 
@@ -349,7 +356,6 @@
     <string name="recurring_auto_created_note">Создано автоматически по повторяющемуся правилу</string>
     <string name="recurring_delete_confirm_title">Удалить это правило?</string>
     <string name="recurring_row_rule_day_of_month">%1$d-го числа каждого месяца</string>
-    <string name="recurring_row_rule_every_n_days">Каждые %1$d дн.</string>
     <string name="recurring_error_save">Не удалось сохранить правило</string>
     <string name="recurring_error_delete">Не удалось удалить правило</string>
 
@@ -369,4 +375,63 @@
     <!-- R5.3: отмена удаления. -->
     <string name="txn_deleted_undo_message">Операция удалена</string>
     <string name="undo">Отменить</string>
+    <plurals name="backup_result_invalid_more">
+        <item quantity="one">…и ещё %1$d</item>
+        <item quantity="few">…и ещё %1$d</item>
+        <item quantity="many">…и ещё %1$d</item>
+        <item quantity="other">…и ещё %1$d</item>
+    </plurals>
+    <plurals name="autobackup_enabled_hint">
+        <item quantity="one">Раз в сутки, хранится последний %1$d файл</item>
+        <item quantity="few">Раз в сутки, хранятся последние %1$d файла</item>
+        <item quantity="many">Раз в сутки, хранятся последние %1$d файлов</item>
+        <item quantity="other">Раз в сутки, хранятся последние %1$d файла</item>
+    </plurals>
+    <plurals name="backup_reminder_days">
+        <item quantity="one">Последний бэкап: %1$d день назад</item>
+        <item quantity="few">Последний бэкап: %1$d дня назад</item>
+        <item quantity="many">Последний бэкап: %1$d дней назад</item>
+        <item quantity="other">Последний бэкап: %1$d дня назад</item>
+    </plurals>
+    <plurals name="recurring_row_rule_every_n_days">
+        <item quantity="one">Каждый %1$d день</item>
+        <item quantity="few">Каждые %1$d дня</item>
+        <item quantity="many">Каждые %1$d дней</item>
+        <item quantity="other">Каждые %1$d дня</item>
+    </plurals>
+    <plurals name="import_review_ambiguous_pairing">
+        <item quantity="one">%1$d одинаковый перевод %2$s → %3$s за %4$s — пара построена по порядку строк, подтвердите</item>
+        <item quantity="few">%1$d одинаковых перевода %2$s → %3$s за %4$s — пары построены по порядку строк, подтвердите</item>
+        <item quantity="many">%1$d одинаковых переводов %2$s → %3$s за %4$s — пары построены по порядку строк, подтвердите</item>
+        <item quantity="other">%1$d одинаковых перевода %2$s → %3$s за %4$s — пары построены по порядку строк, подтвердите</item>
+    </plurals>
+    <string name="seed_cat_exp_groceries">Продукты</string>
+    <string name="seed_cat_exp_dining">Кафе и рестораны</string>
+    <string name="seed_cat_exp_transport">Транспорт</string>
+    <string name="seed_cat_exp_car">Автомобиль</string>
+    <string name="seed_cat_exp_housing">Жильё</string>
+    <string name="seed_cat_exp_utilities">Коммунальные услуги</string>
+    <string name="seed_cat_exp_connectivity">Связь и интернет</string>
+    <string name="seed_cat_exp_health">Здоровье</string>
+    <string name="seed_cat_exp_clothing">Одежда и обувь</string>
+    <string name="seed_cat_exp_entertainment">Развлечения</string>
+    <string name="seed_cat_exp_sport">Спорт</string>
+    <string name="seed_cat_exp_education">Образование</string>
+    <string name="seed_cat_exp_gifts">Подарки</string>
+    <string name="seed_cat_exp_travel">Путешествия</string>
+    <string name="seed_cat_exp_kids">Дети</string>
+    <string name="seed_cat_exp_pets">Питомцы</string>
+    <string name="seed_cat_exp_beauty">Красота и уход</string>
+    <string name="seed_cat_exp_subscriptions">Подписки</string>
+    <string name="seed_cat_exp_fees">Налоги и комиссии</string>
+    <string name="seed_cat_exp_other_exp">Прочее</string>
+    <string name="seed_cat_inc_salary">Зарплата</string>
+    <string name="seed_cat_inc_bonus">Премия</string>
+    <string name="seed_cat_inc_sidework">Подработка</string>
+    <string name="seed_cat_inc_interest">Проценты по вкладу</string>
+    <string name="seed_cat_inc_dividends">Дивиденды</string>
+    <string name="seed_cat_inc_gift">Подарок</string>
+    <string name="seed_cat_inc_refund">Возврат средств</string>
+    <string name="seed_cat_inc_sale">Продажа</string>
+    <string name="seed_cat_inc_other_inc">Прочее</string>
 </resources>

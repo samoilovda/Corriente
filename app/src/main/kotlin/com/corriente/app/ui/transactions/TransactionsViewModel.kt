@@ -277,6 +277,7 @@ class TransactionsViewModel(
     categories: CategoryRepository,
     currencies: CurrencyRepository,
     io: kotlin.coroutines.CoroutineContext = kotlinx.coroutines.Dispatchers.IO,
+    private val csvHeaders: com.corriente.data.export.CsvHeaders = com.corriente.data.export.CsvHeaders.ENGLISH,
     private val today: () -> LocalDate = LocalDate::now,
 ) : WritingViewModel(io) {
 
@@ -396,7 +397,7 @@ class TransactionsViewModel(
                 )
             }
         }
-        return com.corriente.data.export.CsvExport.txnCsv(rows)
+        return com.corriente.data.export.CsvExport.txnCsv(rows, csvHeaders)
     }
 
     companion object {
@@ -408,8 +409,9 @@ class TransactionsViewModel(
             accounts: AccountRepository,
             categories: CategoryRepository,
             currencies: CurrencyRepository,
+            csvHeaders: com.corriente.data.export.CsvHeaders = com.corriente.data.export.CsvHeaders.ENGLISH,
         ) = viewModelFactory {
-            initializer { TransactionsViewModel(txns, accounts, categories, currencies) }
+            initializer { TransactionsViewModel(txns, accounts, categories, currencies, csvHeaders = csvHeaders) }
         }
     }
 }

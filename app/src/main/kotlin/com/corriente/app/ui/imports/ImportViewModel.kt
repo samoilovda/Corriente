@@ -15,6 +15,7 @@ import com.corriente.data.imports.MonefyRowError
 import com.corriente.data.imports.ReviewDecision
 import com.corriente.data.imports.ReviewReason
 import com.corriente.data.imports.ReviewRef
+import com.corriente.data.imports.UNPAIRED_TRANSFER_CATEGORY
 import com.corriente.data.imports.applyReviewDecisions
 import com.corriente.data.imports.ref
 import com.corriente.data.seed.ISO_CURRENCIES
@@ -104,7 +105,7 @@ class ImportViewModel(private val importer: MonefyImportRepository) : ViewModel(
     fun preview(input: InputStream, fileName: String) = previewFrom(fileName) { input }
 
     /** A2.1: [open] (поток на файл, выбранный через SAF) вызывается на IO внутри `runCatching`. */
-    fun previewFrom(fileName: String, open: () -> InputStream) {
+    fun previewFrom(fileName: String, unpairedCategory: String = UNPAIRED_TRANSFER_CATEGORY, open: () -> InputStream) {
         _state.value = ImportUiState.Working
         viewModelScope.launch(Dispatchers.IO) {
             _state.value = runCatching {
@@ -112,6 +113,7 @@ class ImportViewModel(private val importer: MonefyImportRepository) : ViewModel(
                 plan = MonefyImportPlanner.plan(
                     MonefyCsvParser.parse(csv),
                     existingAccounts = importer.existingAccountCurrencies(),
+                    unpairedCategory = unpairedCategory,
                 )
                 this@ImportViewModel.fileName = fileName
                 decisions.clear()

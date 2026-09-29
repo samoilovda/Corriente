@@ -39,6 +39,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -69,13 +70,14 @@ fun ImportScreen(
 ) {
     val context = LocalContext.current
     val state by viewModel.state.collectAsState()
+    val unpairedCategory = stringResource(R.string.import_unpaired_category)
 
     val picker = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument(),
     ) { uri ->
         if (uri != null) {
             val name = uri.lastPathSegment?.substringAfterLast('/') ?: "monefy.csv"
-            viewModel.previewFrom(name) { context.contentResolver.openInputStream(uri) ?: throw java.io.FileNotFoundException(uri.toString()) }
+            viewModel.previewFrom(name, unpairedCategory) { context.contentResolver.openInputStream(uri) ?: throw java.io.FileNotFoundException(uri.toString()) }
         }
     }
 
@@ -345,8 +347,9 @@ private fun reviewCardMessage(card: ReviewCard): String = when (card.reason) {
         card.existingCurrency.orEmpty(),
         card.currencyChoices.firstOrNull().orEmpty(),
     )
-    ReviewReason.AMBIGUOUS_PAIRING -> stringResource(
-        R.string.import_review_ambiguous_pairing,
+    ReviewReason.AMBIGUOUS_PAIRING -> pluralStringResource(
+        R.plurals.import_review_ambiguous_pairing,
+        card.pairCount,
         card.pairCount,
         card.transferFromAccount.orEmpty(),
         card.transferToAccount.orEmpty(),

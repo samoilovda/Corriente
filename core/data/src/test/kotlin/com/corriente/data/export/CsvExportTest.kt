@@ -17,7 +17,7 @@ class CsvExportTest {
     fun `report csv starts with the header row`() {
         val csv = CsvExport.reportCsv(emptyList())
         val rows = parse(csv)
-        assertEquals(listOf(listOf("Категория", "Сумма", "Доля, %", "Изменение к прошлому периоду")), rows)
+        assertEquals(listOf(CsvHeaders.ENGLISH.report), rows)
     }
 
     @Test
@@ -72,7 +72,7 @@ class CsvExportTest {
     @Test
     fun `txn csv starts with the header row`() {
         val rows = parse(CsvExport.txnCsv(emptyList()))
-        assertEquals(listOf(listOf("Дата", "Счёт", "Категория", "Заметка", "Сумма")), rows)
+        assertEquals(listOf(CsvHeaders.ENGLISH.transactions), rows)
     }
 
     // Пустая заметка/пустое сравнение — валидная ячейка, не наличие/отсутствие столбца.

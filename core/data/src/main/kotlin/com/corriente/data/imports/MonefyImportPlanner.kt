@@ -4,8 +4,11 @@ import com.corriente.money.CurrencyCode
 import java.time.LocalDate
 import kotlin.math.abs
 
-/** Категория для непарной половинки перевода (MONEFY_IMPORT.md §3). */
-const val UNPAIRED_TRANSFER_CATEGORY = "[перевод без пары]"
+/**
+ * Категория для непарной половинки перевода (MONEFY_IMPORT.md §3) — имя по умолчанию; приложение подставляет
+ * локализованное ([MonefyImportPlan.unpairedCategory], A2.13).
+ */
+const val UNPAIRED_TRANSFER_CATEGORY = "[unpaired transfer]"
 
 enum class MonefyTxnKind { EXPENSE, INCOME }
 
@@ -98,6 +101,8 @@ data class MonefyImportPlan(
     val transfers: List<PlannedTransfer>,
     val reviews: List<ReviewItem>,
     val errors: List<MonefyRowError>,
+    /** Имя категории непарных половинок перевода — на языке пользователя. */
+    val unpairedCategory: String = UNPAIRED_TRANSFER_CATEGORY,
 )
 
 /**
@@ -130,6 +135,7 @@ object MonefyImportPlanner {
     fun plan(
         csv: MonefyCsvResult,
         existingAccounts: List<Pair<String, CurrencyCode>> = emptyList(),
+        unpairedCategory: String = UNPAIRED_TRANSFER_CATEGORY,
     ): MonefyImportPlan {
         val rows = csv.rows
         val reviews = mutableListOf<ReviewItem>()
@@ -237,9 +243,9 @@ object MonefyImportPlanner {
 
         // непарные половинки → обычные операции с [перевод без пары]
         halves.filter { it.isTo && it.row.line !in pairedToLines }.forEach { h ->
-            plainTxns += unpairedHalf(h, MonefyTxnKind.EXPENSE)
+            plainTxns += unpairedHalf(h, MonefyTxnKind.EXPENSE, unpairedCategory)
         }
-        fromHalves.forEach { h -> plainTxns += unpairedHalf(h, MonefyTxnKind.INCOME) }
+        fromHalves.forEach { h -> plainTxns += unpairedHalf(h, MonefyTxnKind.INCOME, unpairedCategory) }
 
         // --- reviews ---
         transfers.filter { it.review == ReviewReason.AMBIGUOUS_PAIRING }
@@ -282,11 +288,12 @@ object MonefyImportPlanner {
             transfers = transfers,
             reviews = reviews,
             errors = csv.errors,
+            unpairedCategory = unpairedCategory,
         )
     }
 
-    private fun unpairedHalf(h: Half, kind: MonefyTxnKind) = PlannedTxn(
-        line = h.row.line, date = h.row.date, account = h.thisAccount, category = UNPAIRED_TRANSFER_CATEGORY,
+    private fun unpairedHalf(h: Half, kind: MonefyTxnKind, category: String) = PlannedTxn(
+        line = h.row.line, date = h.row.date, account = h.thisAccount, category = category,
         amountMinor = abs(h.row.amount.raw), currency = h.row.currency, kind = kind,
         naturalKey = naturalKey(h.row), unpairedHalf = true,
     )

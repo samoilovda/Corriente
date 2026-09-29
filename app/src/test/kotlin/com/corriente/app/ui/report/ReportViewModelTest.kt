@@ -168,8 +168,8 @@ class ReportViewModelTest {
         advanceUntilIdle()
 
         val byName = model.uiState.value.rows.associateBy { it.name }
-        assertEquals("+18 % к прошлому месяцу", byName.getValue("Еда").changeText)
-        assertEquals("— к прошлому месяцу", byName.getValue("Развлечения").changeText)
+        assertEquals("+18 % vs. last month", byName.getValue("Еда").changeText)
+        assertEquals("— vs. last month", byName.getValue("Развлечения").changeText)
     }
 
     // R3.1 — период CUSTOM не двигается, сравнивать не с чем: сравнение не показывается вовсе.
@@ -285,5 +285,30 @@ class ReportViewModelTest {
         advanceUntilIdle()
 
         assertTrue(model.uiState.value.categoryBudgetBars.isEmpty())
+    }
+
+    // A2.13: сравнение с прошлым периодом и «Без категории» в CSV берутся из ReportTexts (ресурсы), не из кода.
+    @Test
+    fun `comparison suffix and csv labels come from the injected texts`() = runTest(dispatcher) {
+        val texts = object : ReportTexts {
+            override fun changeSuffix(mode: PeriodMode) = if (mode == PeriodMode.MONTH) "к прошлому месяцу" else null
+            override val noCategory = "Без категории"
+            override val csvHeaders = com.corriente.data.export.CsvHeaders(listOf("К", "С", "Д", "И"), listOf("Д", "С", "К", "З", "С"))
+        }
+        val fakes = Fakes().apply { seed() }
+        val r = repo(fakes)
+        r.addExpense("acc", Money(Minor(10_000), rub), "food", LocalDate.of(2026, 5, 3), null)
+        r.addExpense("acc", Money(Minor(5_000), rub), null, LocalDate.of(2026, 5, 4), null)
+        val model = ReportViewModel(
+            r, CategoryRepository(fakes.categoryDao), CurrencyRepository(fakes.currencyDao), BudgetRepository(fakes.budgetDao),
+            texts = texts, today = { today },
+        )
+        backgroundScope.observe(model)
+        advanceUntilIdle()
+
+        assertTrue(model.uiState.value.rows.any { it.changeText?.endsWith("к прошлому месяцу") == true })
+        val csv = model.exportCsv()
+        assertTrue(csv, csv.startsWith("К,С,Д,И"))
+        assertTrue(csv, csv.contains("Без категории"))
     }
 }
