@@ -23,6 +23,22 @@ data class UiMessage(val resId: Int, val args: List<Any> = emptyList())
 fun uiMessage(resId: Int, vararg args: Any): UiMessage = UiMessage(resId, args.toList())
 
 /**
+ * A2.3: некорректный ввод пользователя, обнаруженный внутри [WritingViewModel.launchWrite] — блок «завершился
+ * бы успешно» и экран закрыл бы форму, ничего не сохранив; вместо этого исключение превращается в [ui] через
+ * `onError`, а форма остаётся открытой.
+ */
+class InvalidInputException(val ui: UiMessage) : Exception()
+
+/**
+ * Положительна ли сумма в тексте поля. Не зависит от валюты (для валюты без дробной части «0.5» проверит
+ * ViewModel уже при сохранении) — нужна, чтобы кнопка «Сохранить» была неактивна на пустой/нулевой сумме.
+ */
+fun amountTextIsPositive(text: String): Boolean {
+    val probe = com.corriente.money.Currency(com.corriente.money.CurrencyCode("XXX"), minorUnits = 2, displayScale = 2, symbol = "¤")
+    return (com.corriente.money.AmountInput.fromText(text, probe).toMinorOrNull(probe)?.raw ?: 0L) > 0L
+}
+
+/**
  * База для ViewModel, которые пишут в репозитории (F0.2). Любая запись идёт через [launchWrite]:
  * необработанное исключение репозитория раньше доходило до обработчика по умолчанию и убивало
  * процесс — теперь оно превращается в [messages] для снекбара, а форма остаётся на экране.

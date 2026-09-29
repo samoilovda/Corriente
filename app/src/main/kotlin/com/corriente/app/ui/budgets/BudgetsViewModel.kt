@@ -4,7 +4,9 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.corriente.app.R
+import com.corriente.app.ui.common.InvalidInputException
 import com.corriente.app.ui.common.WritingViewModel
+import com.corriente.app.ui.common.amountTextIsPositive
 import com.corriente.app.ui.common.uiMessage
 import com.corriente.data.db.entity.CategoryKind
 import com.corriente.data.model.Category
@@ -44,7 +46,10 @@ data class BudgetEditor(
      *  тап до закрытия диалога (`editorState.value = null` приходит только по onSuccess) успевал
      *  создать два одинаковых бюджета. */
     val saving: Boolean = false,
-)
+) {
+    /** A2.3: кнопка «Сохранить» активна только при положительной сумме. */
+    val canSave: Boolean get() = amountTextIsPositive(amountText)
+}
 
 data class BudgetsUiState(
     val rows: List<BudgetRow> = emptyList(),
@@ -141,11 +146,15 @@ class BudgetsViewModel(
         if (editor.saving) return
         editorState.update { it?.copy(saving = true) }
         launchWrite(
-            onError = { editorState.update { e -> e?.copy(saving = false) }; uiMessage(R.string.budgets_error_save) },
+            onError = { e ->
+                editorState.update { ed -> ed?.copy(saving = false) }
+                (e as? InvalidInputException)?.ui ?: uiMessage(R.string.budgets_error_save)
+            },
             onSuccess = { editorState.value = null },
         ) {
             val currencyMeta = currencyRepository.getByCode(CurrencyCode(editor.currencyCode)) ?: fallbackCurrency(editor.currencyCode)
-            val minor = AmountInput.fromText(editor.amountText, currencyMeta).toMinorOrNull(currencyMeta) ?: return@launchWrite
+            val minor = AmountInput.fromText(editor.amountText, currencyMeta).toMinorOrNull(currencyMeta) ?: throw InvalidInputException(uiMessage(R.string.budgets_error_invalid_amount))
+            if (minor.raw <= 0) throw InvalidInputException(uiMessage(R.string.budgets_error_invalid_amount))
             val money = Money(minor, CurrencyCode(editor.currencyCode))
             if (editor.editingId != null) {
                 budgetRepository.update(editor.editingId, editor.categoryId, money, today())

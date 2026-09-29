@@ -320,6 +320,10 @@
     <string name="budgets_amount">Amount</string>
     <string name="budgets_delete_confirm_title">Delete this budget?</string>
     <string name="report_budget_over">Over budget</string>
+    <string name="budgets_error_invalid_amount">Enter an amount greater than zero</string>
+    <string name="recurring_error_invalid_amount">Enter an amount greater than zero</string>
+    <string name="recurring_error_invalid_day">The day of month must be between 1 and 31</string>
+    <string name="recurring_error_invalid_interval">The interval must be a whole number of days, at least 1</string>
     <string name="budgets_error_save">Could not save the budget</string>
     <string name="budgets_error_delete">Could not delete the budget</string>
 

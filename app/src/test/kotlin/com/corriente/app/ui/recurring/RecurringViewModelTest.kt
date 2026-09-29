@@ -145,4 +145,34 @@ class RecurringViewModelTest {
         advanceUntilIdle()
         assertTrue(model.uiState.value.rows.isEmpty())
     }
+
+    // A2.3: пустая сумма или день «abc»/40 — редактор открыт, сообщение, ничего не сохранено и не «поправлено».
+    @Test
+    fun `invalid amount or day keeps the editor open with a message`() = runTest(dispatcher) {
+        val fakes = Fakes().apply { seed() }
+        val model = vm(fakes)
+        backgroundScope.observe(model)
+        backgroundScope.launch { model.messages.collect {} }
+        advanceUntilIdle()
+
+        model.startCreate()
+        advanceUntilIdle()
+        assertEquals(false, model.uiState.value.editor!!.canSave)
+        model.save(); advanceUntilIdle()
+        assertEquals(com.corriente.app.R.string.recurring_error_invalid_amount, model.messages.value?.resId)
+
+        model.consumeMessage()
+        model.setAmountText("100")
+        model.setDayOfMonthText("abc")
+        advanceUntilIdle()
+        assertEquals(false, model.uiState.value.editor!!.canSave)
+        model.save(); advanceUntilIdle()
+        assertEquals(com.corriente.app.R.string.recurring_error_invalid_day, model.messages.value?.resId)
+
+        model.setDayOfMonthText("40")
+        model.save(); advanceUntilIdle()
+
+        assertEquals(true, model.uiState.value.rows.isEmpty())
+        assertEquals(true, model.uiState.value.editor != null)
+    }
 }

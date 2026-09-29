@@ -320,6 +320,10 @@
     <string name="budgets_amount">Сумма</string>
     <string name="budgets_delete_confirm_title">Удалить этот бюджет?</string>
     <string name="report_budget_over">Перерасход</string>
+    <string name="budgets_error_invalid_amount">Введите сумму больше нуля</string>
+    <string name="recurring_error_invalid_amount">Введите сумму больше нуля</string>
+    <string name="recurring_error_invalid_day">День месяца — число от 1 до 31</string>
+    <string name="recurring_error_invalid_interval">Интервал — целое число дней, не меньше 1</string>
     <string name="budgets_error_save">Не удалось сохранить бюджет</string>
     <string name="budgets_error_delete">Не удалось удалить бюджет</string>
 

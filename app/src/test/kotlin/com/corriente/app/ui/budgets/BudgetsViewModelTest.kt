@@ -147,4 +147,29 @@ class BudgetsViewModelTest {
         assertEquals(null, model.uiState.value.editor)
         assertTrue(model.uiState.value.rows.isEmpty())
     }
+
+    // A2.3: пустая/нулевая сумма — редактор остаётся открытым, сообщение, в БД ничего.
+    @Test
+    fun `saving with an empty or zero amount keeps the editor open with a message`() = runTest(dispatcher) {
+        val fakes = Fakes().apply { seed() }
+        val model = vm(fakes)
+        backgroundScope.observe(model)
+        backgroundScope.launch { model.messages.collect {} }
+        advanceUntilIdle()
+
+        model.startCreate()
+        advanceUntilIdle()
+        assertEquals(false, model.uiState.value.editor!!.canSave)
+        model.save()
+        advanceUntilIdle()
+        assertEquals(com.corriente.app.R.string.budgets_error_invalid_amount, model.messages.value?.resId)
+        assertEquals(false, model.uiState.value.editor!!.saving)
+
+        model.setAmountText("0")
+        model.save()
+        advanceUntilIdle()
+
+        assertEquals(true, model.uiState.value.rows.isEmpty())
+        assertEquals(true, model.uiState.value.editor != null)
+    }
 }

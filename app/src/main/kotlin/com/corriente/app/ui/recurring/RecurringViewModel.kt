@@ -4,7 +4,9 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.corriente.app.R
+import com.corriente.app.ui.common.InvalidInputException
 import com.corriente.app.ui.common.WritingViewModel
+import com.corriente.app.ui.common.amountTextIsPositive
 import com.corriente.app.ui.common.uiMessage
 import com.corriente.data.db.entity.CategoryKind
 import com.corriente.data.db.entity.RecurrenceRuleType
@@ -66,7 +68,14 @@ data class RecurringEditor(
      *  тап до закрытия диалога (`editorState.value = null` приходит только по onSuccess) успевал
      *  создать два одинаковых правила. */
     val saving: Boolean = false,
-)
+) {
+    /** A2.3: «Сохранить» активна только при положительной сумме и корректном дне месяца / интервале. */
+    val canSave: Boolean
+        get() = amountTextIsPositive(amountText) && when (ruleType) {
+            RecurrenceRuleType.DAY_OF_MONTH -> dayOfMonthText.toIntOrNull() in 1..31
+            RecurrenceRuleType.EVERY_N_DAYS -> (intervalDaysText.toIntOrNull() ?: 0) >= 1
+        }
+}
 
 data class RecurringUiState(
     val rows: List<RecurringRow> = emptyList(),
@@ -182,18 +191,30 @@ class RecurringViewModel(
         val accountId = editor.accountId ?: return
         editorState.update { it?.copy(saving = true) }
         launchWrite(
-            onError = { editorState.update { e -> e?.copy(saving = false) }; uiMessage(R.string.recurring_error_save) },
+            onError = { e ->
+                editorState.update { ed -> ed?.copy(saving = false) }
+                (e as? InvalidInputException)?.ui ?: uiMessage(R.string.recurring_error_save)
+            },
             onSuccess = { editorState.value = null },
         ) {
             val account = requireNotNull(accountRepository.getById(accountId)) { "Account $accountId not found" }
             val currencyMeta = currencyRepository.getByCode(account.currency) ?: fallbackCurrency(account.currency.code)
-            val minor = AmountInput.fromText(editor.amountText, currencyMeta).toMinorOrNull(currencyMeta) ?: return@launchWrite
+            val minor = AmountInput.fromText(editor.amountText, currencyMeta).toMinorOrNull(currencyMeta)
+            if (minor == null || minor.raw <= 0) {
+                throw InvalidInputException(uiMessage(R.string.recurring_error_invalid_amount))
+            }
             val money = Money(minor, account.currency)
             val rule = when (editor.ruleType) {
                 RecurrenceRuleType.DAY_OF_MONTH ->
-                    RecurrenceRule.DayOfMonth(editor.dayOfMonthText.toIntOrNull()?.coerceIn(1, 31) ?: return@launchWrite)
+                    RecurrenceRule.DayOfMonth(
+                        editor.dayOfMonthText.toIntOrNull()?.takeIf { it in 1..31 }
+                            ?: throw InvalidInputException(uiMessage(R.string.recurring_error_invalid_day)),
+                    )
                 RecurrenceRuleType.EVERY_N_DAYS ->
-                    RecurrenceRule.EveryNDays(editor.intervalDaysText.toIntOrNull()?.coerceAtLeast(1) ?: return@launchWrite)
+                    RecurrenceRule.EveryNDays(
+                        editor.intervalDaysText.toIntOrNull()?.takeIf { it >= 1 }
+                            ?: throw InvalidInputException(uiMessage(R.string.recurring_error_invalid_interval)),
+                    )
             }
             val note = editor.note.trim().ifBlank { null }
             if (editor.editingId != null) {
