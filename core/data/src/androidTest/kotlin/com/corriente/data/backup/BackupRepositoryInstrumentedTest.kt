@@ -207,4 +207,27 @@ class BackupRepositoryInstrumentedTest {
         }
         assertEquals(1, restored) // только неизменённый файл
     }
+
+    // A1.14: buildPayload читает в одной транзакции (withTransaction). Прямо детерминированно гонку не воспроизвести —
+    // тест фиксирует самосогласованность собранных файлов до и после записи из другого потока.
+    @Test
+    fun buildPayloadReadsOneConsistentSnapshot() = runBlocking {
+        db.currencyDao().insertAll(listOf(CurrencyEntity("RUB", 2, 2, "₽", isActive = true)))
+        db.accountDao().insert(AccountEntity("a", "Нал", "RUB", AccountKind.CASH, 0, 0))
+
+        val payload = backup.buildPayload()
+        val writerThread = Thread {
+            runBlocking {
+                db.accountDao().insert(AccountEntity("late", "Поздний", "RUB", AccountKind.CASH, 0, 0))
+                db.txnDao().insert(
+                    TxnEntity("lt", TxnKind.EXPENSE, "2026-01-01", 0, 0, "late", 1, "RUB"),
+                )
+            }
+        }
+        writerThread.start(); writerThread.join()
+
+        // Любой файл, собранный buildPayload, самосогласован: валидатор не находит проблем.
+        assertEquals(emptyList<BackupProblem>(), BackupRepository.validate(payload))
+        assertEquals(emptyList<BackupProblem>(), BackupRepository.validate(backup.buildPayload()))
+    }
 }

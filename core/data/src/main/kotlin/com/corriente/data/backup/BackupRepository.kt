@@ -47,8 +47,14 @@ interface BackupIo {
  */
 class BackupRepository(private val db: AppDatabase) : BackupIo {
 
-    /** Полезная нагрузка бэкапа, собранная из текущего состояния [db] (T1.9). */
-    suspend fun buildPayload(): BackupPayload = BackupPayload(
+    /**
+     * Полезная нагрузка бэкапа, собранная из текущего состояния [db] (T1.9). A1.14: все девять чтений — в одной
+     * транзакции читателя (согласованный снимок): воркер повторяющихся или импорт, дописывающий счёт и
+     * операции посреди экспорта, иначе дал бы файл с операцией без её счёта, который `validate` отвергнет.
+     */
+    suspend fun buildPayload(): BackupPayload = db.withTransaction { readPayload() }
+
+    private suspend fun readPayload(): BackupPayload = BackupPayload(
         schemaVersion = SCHEMA_VERSION,
         exportedAt = System.currentTimeMillis(),
         currencies = db.currencyDao().observeAll().first().map { it.toBackup() },
