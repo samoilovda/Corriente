@@ -31,10 +31,10 @@ class TxnRepository(
 ) {
     fun observeAll(): Flow<List<Txn>> = txnDao.observeAll().map { list -> list.map { it.toDomain() } }
 
-    /** Операции за период (F2.1). [from]/[to] включительно. */
     /** A1.1: есть ли операции раньше [before] (за границей окна списка). */
     fun observeAnyBefore(before: LocalDate): Flow<Boolean> = txnDao.observeAnyBefore(before.toString())
 
+    /** Операции за период (F2.1). [from]/[to] включительно. */
     fun observeRange(from: LocalDate, to: LocalDate): Flow<List<Txn>> =
         txnDao.observeRange(from.toString(), to.toString()).map { list -> list.map { it.toDomain() } }
 

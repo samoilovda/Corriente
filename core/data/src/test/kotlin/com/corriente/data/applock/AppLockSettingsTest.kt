@@ -18,6 +18,8 @@ private class FakeAppSettingDao : AppSettingDao {
     }
     override suspend fun get(key: String): String? = rows.value[key]
     override fun observe(key: String): Flow<String?> = rows.map { it[key] }
+    override suspend fun delete(key: String) { rows.value = rows.value - key }
+    override fun observeAll(): Flow<List<AppSettingEntity>> = rows.map { m -> m.map { AppSettingEntity(it.key, it.value) } }
     override suspend fun getAll(): List<AppSettingEntity> = rows.value.map { AppSettingEntity(it.key, it.value) }
     override suspend fun deleteAll() { rows.value = emptyMap() }
 }

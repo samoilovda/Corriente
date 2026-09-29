@@ -294,6 +294,7 @@
     <string name="recurring_rule_type">Recurrence rule</string>
     <string name="recurring_day_of_month">Day of month (1–31)</string>
     <string name="recurring_interval_days">Interval, days</string>
+    <string name="recurring_last_error">Could not create the transaction: %1$s</string>
     <string name="recurring_next_run">Next transaction: %1$s</string>
     <string name="recurring_auto_created_note">Created automatically by a recurring rule</string>
     <string name="recurring_delete_confirm_title">Delete this rule?</string>

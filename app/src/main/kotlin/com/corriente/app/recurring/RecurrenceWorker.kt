@@ -1,6 +1,7 @@
 package com.corriente.app.recurring
 
 import android.content.Context
+import androidx.room.withTransaction
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.corriente.app.CorrienteApplication
@@ -21,11 +22,16 @@ class RecurrenceWorker(
     override suspend fun doWork(): Result {
         val container = (applicationContext as CorrienteApplication).container
         return try {
+            // A1.5: ошибка одного правила фиксируется на экране «Повторяющиеся» и не мешает остальным —
+            // воркер завершается success, retry — только при общем сбое (БД недоступна).
+            val errors = container.recurrenceErrors
             RecurrenceMaterializer.materializeDue(
                 today = LocalDate.now(),
                 recurrences = container.recurrenceRepository,
                 txns = container.txnRepository,
                 autoNoteMarker = applicationContext.getString(R.string.recurring_auto_created_note),
+                atomically = { block -> container.database.withTransaction { block() } },
+                onResult = { id, error -> if (error == null) errors.clear(id) else errors.record(id, error) },
             )
             Result.success()
         } catch (e: Exception) {

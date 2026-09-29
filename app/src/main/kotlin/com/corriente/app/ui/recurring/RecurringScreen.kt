@@ -55,7 +55,10 @@ fun RecurringScreen(
     onBack: () -> Unit,
     viewModel: RecurringViewModel = viewModel(
         factory = with(corrienteContainer()) {
-            RecurringViewModel.factory(recurrenceRepository, accountRepository, categoryRepository, currencyRepository)
+            RecurringViewModel.factory(
+                recurrenceRepository, accountRepository, categoryRepository, currencyRepository,
+                errors = recurrenceErrors.errors,
+            )
         },
     ),
 ) {
@@ -100,6 +103,13 @@ fun RecurringScreen(
                                     stringResource(R.string.recurring_next_run, row.nextRunText),
                                     style = MaterialTheme.typography.bodySmall,
                                 )
+                                row.lastError?.let { error ->
+                                    Text(
+                                        stringResource(R.string.recurring_last_error, error),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.error,
+                                    )
+                                }
                             }
                         },
                         trailingContent = {

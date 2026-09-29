@@ -21,7 +21,9 @@ import com.corriente.money.Currency
 import com.corriente.money.CurrencyCode
 import com.corriente.money.Money
 import com.corriente.money.MoneyFormatter
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -45,6 +47,8 @@ data class RecurringRow(
     val amountText: String,
     val rule: RecurrenceRule,
     val nextRunText: String,
+    /** A1.5: последняя ошибка материализации этого правила (null — всё штатно). */
+    val lastError: String? = null,
 )
 
 /** Форма создания/редактирования правила — значения ровно как их ввёл пользователь. */
@@ -83,6 +87,7 @@ class RecurringViewModel(
     categoryRepository: CategoryRepository,
     private val currencyRepository: CurrencyRepository,
     private val today: () -> LocalDate = LocalDate::now,
+    errors: Flow<Map<String, String>> = flowOf(emptyMap()),
 ) : WritingViewModel() {
 
     private val editorState = MutableStateFlow<RecurringEditor?>(null)
@@ -92,8 +97,9 @@ class RecurringViewModel(
         accountRepository.observeAll(),
         categoryRepository.observeAllForLookup(),
         currencyRepository.observeAll(),
-        editorState,
-    ) { allRecurrences, allAccounts, allCategories, allCurrencies, editor ->
+        combine(editorState, errors) { editor, errs -> editor to errs },
+    ) { allRecurrences, allAccounts, allCategories, allCurrencies, editorAndErrors ->
+        val (editor, ruleErrors) = editorAndErrors
         val byCode = allCurrencies.associateBy { it.code.code }
         val accountNames = allAccounts.associate { it.id to it.name }
         val categoryNames = allCategories.associate { it.id to it.name }
@@ -107,6 +113,7 @@ class RecurringViewModel(
                 amountText = MoneyFormatter.format(r.amount, currency),
                 rule = r.rule,
                 nextRunText = r.nextRunOn.toString(),
+                lastError = ruleErrors[r.id],
             )
         }
         RecurringUiState(
@@ -207,8 +214,9 @@ class RecurringViewModel(
             accounts: AccountRepository,
             categories: CategoryRepository,
             currencies: CurrencyRepository,
+            errors: Flow<Map<String, String>> = flowOf(emptyMap()),
         ) = viewModelFactory {
-            initializer { RecurringViewModel(recurrences, accounts, categories, currencies) }
+            initializer { RecurringViewModel(recurrences, accounts, categories, currencies, errors = errors) }
         }
     }
 }
