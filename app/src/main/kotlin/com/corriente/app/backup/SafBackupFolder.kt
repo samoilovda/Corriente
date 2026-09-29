@@ -20,6 +20,29 @@ data class SafBackupFile(
     val size: Long,
 )
 
+/** Что экрану нужно от папки автобэкапа: перечислить файлы и открыть один из них (A1.3 — подменяется в тестах). */
+interface BackupFolderSource {
+    fun list(): List<SafBackupFile>
+    fun openInputStream(documentId: String): InputStream
+}
+
+/**
+ * A1.3: результат перечисления папки — доступ к папке мог пропасть (удалена, разрешение отозвано),
+ * это не сбой приложения, а состояние, которое экран показывает пользователю.
+ */
+sealed interface BackupFilesResult {
+    data class Files(val files: List<SafBackupFile>) : BackupFilesResult
+    data object FolderUnavailable : BackupFilesResult
+}
+
+/** Перечисляет [source]; любое исключение провайдера (SecurityException, FileNotFoundException, …) — [BackupFilesResult.FolderUnavailable]. */
+fun loadBackupFiles(source: BackupFolderSource): BackupFilesResult =
+    try {
+        BackupFilesResult.Files(source.list())
+    } catch (e: Exception) {
+        BackupFilesResult.FolderUnavailable
+    }
+
 /**
  * Запись автобэкапа в выбранную пользователем папку через SAF-дерево (T5.1). Используем
  * [DocumentsContract] напрямую, без `androidx.documentfile` — этой зависимости нет в §1.3,
@@ -27,7 +50,7 @@ data class SafBackupFile(
  *
  * Сеть здесь невозможна в принципе (I-24): это операции над локальным `content://`-провайдером.
  */
-class SafBackupFolder(private val context: Context, private val treeUri: Uri) {
+class SafBackupFolder(private val context: Context, private val treeUri: Uri) : BackupFolderSource {
 
     private val stamp = SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US)
 
@@ -47,7 +70,7 @@ class SafBackupFolder(private val context: Context, private val treeUri: Uri) {
      * напрямую — как и везде в этом классе, без `androidx.documentfile` (не в списке
      * разрешённых зависимостей, BUILD_PLAN.md §1.3).
      */
-    fun list(): List<SafBackupFile> {
+    override fun list(): List<SafBackupFile> {
         val treeDocId = DocumentsContract.getTreeDocumentId(treeUri)
         val childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(treeUri, treeDocId)
         val result = mutableListOf<SafBackupFile>()
@@ -73,7 +96,7 @@ class SafBackupFolder(private val context: Context, private val treeUri: Uri) {
     }
 
     /** Открывает файл из этой папки на чтение (R1.3/R1.4) — для восстановления и проверки. */
-    fun openInputStream(documentId: String): InputStream {
+    override fun openInputStream(documentId: String): InputStream {
         val uri = DocumentsContract.buildDocumentUriUsingTree(treeUri, documentId)
         return context.contentResolver.openInputStream(uri) ?: error(context.getString(R.string.safbackup_error_open_for_read))
     }

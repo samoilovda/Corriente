@@ -54,10 +54,16 @@ class BackupViewModel(
         }
     }
 
-    fun restore(input: InputStream) {
+    fun restore(input: InputStream) = restoreFrom { input }
+
+    /**
+     * A1.3/A2.1: [open] вызывается на IO внутри `runCatching` — файл, пропавший между показом списка и
+     * тапом (`FileNotFoundException`, `SecurityException`), даёт [BackupResult.Failed], а не падение.
+     */
+    fun restoreFrom(open: () -> InputStream) {
         _busy.value = true
         viewModelScope.launch(io) {
-            _result.value = runCatching { input.use { backup.restore(it, snapshotBeforeRestore) } }.fold(
+            _result.value = runCatching { open().use { backup.restore(it, snapshotBeforeRestore) } }.fold(
                 onSuccess = { BackupResult.Imported },
                 onFailure = { e ->
                     when (e) {

@@ -30,6 +30,8 @@
 
     <string name="autobackup_title">Auto backup</string>
     <string name="autobackup_hint">Regularly save the database to a folder</string>
+    <string name="autobackup_folder_unavailable">The folder is unavailable — choose it again</string>
+    <string name="autobackup_folder_pick_again">Choose folder</string>
     <string name="autobackup_folder">Backup folder</string>
     <string name="autobackup_folder_none">Not chosen</string>
     <string name="autobackup_enabled">Enabled</string>

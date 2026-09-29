@@ -68,6 +68,7 @@ fun AutoBackupScreen(
 ) {
     val state by viewModel.uiState.collectAsState()
     val files by viewModel.backupFiles.collectAsState()
+    val folderError by viewModel.folderError.collectAsState()
     val busy by backupViewModel.busy.collectAsState()
     val result by backupViewModel.result.collectAsState()
     val verifying by viewModel.verifying.collectAsState()
@@ -154,7 +155,19 @@ fun AutoBackupScreen(
                 modifier = Modifier.padding(16.dp),
             ) { Text(stringResource(R.string.autobackup_now)) }
 
-            if (state.folderLabel != null) {
+            if (state.folderLabel != null && folderError) {
+                HorizontalDivider()
+                Text(
+                    stringResource(R.string.autobackup_folder_unavailable),
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                )
+                Button(
+                    onClick = { folderPicker.launch(null) },
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                ) { Text(stringResource(R.string.autobackup_folder_pick_again)) }
+            } else if (state.folderLabel != null) {
                 HorizontalDivider()
                 Text(
                     stringResource(R.string.autobackup_files_title),
@@ -191,7 +204,7 @@ fun AutoBackupScreen(
             confirmButton = {
                 TextButton(onClick = {
                     pendingRestore = null
-                    backupViewModel.restore(viewModel.openBackupFile(file))
+                    backupViewModel.restoreFrom { viewModel.openBackupFile(file) }
                 }) { Text(stringResource(R.string.backup_import_confirm_button)) }
             },
             dismissButton = {

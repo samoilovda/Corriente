@@ -13,7 +13,10 @@ import androidx.room.Room
 import com.corriente.app.CorrienteApplication
 import com.corriente.app.R
 import com.corriente.app.backup.AutoBackupScheduler
+import com.corriente.app.backup.BackupFilesResult
 import com.corriente.app.backup.SafBackupFile
+import com.corriente.app.backup.loadBackupFiles
+import java.io.InputStream
 import com.corriente.app.backup.SafBackupFolder
 import com.corriente.data.backup.AutoBackupConfig
 import com.corriente.data.backup.AutoBackupSettings
@@ -72,21 +75,40 @@ class AutoBackupViewModel(
             .launchIn(viewModelScope)
     }
 
+    private val _folderError = MutableStateFlow(false)
+
+    /** A1.3: доступ к папке потерян (удалена, разрешение отозвано) — экран предлагает выбрать её заново. */
+    val folderError: StateFlow<Boolean> = _folderError
+
     fun refreshFiles() {
         viewModelScope.launch {
             val treeUri = settings.current().treeUri?.let(Uri::parse)
             currentTreeUri = treeUri
-            _backupFiles.value = if (treeUri != null) {
-                withContext(Dispatchers.IO) { SafBackupFolder(app, treeUri).list() }
-            } else {
-                emptyList()
+            if (treeUri == null) {
+                _folderError.value = false
+                _backupFiles.value = emptyList()
+                return@launch
+            }
+            when (val result = withContext(Dispatchers.IO) { loadBackupFiles(SafBackupFolder(app, treeUri)) }) {
+                is BackupFilesResult.Files -> {
+                    _folderError.value = false
+                    _backupFiles.value = result.files
+                }
+                BackupFilesResult.FolderUnavailable -> {
+                    _folderError.value = true
+                    _backupFiles.value = emptyList()
+                }
             }
         }
     }
 
-    /** Поток файла из папки автобэкапа для восстановления/проверки (R1.3/R1.4). */
-    fun openBackupFile(file: SafBackupFile) =
-        SafBackupFolder(app, currentTreeUri ?: error(app.getString(R.string.autobackup_error_no_folder))).openInputStream(file.documentId)
+    /**
+     * Поток файла из папки автобэкапа для восстановления/проверки (R1.3/R1.4). Бросает, если папка
+     * недоступна — вызывать только на IO внутри `try` (см. `BackupViewModel.restoreFrom`, [verify]).
+     */
+    fun openBackupFile(file: SafBackupFile): InputStream =
+        SafBackupFolder(app, currentTreeUri ?: error(app.getString(R.string.autobackup_error_no_folder)))
+            .openInputStream(file.documentId)
 
     private val _verifying = MutableStateFlow(false)
     val verifying: StateFlow<Boolean> = _verifying

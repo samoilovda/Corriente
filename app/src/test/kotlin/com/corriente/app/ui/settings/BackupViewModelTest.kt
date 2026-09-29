@@ -56,4 +56,17 @@ class BackupViewModelTest {
         assertFalse("после экспорта busy=false", vm.busy.value)
         assertEquals(BackupResult.Exported, vm.result.value)
     }
+
+    // A1.3: файл, пропавший между показом списка и тапом «Восстановить», — Failed, а не краш.
+    @Test
+    fun `restoreFrom reports Failed when the file cannot be opened`() = runTest(dispatcher) {
+        val vm = BackupViewModel(GatedBackup(), io = dispatcher)
+        backgroundScope.launch { vm.result.collect {} }
+
+        vm.restoreFrom { throw java.io.FileNotFoundException("deleted by the sync tool") }
+        advanceUntilIdle()
+
+        assertEquals(BackupResult.Failed, vm.result.value)
+        assertFalse(vm.busy.value)
+    }
 }

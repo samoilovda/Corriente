@@ -30,6 +30,8 @@
 
     <string name="autobackup_title">Автобэкап</string>
     <string name="autobackup_hint">Регулярно сохранять базу в папку</string>
+    <string name="autobackup_folder_unavailable">Папка недоступна — выберите её заново</string>
+    <string name="autobackup_folder_pick_again">Выбрать папку</string>
     <string name="autobackup_folder">Папка для бэкапов</string>
     <string name="autobackup_folder_none">Не выбрана</string>
     <string name="autobackup_enabled">Включён</string>
