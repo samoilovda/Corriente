@@ -192,6 +192,70 @@ class TxnEntryViewModelTest {
         assertEquals(2500L, fakes.txnDao.rows.value.single().amountMinor)
     }
 
+    private fun TxnEntryViewModel.type(text: String) = text.forEach {
+        if (it == '.') pressDecimalPoint() else pressDigit(it)
+    }
+
+    @Test
+    fun `calculator overflow on multiply does not crash, blocks save and backspace recovers`() =
+        runTest(dispatcher) {
+            val model = vm(Fakes().apply { seed() })
+            backgroundScope.observe(model)
+            advanceUntilIdle()
+
+            model.type("9".repeat(15))
+            model.pressOp(com.corriente.money.CalcOp.TIMES)
+            model.type("999999")
+            model.pressEquals()
+            advanceUntilIdle()
+
+            assertTrue(model.uiState.value.calcOverflow)
+            assertFalse(model.uiState.value.canSave)
+            assertFalse(model.save())
+
+            model.pressBackspace(); model.pressBackspace(); model.pressBackspace(); model.pressBackspace()
+            model.pressBackspace(); model.pressBackspace()
+            model.type("2")
+            advanceUntilIdle()
+            assertFalse(model.uiState.value.calcOverflow)
+            assertTrue(model.uiState.value.canSave)
+        }
+
+    @Test
+    fun `calculator overflow on divide by a tiny number does not crash`() = runTest(dispatcher) {
+        val model = vm(Fakes().apply { seed() })
+        backgroundScope.observe(model)
+        advanceUntilIdle()
+
+        model.type("9".repeat(16))
+        model.pressOp(com.corriente.money.CalcOp.DIVIDE)
+        model.type("0.01")
+        model.pressEquals()
+        advanceUntilIdle()
+
+        assertTrue(model.uiState.value.calcOverflow)
+        assertFalse(model.uiState.value.canSave)
+    }
+
+    @Test
+    fun `repeated plus of the maximum amount does not crash`() = runTest(dispatcher) {
+        val model = vm(Fakes().apply { seed() })
+        backgroundScope.observe(model)
+        advanceUntilIdle()
+
+        var overflowed = false
+        repeat(10) {
+            if (overflowed) return@repeat
+            model.type("9".repeat(16))
+            model.pressOp(com.corriente.money.CalcOp.PLUS)
+            advanceUntilIdle()
+            overflowed = model.uiState.value.calcOverflow
+        }
+
+        assertTrue(overflowed)
+        assertFalse(model.uiState.value.canSave)
+    }
+
     @Test
     fun `chained subtraction driving the accumulator negative does not crash the amount field`() =
         runTest(dispatcher) {

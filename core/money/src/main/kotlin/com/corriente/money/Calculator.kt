@@ -1,5 +1,7 @@
 package com.corriente.money
 
+import java.math.BigInteger
+
 /**
  * T5.5 (+ доработка): калькулятор в поле суммы.
  *
@@ -23,26 +25,45 @@ enum class CalcOp(val symbol: Char) { PLUS('+'), MINUS('−'), TIMES('×'), DIVI
 fun applyCalc(acc: Minor, op: CalcOp, operand: Minor, minorUnits: Int = 0): Minor = when (op) {
     CalcOp.PLUS -> Minor(Math.addExact(acc.raw, operand.raw))
     CalcOp.MINUS -> Minor(Math.subtractExact(acc.raw, operand.raw))
-    CalcOp.TIMES -> Minor(roundedDiv(Math.multiplyExact(acc.raw, operand.raw), pow10(minorUnits)))
+    // Промежуточное произведение считаем в BigInteger: `acc × operand` может не влезть в Long,
+    // хотя после деления на 10^minorUnits результат влезает. Переполнение проверяется на итоге.
+    CalcOp.TIMES -> Minor(
+        roundedDiv(BigInteger.valueOf(acc.raw).multiply(BigInteger.valueOf(operand.raw)), pow10(minorUnits)),
+    )
     CalcOp.DIVIDE ->
         if (operand.raw == 0L) acc
-        else Minor(roundedDiv(Math.multiplyExact(acc.raw, pow10(minorUnits)), operand.raw))
+        else Minor(roundedDiv(BigInteger.valueOf(acc.raw).multiply(pow10(minorUnits)), BigInteger.valueOf(operand.raw)))
 }
 
-private fun pow10(n: Int): Long {
-    var p = 1L
-    repeat(n) { p = Math.multiplyExact(p, 10L) }
-    return p
+/**
+ * Максимум значащих цифр суммы, которую принимает [AmountInput] (см. `MAX_TOTAL_DIGITS`) — результат
+ * калькулятора, не помещающийся в это число цифр, экран не сможет показать и отредактировать заново.
+ */
+const val MAX_CALC_ABS: Long = 999_999_999_999_999_999L
+
+/**
+ * Как [applyCalc], но переполнение (в `Long` или сверх [MAX_CALC_ABS]) даёт `null`, а не исключение:
+ * вызывающий код на главном потоке не должен падать от нажатия клавиши (A0.2).
+ */
+fun applyCalcOrNull(acc: Minor, op: CalcOp, operand: Minor, minorUnits: Int = 0): Minor? {
+    val result = try {
+        applyCalc(acc, op, operand, minorUnits)
+    } catch (_: ArithmeticException) {
+        return null
+    }
+    return result.takeIf { Math.abs(it.raw) <= MAX_CALC_ABS && it.raw != Long.MIN_VALUE }
 }
 
-/** Целочисленное деление с округлением половины от нуля; переполнение при `+bump` роняет (I-3). */
-private fun roundedDiv(numerator: Long, denominator: Long): Long {
-    val q = numerator / denominator
-    val r = numerator % denominator
-    if (r == 0L) return q
-    val absR = Math.abs(r)
-    val absD = Math.abs(denominator)
-    val bump = if ((numerator xor denominator) < 0) -1L else 1L
-    // absR*2 >= absD, переписано без умножения, чтобы не переполнить Long на больших остатках.
-    return if (absR >= absD - absR) Math.addExact(q, bump) else q
+private fun pow10(n: Int): BigInteger = BigInteger.TEN.pow(n)
+
+/** Целочисленное деление с округлением половины от нуля; результат вне `Long` роняет (I-3). */
+private fun roundedDiv(numerator: BigInteger, denominator: BigInteger): Long {
+    val (q, r) = numerator.divideAndRemainder(denominator)
+    val rounded = if (r.signum() != 0 && r.abs().shiftLeft(1) >= denominator.abs()) {
+        q.add(BigInteger.valueOf(if (numerator.signum() * denominator.signum() < 0) -1L else 1L))
+    } else {
+        q
+    }
+    if (rounded.bitLength() > 63) throw ArithmeticException("calculator result overflows Long")
+    return rounded.toLong()
 }

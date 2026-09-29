@@ -1,6 +1,7 @@
 package com.corriente.money
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Test
 
@@ -53,5 +54,22 @@ class CalculatorTest {
         assertThrows(ArithmeticException::class.java) {
             applyCalc(Minor(Long.MAX_VALUE), CalcOp.TIMES, Minor(1_000), minorUnits = 2)
         }
+    }
+
+    @Test
+    fun `times does not overflow on the intermediate product`() {
+        // 10^17 × 3.00: произведение 3·10^19 не влезает в Long, результат 3·10^17 — влезает.
+        assertEquals(
+            Minor(300_000_000_000_000_000L),
+            applyCalc(Minor(100_000_000_000_000_000L), CalcOp.TIMES, Minor(300), minorUnits = 2),
+        )
+    }
+
+    @Test
+    fun `applyCalcOrNull returns null on overflow and above the input limit`() {
+        assertNull(applyCalcOrNull(Minor(Long.MAX_VALUE), CalcOp.PLUS, Minor(1)))
+        assertNull(applyCalcOrNull(Minor(MAX_CALC_ABS), CalcOp.PLUS, Minor(1)))
+        assertNull(applyCalcOrNull(Minor(MAX_CALC_ABS), CalcOp.DIVIDE, Minor(1), minorUnits = 2))
+        assertEquals(Minor(6), applyCalcOrNull(Minor(2), CalcOp.TIMES, Minor(3), minorUnits = 0))
     }
 }

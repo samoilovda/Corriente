@@ -162,9 +162,12 @@ fun TxnEntryScreen(
                         textAlign = TextAlign.End,
                         modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
                     )
-                    if (state.nonPositiveResult) {
+                    if (state.nonPositiveResult || state.calcOverflow) {
                         Text(
-                            stringResource(R.string.txn_entry_amount_must_be_positive),
+                            stringResource(
+                                if (state.calcOverflow) R.string.txn_entry_amount_too_large
+                                else R.string.txn_entry_amount_must_be_positive,
+                            ),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.error,
                             textAlign = TextAlign.End,

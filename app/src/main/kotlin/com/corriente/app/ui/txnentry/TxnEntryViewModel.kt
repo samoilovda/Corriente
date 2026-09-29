@@ -27,7 +27,7 @@ import com.corriente.money.CurrencyCode
 import com.corriente.money.Minor
 import com.corriente.money.Money
 import com.corriente.money.MoneyFormatter
-import com.corriente.money.applyCalc
+import com.corriente.money.applyCalcOrNull
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -73,6 +73,8 @@ data class TxnEntryUiState(
     val frequentOptions: List<FrequentOption> = emptyList(),
     /** Запись в полёте — экран обязан отключить «Сохранить» на это время (см. [Form.saving]). */
     val saving: Boolean = false,
+    /** A0.2: последнее нажатие «+ − × ÷ =» дало результат вне допустимого диапазона — форма не менялась. */
+    val calcOverflow: Boolean = false,
 ) {
     val selectedAccount: AccountOption? get() = accounts.firstOrNull { it.id == selectedAccountId }
     val currency: Currency? get() = selectedAccount?.currency
@@ -108,7 +110,8 @@ data class TxnEntryUiState(
         heldResult?.let { return Minor(it) }
         val operand = amount.toMinorOrNull(currency) ?: if (hasPendingCalc) Minor(0) else return null
         return if (calcAcc != null && calcOp != null) {
-            applyCalc(Minor(calcAcc), calcOp, operand, currency.minorUnits)
+            // A0.2: переполнение — не исключение (resolvedMinor зовут combine и композиция), а «нет суммы».
+            applyCalcOrNull(Minor(calcAcc), calcOp, operand, currency.minorUnits)
         } else {
             operand
         }
@@ -160,6 +163,8 @@ class TxnEntryViewModel(
          *  (двойной тап до навигации прочь с экрана иначе создавал вторую операцию). Не зеркалится
          *  в [SavedStateHandle] — переживший процесс перезапуск обязан начинать не-«в записи». */
         val saving: Boolean = false,
+        /** A0.2: сообщение «Слишком большое число»; сбрасывается любым следующим вводом. */
+        val calcOverflow: Boolean = false,
     )
 
     /** Ключи в [savedStateHandle] — префикс на случай, если когда-нибудь появится общий Bundle. */
@@ -348,6 +353,7 @@ class TxnEntryViewModel(
             loaded = true,
             frequentOptions = frequentOptions,
             saving = f.saving,
+            calcOverflow = f.calcOverflow,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), TxnEntryUiState(date = form.value.date))
 
@@ -378,7 +384,7 @@ class TxnEntryViewModel(
 
     /** F2.8: набор новой цифры после удержанного результата ≤ 0 начинает ввод заново. */
     private fun Form.clearHeldResult(): Form =
-        if (calcOp == null && calcAcc != null) copy(calcAcc = null) else this
+        (if (calcOp == null && calcAcc != null) copy(calcAcc = null) else this).copy(calcOverflow = false)
 
     fun pressDigit(digit: Char) {
         val currency = uiState.value.currency ?: return
@@ -398,11 +404,12 @@ class TxnEntryViewModel(
         form.update { f ->
             val operand = f.amount.toMinorOrNull(currency) ?: Minor(f.calcAcc ?: 0)
             val newAcc = if (f.calcAcc != null && f.calcOp != null) {
-                applyCalc(Minor(f.calcAcc), f.calcOp, operand, currency.minorUnits)
+                applyCalcOrNull(Minor(f.calcAcc), f.calcOp, operand, currency.minorUnits)
+                    ?: return@update f.copy(calcOverflow = true)
             } else {
                 operand
             }
-            f.copy(amount = AmountInput.empty(), calcAcc = newAcc.raw, calcOp = op)
+            f.copy(amount = AmountInput.empty(), calcAcc = newAcc.raw, calcOp = op, calcOverflow = false)
         }
     }
 
@@ -411,13 +418,14 @@ class TxnEntryViewModel(
         form.update { f ->
             if (f.calcAcc == null || f.calcOp == null) return@update f
             val operand = f.amount.toMinorOrNull(currency) ?: Minor(0)
-            val result = applyCalc(Minor(f.calcAcc), f.calcOp, operand, currency.minorUnits)
+            val result = applyCalcOrNull(Minor(f.calcAcc), f.calcOp, operand, currency.minorUnits)
+                ?: return@update f.copy(calcOverflow = true)
             // F2.8: результат ≤ 0 — держим как calcAcc без операции, показываем «−5» и блокируем
             // «Сохранить» с подсказкой; продолжение «+ 20 =» даёт «15».
             if (result.raw > 0) {
-                f.copy(amount = AmountInput.fromMinor(result, currency), calcAcc = null, calcOp = null)
+                f.copy(amount = AmountInput.fromMinor(result, currency), calcAcc = null, calcOp = null, calcOverflow = false)
             } else {
-                f.copy(amount = AmountInput.empty(), calcAcc = result.raw, calcOp = null)
+                f.copy(amount = AmountInput.empty(), calcAcc = result.raw, calcOp = null, calcOverflow = false)
             }
         }
     }
