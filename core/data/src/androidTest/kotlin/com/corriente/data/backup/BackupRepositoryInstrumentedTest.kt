@@ -261,4 +261,19 @@ class BackupRepositoryInstrumentedTest {
         assertEquals("light", after["theme"])
         assertEquals(null, after["recurrence.last_error.r1"])
     }
+
+    // A3.11: компактный экспорт (автобэкап) короче ручного и читается тем же parsePayload; оба — потоком.
+    @Test
+    fun compactExportIsSmallerAndRoundTrips() = runBlocking {
+        db.currencyDao().insertAll(listOf(CurrencyEntity("RUB", 2, 2, "₽", isActive = true)))
+        db.accountDao().insert(AccountEntity("a", "Нал", "RUB", AccountKind.CASH, 0, 0))
+
+        val pretty = ByteArrayOutputStream().also { backup.export(it) }.toByteArray()
+        val compact = ByteArrayOutputStream().also { backup.exportCompact(it) }.toByteArray()
+
+        assert(compact.size < pretty.size) { "${compact.size} !< ${pretty.size}" }
+        val a = BackupRepository.parsePayload(ByteArrayInputStream(pretty))
+        val b = BackupRepository.parsePayload(ByteArrayInputStream(compact))
+        assertEquals(a.copy(exportedAt = 0), b.copy(exportedAt = 0))
+    }
 }

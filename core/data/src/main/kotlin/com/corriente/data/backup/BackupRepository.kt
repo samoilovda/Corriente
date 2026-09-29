@@ -22,7 +22,10 @@ import com.corriente.data.model.toDomain
 import com.corriente.data.repository.toDomain
 import com.corriente.money.CurrencyCode
 import kotlinx.coroutines.flow.first
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.decodeFromStream
+import kotlinx.serialization.json.encodeToStream
 import java.io.InputStream
 import java.io.OutputStream
 import java.time.LocalDate
@@ -71,9 +74,17 @@ class BackupRepository(private val db: AppDatabase) : BackupIo {
         recurrences = db.recurrenceDao().getAll().map { it.toBackup() },
     )
 
-    override suspend fun export(output: OutputStream) {
-        val payload = buildPayload()
-        output.writer(Charsets.UTF_8).use { it.write(json.encodeToString(BackupPayload.serializer(), payload)) }
+    /** Ручной экспорт — читаемый JSON с отступами (пользователь может открыть файл). */
+    override suspend fun export(output: OutputStream) = writePayload(buildPayload(), output, pretty = true)
+
+    /** A3.11: фоновый автобэкап — компактный JSON: файл заметно меньше и не собирается в память отдельной строкой. */
+    suspend fun exportCompact(output: OutputStream) = writePayload(buildPayload(), output, pretty = false)
+
+    @OptIn(ExperimentalSerializationApi::class)
+    private fun writePayload(payload: BackupPayload, output: OutputStream, pretty: Boolean) {
+        // A3.11: пишем потоком (encodeToStream), а не собираем весь файл одной строкой `encodeToString`.
+        (if (pretty) jsonPretty else jsonCompact).encodeToStream(BackupPayload.serializer(), payload, output)
+        output.flush()
     }
 
     /**
@@ -158,11 +169,16 @@ class BackupRepository(private val db: AppDatabase) : BackupIo {
         private fun isKeptOnRestore(key: String): Boolean =
             isDeviceBoundSetting(key) && !key.startsWith("recurrence.last_error.")
 
-        private val json = Json { prettyPrint = true; ignoreUnknownKeys = true }
+        private val jsonPretty = Json { prettyPrint = true; ignoreUnknownKeys = true }
+        private val jsonCompact = Json { ignoreUnknownKeys = true }
 
-        /** Разбор файла бэкапа в [BackupPayload] без записи куда-либо — используется restore и R1.4. */
-        fun parsePayload(input: InputStream): BackupPayload = input.reader(Charsets.UTF_8).use {
-            json.decodeFromString(BackupPayload.serializer(), it.readText())
+        /**
+         * Разбор файла бэкапа в [BackupPayload] без записи куда-либо — используется restore и R1.4.
+         * A3.11: `decodeFromStream` — без промежуточной строки `readText()` на весь файл.
+         */
+        @OptIn(ExperimentalSerializationApi::class)
+        fun parsePayload(input: InputStream): BackupPayload = input.use {
+            jsonCompact.decodeFromStream(BackupPayload.serializer(), it)
         }
 
         /**

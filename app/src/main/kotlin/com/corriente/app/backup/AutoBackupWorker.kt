@@ -26,7 +26,7 @@ class AutoBackupWorker(
         val settings = container.autoBackupSettings
         return try {
             val folder = SafBackupFolder(applicationContext, treeUri)
-            folder.writeNewBackup(Date()) { output -> container.backupRepository.export(output) }
+            folder.writeNewBackup(Date()) { output -> container.backupRepository.exportCompact(output) }
             folder.prune(config.retention)
             settings.recordRun(System.currentTimeMillis(), RESULT_OK)
             Result.success()
