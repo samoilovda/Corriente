@@ -55,4 +55,28 @@ class PreMigrationBackupInstrumentedTest {
     fun doesNothingWhenNoDbFile() {
         assertNull(PreMigrationBackup.runIfNeeded(context, dbName, targetVersion = 2))
     }
+
+    // A2.15: копия делается после checkpoint WAL — основной файл копии содержит последнюю запись и без своего -wal.
+    @Test
+    fun copyContainsTheLatestWriteEvenWithoutItsWalFile() {
+        val live = SQLiteDatabase.openOrCreateDatabase(dbFile(), null)
+        try {
+            live.enableWriteAheadLogging()
+            live.execSQL("CREATE TABLE t(v TEXT)")
+            live.execSQL("INSERT INTO t VALUES ('last')") // остаётся в -wal, пока соединение открыто
+
+            val copy = PreMigrationBackup.copyDatabaseFile(context, dbName, "pre-restore", Date(0))!!
+            File(copy.path + "-wal").delete()
+            File(copy.path + "-shm").delete()
+
+            SQLiteDatabase.openDatabase(copy.path, null, SQLiteDatabase.OPEN_READONLY).use { db ->
+                db.rawQuery("SELECT v FROM t", null).use { c ->
+                    assertEquals(true, c.moveToFirst())
+                    assertEquals("last", c.getString(0))
+                }
+            }
+        } finally {
+            live.close()
+        }
+    }
 }

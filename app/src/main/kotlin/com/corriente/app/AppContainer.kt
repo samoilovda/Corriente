@@ -6,7 +6,9 @@ import com.corriente.data.applock.AppLockSettings
 import com.corriente.data.backup.AutoBackupSettings
 import com.corriente.data.backup.BackupRepository
 import com.corriente.data.db.AppDatabase
+import androidx.sqlite.db.framework.FrameworkSQLiteOpenHelperFactory
 import com.corriente.data.db.PreMigrationBackup
+import com.corriente.data.db.PreMigrationSnapshotFactory
 import com.corriente.data.imports.MonefyImportRepository
 import com.corriente.data.widget.WidgetConfigStore
 import com.corriente.data.recurrence.RecurrenceErrors
@@ -33,9 +35,14 @@ class AppContainer(context: Context) {
     private val appContext = context.applicationContext
 
     val database: AppDatabase = run {
-        // I-20: копия файла БД до того, как Room применит миграцию (схема ещё v1 — no-op).
-        PreMigrationBackup.runIfNeeded(appContext, AppDatabase.DB_NAME, AppDatabase.SCHEMA_VERSION)
+        // I-20: копия файла БД до того, как Room применит миграцию. A2.15: не в Application.onCreate на главном
+        // потоке, а перед первым открытием файла — на потоке первого запроса Room.
         Room.databaseBuilder(appContext, AppDatabase::class.java, AppDatabase.DB_NAME)
+            .openHelperFactory(
+                PreMigrationSnapshotFactory(FrameworkSQLiteOpenHelperFactory()) {
+                    PreMigrationBackup.runIfNeeded(appContext, AppDatabase.DB_NAME, AppDatabase.SCHEMA_VERSION)
+                },
+            )
             .addCallback(AppDatabase.seedCallback { id -> defaultCategoryNameRes[id]?.let(appContext::getString) })
             .addMigrations(*AppDatabase.ALL_MIGRATIONS)
             .build()
@@ -61,11 +68,12 @@ class AppContainer(context: Context) {
     val categoryReportUseCase: CategoryReportUseCase by lazy { CategoryReportUseCase(txnRepository) }
 
     /**
-     * Копия текущей БД в `databases/pre-migration/` перед восстановлением из бэкапа (F1.4).
-     * Копируются и `-wal`/`-shm`, поэтому снимок целостен без явного checkpoint.
+     * Копия текущей БД в `databases/pre-migration/` перед восстановлением из бэкапа (F1.4). A2.15: WAL сначала
+     * сбрасывается в основной файл — снимок не зависит от «живого» `-wal`.
      */
     suspend fun snapshotDatabaseBeforeRestore() {
         kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            runCatching { database.openHelper.writableDatabase.query("PRAGMA wal_checkpoint(TRUNCATE)").use { it.moveToFirst() } }
             PreMigrationBackup.copyDatabaseFile(appContext, AppDatabase.DB_NAME, "pre-restore")
         }
     }

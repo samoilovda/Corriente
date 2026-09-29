@@ -83,6 +83,10 @@ class ArchivedAccountEditInstrumentedTest {
         composeRule.waitForIdle()
 
         val container = (composeRule.activity.applicationContext as CorrienteApplication).container
+        // Сохранение — асинхронная запись во viewModelScope; waitForIdle её не ждёт, поэтому ждём результат явно.
+        composeRule.waitUntil(timeoutMillis = 10_000) {
+            runBlocking { container.database.txnDao().getById(txnId)?.note } == "новая заметка"
+        }
         val saved = runBlocking { container.database.txnDao().getById(txnId) }
         assertEquals("правка не должна была перенести операцию на другой счёт", archivedAccountId, saved?.accountId)
         assertEquals("новая заметка", saved?.note)

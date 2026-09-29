@@ -33,11 +33,16 @@ object PreMigrationBackup {
      * Копирует файл БД (и `-wal`/`-shm`) в `databases/pre-migration/` под именем
      * `<dbName>.<reason>.<штамп>`, подрезая старые копии до [KEEP]. F1.4.
      *
+     * A2.15: перед копированием WAL сбрасывается в основной файл (`PRAGMA wal_checkpoint(TRUNCATE)` по отдельному
+     * соединению) — копия основного файла содержит последнюю запись и не зависит от «живого» `-wal`, который мог
+     * измениться посреди копирования. Если БД занята и checkpoint не удался, копируются все три файла, как раньше.
+     *
      * @return копия основного файла, либо null если файла БД нет.
      */
     fun copyDatabaseFile(context: Context, dbName: String, reason: String, now: Date = Date()): File? {
         val dbFile = context.getDatabasePath(dbName)
         if (!dbFile.exists()) return null
+        checkpointWal(dbFile)
 
         val dir = File(dbFile.parentFile, "pre-migration").apply { mkdirs() }
         val stamp = STAMP.format(now)
@@ -59,6 +64,14 @@ object PreMigrationBackup {
             File(dir, "$name-shm").delete()
         }
         return mainCopy
+    }
+
+    private fun checkpointWal(file: File) {
+        runCatching {
+            SQLiteDatabase.openDatabase(file.path, null, SQLiteDatabase.OPEN_READWRITE).use { db ->
+                db.rawQuery("PRAGMA wal_checkpoint(TRUNCATE)", null).use { it.moveToFirst() }
+            }
+        }
     }
 
     private fun readUserVersion(file: File): Int? = runCatching {
