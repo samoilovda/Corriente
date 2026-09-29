@@ -203,6 +203,13 @@ class MonefyImportRepository(private val db: AppDatabase) {
                 val withAccounts = MonefyImportReport.decode(reportJson).copy(createdAccountIds = createdAccountIds)
                 db.importBatchDao().updateReport(batchId, withAccounts.encode())
             }
+
+            // A3.4: файл уже был импортирован целиком — пустой батч в истории не оставляем (и то, что успел создать).
+            if (inserted == 0) {
+                rollback(batchId)
+            } else {
+                db.importBatchDao().updateRowCount(batchId, inserted)
+            }
         }
         return ImportResult(batchId, inserted, skipped)
     }

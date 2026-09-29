@@ -67,6 +67,9 @@ class MonefyImportRepositoryInstrumentedTest {
         assertEquals(0, second.inserted)
         assertEquals(expectedRows, second.skipped)
         assertEquals(expectedRows, db.txnDao().observeAll().first().size)
+        // A3.4: повторный импорт не оставляет пустую запись в истории, а у первого батча row_count — факт
+        assertEquals(listOf(first.batchId), db.importBatchDao().getAll().map { it.id })
+        assertEquals(expectedRows, db.importBatchDao().getAll().single().rowCount)
 
         // откат первого батча (второй ничего не вставил): БД возвращается в исходное состояние
         repo.rollback(first.batchId)

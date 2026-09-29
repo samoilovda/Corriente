@@ -49,6 +49,10 @@ interface ImportBatchDao {
     @Query("UPDATE import_batch SET report_json = :json WHERE id = :id")
     suspend fun updateReport(id: String, json: String)
 
+    /** A3.4: `row_count` — фактически вставленные строки, а не размер плана (дубли пропускаются). */
+    @Query("UPDATE import_batch SET row_count = :rowCount WHERE id = :id")
+    suspend fun updateRowCount(id: String, rowCount: Int)
+
     @Query("DELETE FROM import_batch")
     suspend fun deleteAll()
 }
