@@ -1,5 +1,7 @@
 package com.corriente.app.ui.applock
 
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -71,7 +73,7 @@ fun AppLockSettingsScreen(
             )
         },
     ) { padding ->
-        Column(Modifier.fillMaxSize().padding(padding)) {
+        Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState())) {
             Text(
                 stringResource(R.string.app_lock_disclaimer),
                 style = MaterialTheme.typography.bodyMedium,

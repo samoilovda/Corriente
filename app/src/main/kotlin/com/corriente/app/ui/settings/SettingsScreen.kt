@@ -3,6 +3,8 @@ package com.corriente.app.ui.settings
 import android.content.Intent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -74,7 +76,7 @@ fun SettingsScreen(
     ) { uri -> pendingImportUri = uri }
 
     Scaffold(topBar = { TopAppBar(title = { Text(stringResource(R.string.nav_settings)) }) }) { padding ->
-        Column(Modifier.fillMaxSize().padding(padding)) {
+        Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState())) {
             // R1.5: плашка «Последний бэкап: N дней назад» — сама решает, показываться ли.
             BackupReminderBanner(onClick = onOpenAutoBackup)
             ListItem(
