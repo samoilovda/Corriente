@@ -348,7 +348,6 @@
     <string name="recurring_kind_income">Доход</string>
     <string name="recurring_rule_day_of_month">День месяца</string>
     <string name="recurring_rule_every_n_days">Каждые N дней</string>
-    <string name="recurring_rule_type">Правило повторения</string>
     <string name="recurring_day_of_month">День месяца (1–31)</string>
     <string name="recurring_interval_days">Интервал, дней</string>
     <string name="recurring_last_error">Не удалось создать операцию: %1$s</string>

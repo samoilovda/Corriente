@@ -27,7 +27,7 @@ import com.corriente.data.seed.DEFAULT_CATEGORIES
 import com.corriente.data.seed.ISO_CURRENCIES
 
 /**
- * Схема v1 (ARCHITECTURE.md §3.2). exportSchema=true — схемы коммитятся в `core/data/schemas/`
+ * Схема Room (ARCHITECTURE.md §3.2; текущая версия — [SCHEMA_VERSION]). exportSchema=true — схемы коммитятся в `core/data/schemas/`
  * (ADR-008, I-20): каждая следующая версия обязана иметь явный [androidx.room.migration.Migration]
  * с тестом через `MigrationTestHelper`, `fallbackToDestructiveMigration` запрещён навсегда.
  */

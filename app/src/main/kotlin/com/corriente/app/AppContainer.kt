@@ -19,7 +19,6 @@ import com.corriente.data.repository.CurrencyRepository
 import com.corriente.data.repository.RecurrenceRepository
 import com.corriente.data.repository.TxnRepository
 import com.corriente.data.usecase.AccountBalanceUseCase
-import com.corriente.data.usecase.CategoryReportUseCase
 
 /**
  * Ручной DI-контейнер (ADR-011, BUILD_PLAN.md §5.3): для полутора десятков зависимостей
@@ -65,7 +64,6 @@ class AppContainer(context: Context) {
     val accountBalanceUseCase: AccountBalanceUseCase by lazy {
         AccountBalanceUseCase(accountRepository, txnRepository)
     }
-    val categoryReportUseCase: CategoryReportUseCase by lazy { CategoryReportUseCase(txnRepository) }
 
     /**
      * Копия текущей БД в `databases/pre-migration/` перед восстановлением из бэкапа (F1.4). A2.15: WAL сначала

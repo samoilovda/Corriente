@@ -348,7 +348,6 @@
     <string name="recurring_kind_income">Income</string>
     <string name="recurring_rule_day_of_month">Day of month</string>
     <string name="recurring_rule_every_n_days">Every N days</string>
-    <string name="recurring_rule_type">Recurrence rule</string>
     <string name="recurring_day_of_month">Day of month (1–31)</string>
     <string name="recurring_interval_days">Interval, days</string>
     <string name="recurring_last_error">Could not create the transaction: %1$s</string>

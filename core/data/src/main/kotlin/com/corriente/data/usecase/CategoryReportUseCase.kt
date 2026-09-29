@@ -1,12 +1,9 @@
 package com.corriente.data.usecase
 
 import com.corriente.data.model.Txn
-import com.corriente.data.repository.TxnRepository
 import com.corriente.money.CurrencyCode
 import com.corriente.money.Money
 import com.corriente.money.sumMoney
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.map
 import java.time.LocalDate
 
 data class CategoryTotal(val categoryId: String?, val total: Money)
@@ -40,8 +37,3 @@ fun categoryReport(
 }
 
 enum class ReportKind { EXPENSE, INCOME }
-
-class CategoryReportUseCase(private val txnRepository: TxnRepository) {
-    fun observeReport(currency: CurrencyCode, period: ClosedRange<LocalDate>, kind: ReportKind): Flow<List<CategoryTotal>> =
-        txnRepository.observeAll().map { categoryReport(it, currency, period, kind) }
-}
