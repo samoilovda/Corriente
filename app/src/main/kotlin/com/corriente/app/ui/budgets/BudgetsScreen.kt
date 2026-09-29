@@ -87,7 +87,16 @@ fun BudgetsScreen(
             LazyColumn(Modifier.fillMaxSize().padding(padding)) {
                 items(state.rows, key = { it.id }) { row ->
                     ListItem(
-                        headlineContent = { Text(row.categoryName ?: stringResource(R.string.budgets_whole_currency)) },
+                        headlineContent = {
+                            val name = row.categoryName
+                            Text(
+                                when {
+                                    name == null -> stringResource(R.string.budgets_whole_currency)
+                                    row.categoryArchived -> stringResource(R.string.entry_archived_suffix, name)
+                                    else -> name
+                                },
+                            )
+                        },
                         supportingContent = { Text(stringResource(R.string.budgets_per_month, row.amountText)) },
                         trailingContent = {
                             IconButton(onClick = { pendingDeleteId = row.id }) {

@@ -245,11 +245,18 @@ class ReportViewModel(
             }
 
         // R2.3: полоса бюджета — только для расходов, только в валюте отчёта (ADR-012/I-8).
-        val budgetBars: List<BudgetBar> = if (f.kind != ReportKind.EXPENSE || selected == null || currency == null) {
+        // A2.4: единственный период бюджета — месяц, поэтому полосы — только в режиме «Месяц» (квартал/год/
+        // произвольный диапазон сравнивали бы месячный лимит с суммой за другой срок), и только для бюджетов,
+        // уже начавших действовать к концу периода. Бюджет родителя не включает подкатегории — `categoryReport`
+        // группирует по точному `categoryId` (решение: консервативно).
+        val budgetBars: List<BudgetBar> = if (
+            f.kind != ReportKind.EXPENSE || f.mode != PeriodMode.MONTH || selected == null || currency == null
+        ) {
             emptyList()
         } else {
             val nonNullCurrency = currency
-            budgetProgress(allBudgets, report, CurrencyCode(selected)).map { p ->
+            val active = allBudgets.filter { !it.startsOn.isAfter(range.endInclusive) }
+            budgetProgress(active, report, CurrencyCode(selected)).map { p ->
                 BudgetBar(
                     categoryId = p.budget.categoryId,
                     spentText = MoneyFormatter.format(p.spent, nonNullCurrency),

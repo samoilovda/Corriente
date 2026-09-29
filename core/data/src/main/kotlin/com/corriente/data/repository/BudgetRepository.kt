@@ -19,6 +19,15 @@ import java.util.UUID
  */
 class BudgetRepository(private val dao: BudgetDao) {
 
+    /** A2.4: на пару «категория, валюта» — не больше одного бюджета (иначе полосы отчёта неоднозначны). */
+    class DuplicateBudgetException : IllegalStateException("A budget for this category and currency already exists")
+
+    private suspend fun requireNoDuplicate(categoryId: String?, currencyCode: String, exceptId: String?) {
+        if (dao.getAll().any { it.id != exceptId && it.categoryId == categoryId && it.currencyCode == currencyCode }) {
+            throw DuplicateBudgetException()
+        }
+    }
+
     fun observeAll(): Flow<List<Budget>> = dao.observeAll().map { list -> list.map { it.toDomain() } }
 
     suspend fun getById(id: String): Budget? = dao.getById(id)?.toDomain()
@@ -30,6 +39,7 @@ class BudgetRepository(private val dao: BudgetDao) {
         period: BudgetPeriod = BudgetPeriod.MONTH,
     ): Budget {
         require(amount.amount.raw >= 0) { "Budget amount must not be negative" }
+        requireNoDuplicate(categoryId, amount.currency.code, exceptId = null)
         val budget = Budget(id = UUID.randomUUID().toString(), categoryId, amount, period, startsOn)
         dao.insert(budget.toEntity())
         return budget
@@ -38,6 +48,7 @@ class BudgetRepository(private val dao: BudgetDao) {
     suspend fun update(id: String, categoryId: String?, amount: Money, startsOn: LocalDate) {
         require(amount.amount.raw >= 0) { "Budget amount must not be negative" }
         val existing = requireNotNull(dao.getById(id)) { "Budget $id not found" }
+        requireNoDuplicate(categoryId, amount.currency.code, exceptId = id)
         dao.update(
             existing.copy(
                 categoryId = categoryId,

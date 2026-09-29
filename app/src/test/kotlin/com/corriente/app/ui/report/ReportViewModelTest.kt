@@ -242,4 +242,48 @@ class ReportViewModelTest {
         assertTrue(model.uiState.value.categoryBudgetBars.isEmpty())
         assertNull(model.uiState.value.wholeCurrencyBudgetBar)
     }
+
+    // A2.4: месячный бюджет не сравнивается с годом/кварталом/диапазоном — полосы только в режиме «Месяц».
+    @Test
+    fun `budget bars are hidden outside the month mode`() = runTest(dispatcher) {
+        val fakes = Fakes().apply {
+            seed()
+            budgetDao.insert(
+                com.corriente.data.db.entity.BudgetEntity("b-food", "food", "RUB", 20_000, BudgetPeriod.MONTH, "2026-01-01"),
+            )
+        }
+        repo(fakes).addExpense("acc", Money(Minor(10_000), rub), "food", LocalDate.of(2026, 5, 3), null)
+        val model = vm(fakes)
+        backgroundScope.observe(model)
+        advanceUntilIdle()
+        assertTrue(model.uiState.value.categoryBudgetBars.isNotEmpty())
+
+        listOf(PeriodMode.YEAR, PeriodMode.QUARTER).forEach { mode ->
+            model.setPeriodMode(mode)
+            advanceUntilIdle()
+            assertTrue(mode.toString(), model.uiState.value.categoryBudgetBars.isEmpty())
+        }
+    }
+
+    // A2.4: бюджет, начавший действовать позже конца периода, в этом периоде не показывается.
+    @Test
+    fun `a budget that starts after the period is not shown against it`() = runTest(dispatcher) {
+        val fakes = Fakes().apply {
+            seed()
+            budgetDao.insert(
+                com.corriente.data.db.entity.BudgetEntity("b-food", "food", "RUB", 20_000, BudgetPeriod.MONTH, "2026-05-15"),
+            )
+        }
+        repo(fakes).addExpense("acc", Money(Minor(10_000), rub), "food", LocalDate.of(2026, 4, 3), null)
+        repo(fakes).addExpense("acc", Money(Minor(5_000), rub), "food", LocalDate.of(2026, 5, 16), null)
+        val model = vm(fakes)
+        backgroundScope.observe(model)
+        advanceUntilIdle()
+        assertTrue(model.uiState.value.categoryBudgetBars.isNotEmpty()) // май: бюджет уже действует
+
+        model.shiftPeriod(-1) // апрель — бюджета ещё нет
+        advanceUntilIdle()
+
+        assertTrue(model.uiState.value.categoryBudgetBars.isEmpty())
+    }
 }

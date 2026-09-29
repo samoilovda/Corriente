@@ -324,6 +324,7 @@
     <string name="recurring_error_invalid_amount">Введите сумму больше нуля</string>
     <string name="recurring_error_invalid_day">День месяца — число от 1 до 31</string>
     <string name="recurring_error_invalid_interval">Интервал — целое число дней, не меньше 1</string>
+    <string name="budgets_error_duplicate">Бюджет на эту категорию в этой валюте уже есть</string>
     <string name="budgets_error_save">Не удалось сохранить бюджет</string>
     <string name="budgets_error_delete">Не удалось удалить бюджет</string>
 

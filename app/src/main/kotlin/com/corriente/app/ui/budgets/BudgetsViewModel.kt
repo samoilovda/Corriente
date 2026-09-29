@@ -32,6 +32,8 @@ data class BudgetRow(
     val id: String,
     /** null — бюджет «На всё» (без категории); текст ресурса подставляет экран. */
     val categoryName: String?,
+    /** A2.4: категория бюджета в архиве — экран дописывает «(в архиве)», а не подписывает «На всё». */
+    val categoryArchived: Boolean = false,
     val amountText: String,
 )
 
@@ -87,18 +89,20 @@ class BudgetsViewModel(
 
     val uiState: StateFlow<BudgetsUiState> = combine(
         budgetRepository.observeAll(),
-        categoryRepository.observeActive(),
+        categoryRepository.observeAllForLookup(),
         currencyRepository.observeActive(),
         editorState,
     ) { allBudgets, allCategories, allCurrencies, editor ->
         val byCode = allCurrencies.associateBy { it.code.code }
         val namesById = allCategories.associate { it.id to it.name }
+        val archivedIds = allCategories.filter { it.isArchived }.mapTo(HashSet()) { it.id }
         val rows = allBudgets
             .map { b ->
                 val currency = byCode[b.amount.currency.code] ?: fallbackCurrency(b.amount.currency.code)
                 BudgetRow(
                     id = b.id,
                     categoryName = b.categoryId?.let { namesById[it] },
+                    categoryArchived = b.categoryId in archivedIds,
                     amountText = MoneyFormatter.format(b.amount, currency),
                 )
             }
@@ -107,7 +111,7 @@ class BudgetsViewModel(
             .sortedBy { it.categoryName ?: "" }
         BudgetsUiState(
             rows = rows,
-            expenseCategories = allCategories.filter { it.kind == CategoryKind.EXPENSE },
+            expenseCategories = allCategories.filter { it.kind == CategoryKind.EXPENSE && !it.isArchived },
             currencyCodes = allCurrencies.map { it.code.code },
             editor = editor,
         )
@@ -148,7 +152,9 @@ class BudgetsViewModel(
         launchWrite(
             onError = { e ->
                 editorState.update { ed -> ed?.copy(saving = false) }
-                (e as? InvalidInputException)?.ui ?: uiMessage(R.string.budgets_error_save)
+                (e as? InvalidInputException)?.ui
+                    ?: if (e is BudgetRepository.DuplicateBudgetException) uiMessage(R.string.budgets_error_duplicate)
+                    else uiMessage(R.string.budgets_error_save)
             },
             onSuccess = { editorState.value = null },
         ) {
@@ -157,7 +163,9 @@ class BudgetsViewModel(
             if (minor.raw <= 0) throw InvalidInputException(uiMessage(R.string.budgets_error_invalid_amount))
             val money = Money(minor, CurrencyCode(editor.currencyCode))
             if (editor.editingId != null) {
-                budgetRepository.update(editor.editingId, editor.categoryId, money, today())
+                // Правка не сдвигает начало действия бюджета (A2.4): иначе прошлые месяцы «теряли» бы бюджет.
+                val startsOn = budgetRepository.getById(editor.editingId)?.startsOn ?: today()
+                budgetRepository.update(editor.editingId, editor.categoryId, money, startsOn)
             } else {
                 budgetRepository.create(editor.categoryId, money, today())
             }
