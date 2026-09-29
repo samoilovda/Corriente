@@ -68,4 +68,12 @@ class TxnDaoAggregatesInstrumentedTest {
         assertEquals(1, db.txnDao().observeRange("2026-02-01", "2026-02-28").first().size)
         assertEquals(true, db.txnDao().observeAnyExist().first())
     }
+
+    // A1.1
+    @Test
+    fun observeAnyBeforeIsStrict() = runBlocking {
+        db.txnDao().insert(TxnEntity("e", TxnKind.EXPENSE, "2026-02-01", 0, 0, "cash", 100, "RUB"))
+        assertEquals(true, db.txnDao().observeAnyBefore("2026-02-02").first())
+        assertEquals(false, db.txnDao().observeAnyBefore("2026-02-01").first())
+    }
 }

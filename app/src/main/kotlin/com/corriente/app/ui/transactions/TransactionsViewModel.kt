@@ -291,7 +291,13 @@ class TransactionsViewModel(
     }
 
     /** [windowStart] — null, когда источник — [TxnRepository.search] (вся история, окно не применимо). */
-    private data class TxnSource(val windowStart: LocalDate?, val txns: List<Txn>, val isSearch: Boolean)
+    private data class TxnSource(
+        val windowStart: LocalDate?,
+        val txns: List<Txn>,
+        val isSearch: Boolean,
+        /** A1.1: за границей окна есть ещё операции. */
+        val anyBefore: Boolean = false,
+    )
 
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
     private val rangeTxns: kotlinx.coroutines.flow.Flow<TxnSource> =
@@ -304,7 +310,9 @@ class TransactionsViewModel(
                     filter.map { it.query }.distinctUntilChanged()
                         .flatMapLatest { q -> txns.search(q).map { TxnSource(null, it, isSearch = true) } }
                 } else {
-                    txns.observeRange(start, today().plusDays(1)).map { TxnSource(start, it, isSearch = false) }
+                    combine(txns.observeRange(start, today().plusDays(1)), txns.observeAnyBefore(start)) { range, before ->
+                        TxnSource(start, range, isSearch = false, anyBefore = before)
+                    }
                 }
             }
 
@@ -315,7 +323,7 @@ class TransactionsViewModel(
         currencies.observeAll(),
         combine(filter, txns.observeAnyExist()) { f, any -> f to any },
     ) { source, allAccounts, allCategories, allCurrencies, filterAndAny ->
-        val (windowStart, windowTxns, isSearch) = source
+        val (windowStart, windowTxns, isSearch, anyBefore) = source
         val (currentFilter, anyExist) = filterAndAny
         val byCode = allCurrencies.associateBy { it.code.code }
         val sanitizedFilter = currentFilter.copy(
@@ -334,12 +342,9 @@ class TransactionsViewModel(
             categoryColors = allCategories.associate { it.id to it.color },
             accountColors = allAccounts.associate { it.id to it.color },
         )
-        // Окно «полное снизу» — самая старая загруженная операция дошла до его начала:
-        // вероятно, за границей есть ещё. Поиск (R2.1) уже смотрит во всю историю — «показать
-        // ещё» ему не нужно.
-        val canLoadEarlier = !isSearch && windowStart != null && windowTxns.isNotEmpty() &&
-            windowTxns.minOf { it.date } <= windowStart &&
-            sanitizedFilter.from == null
+        // A1.1: «Показать ещё» — только если за границей окна есть операции (запрос в БД). Поиск
+        // (R2.1) уже смотрит во всю историю — «показать ещё» ему не нужно.
+        val canLoadEarlier = !isSearch && windowStart != null && anyBefore && sanitizedFilter.from == null
         TransactionsUiState(
             sections = sections,
             accounts = allAccounts.filterNot { it.isArchived },

@@ -66,6 +66,10 @@ interface TxnDao {
     @Query("SELECT EXISTS(SELECT 1 FROM txn)")
     fun observeAnyExist(): Flow<Boolean>
 
+    /** A1.1: есть ли операции строго раньше [before] — чтобы «Показать ещё» появлялась, только когда есть что показать. */
+    @Query("SELECT EXISTS(SELECT 1 FROM txn WHERE date < :before)")
+    fun observeAnyBefore(before: String): Flow<Boolean>
+
     /** Общее число операций (R1.5) — плашка напоминания о бэкапе не грузит весь список ради счётчика. */
     @Query("SELECT COUNT(*) FROM txn")
     fun observeCount(): Flow<Int>

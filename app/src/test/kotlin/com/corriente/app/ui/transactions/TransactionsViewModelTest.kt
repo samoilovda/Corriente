@@ -169,4 +169,31 @@ class TransactionsViewModelTest {
         advanceUntilIdle()
         assertEquals(2, vm.uiState.value.sections.single().rows.size)
     }
+
+    // A1.1: «Показать ещё» есть, пока за границей окна лежат операции; нет операции ровно на границе.
+    @Test
+    fun `load earlier is offered while history remains beyond the window and vanishes once exhausted`() =
+        runTest(dispatcher) {
+            val txnDao = FakeTxnDao()
+            val accountDao = FakeAccountDao()
+            val currencyDao = FakeCurrencyDao(listOf(CurrencyEntity("RUB", 2, 2, "₽", true, 0)))
+            accountDao.insert(AccountEntity("cash", "Наличные", "RUB", AccountKind.CASH, 0, 0))
+            val txns = TxnRepository(txnDao, accountDao)
+            val today = LocalDate.of(2026, 9, 15)
+            txns.addExpense("cash", Money(Minor(100_00), rub), null, today.minusDays(3), null)
+            txns.addExpense("cash", Money(Minor(200_00), rub), null, today.minusMonths(5).minusDays(2), null)
+
+            val vm = TransactionsViewModel(
+                txns, AccountRepository(accountDao), CategoryRepository(FakeCategoryDao()),
+                CurrencyRepository(currencyDao), today = { today },
+            )
+            backgroundScope.observe(vm)
+            advanceUntilIdle()
+            assertTrue(vm.uiState.value.canLoadEarlier)
+            assertEquals(1, vm.uiState.value.sections.size)
+
+            vm.loadEarlier(); advanceUntilIdle() // 6 месяцев — старая операция в окне
+            assertEquals(2, vm.uiState.value.sections.size)
+            assertEquals(false, vm.uiState.value.canLoadEarlier)
+        }
 }

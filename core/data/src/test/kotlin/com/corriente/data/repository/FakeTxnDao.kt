@@ -34,6 +34,8 @@ class FakeTxnDao : TxnDao {
     override fun observeRange(from: String, to: String): Flow<List<TxnEntity>> =
         rows.map { list -> list.filter { it.date >= from && it.date <= to } }
 
+    override fun observeAnyBefore(before: String): Flow<Boolean> = rows.map { list -> list.any { it.date < before } }
+
     override fun observeAnyExist(): Flow<Boolean> = rows.map { it.isNotEmpty() }
 
     override fun observeCount(): Flow<Int> = rows.map { it.size }
