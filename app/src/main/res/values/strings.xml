@@ -106,6 +106,7 @@
     <string name="import_review_exact_to">Зачислено</string>
     <string name="import_review_exact_apply">Применить</string>
     <string name="import_review_separate_account">Отдельный счёт (%1$s)</string>
+    <string name="import_review_keep_currency">Оставить в счёте %1$s</string>
     <string name="import_review_blocked">Импорт заблокирован, пока не выбран вариант</string>
     <string name="import_errors_title">Не удалось разобрать строк: %1$d</string>
     <string name="import_confirm">Импортировать</string>
@@ -121,7 +122,7 @@
     <string name="import_error_unparseable_date">нераспознанная дата \'%1$s\'</string>
     <string name="import_error_unparseable_amount">сумма \'%1$s\': %2$s</string>
     <string name="import_error_unparseable_converted_amount">converted amount \'%1$s\': %2$s</string>
-    <string name="import_review_account_currency_conflict">счёт «%1$s» встречается с разными валютами: %2$s и %3$s</string>
+    <string name="import_review_account_currency_conflict">счёт «%1$s» встречается с разными валютами: %2$s</string>
     <string name="import_review_existing_account_mismatch">счёт «%1$s» уже ведётся в валюте %2$s, а в файле — %3$s</string>
     <string name="import_review_ambiguous_pairing">%1$d одинаковых перевода %2$s → %3$s за %4$s — пары построены по порядку строк, подтвердите</string>
     <string name="import_review_anomalous_currency">перевод %1$s → %2$s за %3$s: неявный курс 1.0 при разных валютах — выберите валюту суммы-приёмника</string>

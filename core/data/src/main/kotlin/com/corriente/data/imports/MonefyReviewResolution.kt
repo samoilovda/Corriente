@@ -37,7 +37,11 @@ sealed interface ReviewDecision {
     /** [ReviewReason.EXCESS_PRECISION]: точные суммы перевода вместо округлённых планировщиком. */
     data class ExactAmounts(val fromMinor: Long, val toMinor: Long) : ReviewDecision
 
-    /** [ReviewReason.ACCOUNT_CURRENCY_CONFLICT]: валюта счёта, выбранная вручную. */
+    /**
+     * [ReviewReason.ACCOUNT_CURRENCY_CONFLICT] (A1.8): в счёте с исходным именем остаются строки валюты
+     * [code]; строки остальных валют (включая стороны переводов) уходят в «<имя> (<валюта>)» — один счёт
+     * не может держать две валюты (I-15).
+     */
     data class AccountCurrency(val code: CurrencyCode) : ReviewDecision
 
     /**
@@ -105,7 +109,10 @@ fun MonefyImportPlan.applyReviewDecisions(decisions: Map<ReviewRef, ReviewDecisi
 
             is ReviewDecision.AccountCurrency -> {
                 val name = review.account ?: continue
-                accounts = accounts.map { if (it.name == name) it.copy(currency = decision.code) else it }
+                val split = splitAccountByCurrency(name, decision.code, accounts, plainTxns, transfers)
+                accounts = split.accounts
+                plainTxns = split.plainTxns
+                transfers = split.transfers
             }
 
             ReviewDecision.SeparateAccount -> {
@@ -130,6 +137,54 @@ fun MonefyImportPlan.applyReviewDecisions(decisions: Map<ReviewRef, ReviewDecisi
         plainTxns = plainTxns,
         accounts = accounts,
         reviews = reviews.filterNot { it.ref() in resolved },
+    )
+}
+
+private class SplitResult(
+    val accounts: List<PlannedAccount>,
+    val plainTxns: List<PlannedTxn>,
+    val transfers: List<PlannedTransfer>,
+)
+
+/** A1.8: см. [ReviewDecision.AccountCurrency]. Начальный остаток уходит в счёт своей (первой встреченной) валюты. */
+private fun splitAccountByCurrency(
+    name: String,
+    keep: CurrencyCode,
+    accounts: List<PlannedAccount>,
+    plainTxns: List<PlannedTxn>,
+    transfers: List<PlannedTransfer>,
+): SplitResult {
+    val planned = accounts.firstOrNull { it.name == name } ?: return SplitResult(accounts, plainTxns, transfers)
+    val otherCurrencies = LinkedHashSet<CurrencyCode>()
+    plainTxns.filter { it.account == name && it.currency != keep }.forEach { otherCurrencies += it.currency }
+    transfers.forEach {
+        if (it.fromAccount == name && it.fromCurrency != keep) otherCurrencies += it.fromCurrency
+        if (it.toAccount == name && it.toCurrency != keep) otherCurrencies += it.toCurrency
+    }
+    // Остаток записан в валюте planned.currency: если её оставляют — остаётся здесь, иначе переезжает.
+    val openingStays = planned.currency == keep
+    if (!openingStays) otherCurrencies += planned.currency
+
+    val newAccounts = accounts.map {
+        if (it.name == name) it.copy(currency = keep, openingBalanceMinor = if (openingStays) it.openingBalanceMinor else 0L) else it
+    } + otherCurrencies.map { currency ->
+        PlannedAccount(
+            name = separateAccountName(name, currency),
+            currency = currency,
+            openingBalanceMinor = if (!openingStays && currency == planned.currency) planned.openingBalanceMinor else 0L,
+        )
+    }.filter { candidate -> accounts.none { it.name == candidate.name } }
+    return SplitResult(
+        accounts = newAccounts,
+        plainTxns = plainTxns.map {
+            if (it.account == name && it.currency != keep) it.copy(account = separateAccountName(name, it.currency)) else it
+        },
+        transfers = transfers.map {
+            it.copy(
+                fromAccount = if (it.fromAccount == name && it.fromCurrency != keep) separateAccountName(name, it.fromCurrency) else it.fromAccount,
+                toAccount = if (it.toAccount == name && it.toCurrency != keep) separateAccountName(name, it.toCurrency) else it.toAccount,
+            )
+        },
     )
 }
 

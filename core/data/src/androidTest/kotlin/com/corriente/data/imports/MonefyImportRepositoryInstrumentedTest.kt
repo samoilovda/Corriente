@@ -1,6 +1,7 @@
 package com.corriente.data.imports
 
 import androidx.room.Room
+import com.corriente.money.CurrencyCode
 import androidx.test.platform.app.InstrumentationRegistry
 import com.corriente.data.db.AppDatabase
 import com.corriente.data.db.entity.CategoryOrigin
@@ -164,5 +165,31 @@ class MonefyImportRepositoryInstrumentedTest {
         assertTrue(failure is IllegalArgumentException)
         assertTrue(db.txnDao().observeAll().first().isEmpty())
         assertTrue(db.importBatchDao().getAll().isEmpty())
+    }
+
+    // A1.8: конфликт валют одного счёта — без решения импорт заблокирован, с решением — по счетам валют.
+    @Test
+    fun accountCurrencyConflictIsBlockedUntilResolvedThenSplitsAccounts() = runBlocking {
+        val csv = """
+            date,account,category,amount,currency,converted amount,currency,description
+            01/03/2021,Cash,Initial balance 'Cash',"10,000",RUB,"10,000",RUB,
+            02/03/2021,Cash,Food,-250,RUB,-250,RUB,
+            02/03/2021,Cash,Food,-5,USD,-5,USD,
+        """.trimIndent() + "\n"
+        val conflictPlan = MonefyImportPlanner.plan(MonefyCsvParser.parse(csv))
+
+        val blocked = runCatching { repo.import(conflictPlan, "conflict.csv") }.exceptionOrNull()
+        assertTrue(blocked is IllegalStateException)
+        assertTrue(db.txnDao().observeAll().first().isEmpty())
+        assertTrue(db.importBatchDao().getAll().isEmpty())
+
+        val ref = conflictPlan.reviews.single().ref()
+        val resolved = conflictPlan.applyReviewDecisions(mapOf(ref to ReviewDecision.AccountCurrency(CurrencyCode("RUB"))))
+        val result = repo.import(resolved, "conflict.csv")
+
+        assertEquals(2, result.inserted)
+        val accounts = db.accountDao().observeAll().first().associateBy { it.name }
+        assertEquals("RUB", accounts.getValue("Cash").currencyCode)
+        assertEquals("USD", accounts.getValue("Cash (USD)").currencyCode)
     }
 }

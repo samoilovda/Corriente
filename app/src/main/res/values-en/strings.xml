@@ -106,6 +106,7 @@
     <string name="import_review_exact_to">Received</string>
     <string name="import_review_exact_apply">Apply</string>
     <string name="import_review_separate_account">Separate account (%1$s)</string>
+    <string name="import_review_keep_currency">Keep %1$s in the account</string>
     <string name="import_review_blocked">Import is blocked until an option is chosen</string>
     <string name="import_errors_title">Rows that failed to parse: %1$d</string>
     <string name="import_confirm">Import</string>
@@ -121,7 +122,7 @@
     <string name="import_error_unparseable_date">unrecognized date \'%1$s\'</string>
     <string name="import_error_unparseable_amount">amount \'%1$s\': %2$s</string>
     <string name="import_error_unparseable_converted_amount">converted amount \'%1$s\': %2$s</string>
-    <string name="import_review_account_currency_conflict">account "%1$s" appears with different currencies: %2$s and %3$s</string>
+    <string name="import_review_account_currency_conflict">account "%1$s" appears with different currencies: %2$s</string>
     <string name="import_review_existing_account_mismatch">account "%1$s" is already tracked in %2$s, but the file has %3$s</string>
     <string name="import_review_ambiguous_pairing">%1$d identical transfers %2$s → %3$s on %4$s — pairs were built by row order, please confirm</string>
     <string name="import_review_anomalous_currency">transfer %1$s → %2$s on %3$s: an implicit 1.0 rate across different currencies — choose the currency of the received amount</string>

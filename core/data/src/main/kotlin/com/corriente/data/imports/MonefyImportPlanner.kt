@@ -19,7 +19,11 @@ enum class ReviewReason {
     /** Валюта счёта в экспорте не соответствует исторической сумме (неявный курс 1.0). */
     ANOMALOUS_CURRENCY,
 
-    /** Один счёт встречается в файле с разными валютами. */
+    /**
+     * Один счёт встречается в файле с разными валютами. Решение — [ReviewDecision.AccountCurrency]:
+     * строки выбранной валюты остаются в этом счёте, остальные уходят в отдельные счета «<имя> (<валюта>)».
+     * Пока решения нет, импорт заблокирован (A1.8).
+     */
     ACCOUNT_CURRENCY_CONFLICT,
 
     /**
@@ -134,17 +138,24 @@ object MonefyImportPlanner {
 
         // --- счета и валюты ---
         val accountCurrencies = LinkedHashMap<String, CurrencyCode>()
+        // A1.8: одно ревью на счёт со всеми встреченными валютами (а не по ревью на каждую строку).
+        val conflictChoices = LinkedHashMap<String, MutableList<CurrencyCode>>()
+        val conflictLine = HashMap<String, Int>()
         rows.forEach { row ->
             val existing = accountCurrencies[row.account]
             if (existing == null) {
                 accountCurrencies[row.account] = row.currency
             } else if (existing != row.currency) {
-                reviews += ReviewItem(
-                    ReviewReason.ACCOUNT_CURRENCY_CONFLICT, listOf(row.line),
-                    account = row.account,
-                    currencyChoices = listOf(existing, row.currency),
-                )
+                val choices = conflictChoices.getOrPut(row.account) { mutableListOf(existing) }
+                if (row.currency !in choices) choices += row.currency
+                conflictLine.putIfAbsent(row.account, row.line)
             }
+        }
+        conflictChoices.forEach { (account, choices) ->
+            reviews += ReviewItem(
+                ReviewReason.ACCOUNT_CURRENCY_CONFLICT, listOf(conflictLine.getValue(account)),
+                account = account, currencyChoices = choices.toList(),
+            )
         }
         // счета, встречающиеся только в 'To'/'From' как получатель/источник, но без своих строк
         rows.forEach { row ->

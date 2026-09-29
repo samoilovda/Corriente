@@ -64,6 +64,12 @@ class MonefyImportRepository(private val db: AppDatabase) {
         var inserted = 0
         var skipped = 0
 
+        // A1.8: неразрешённый конфликт валют одного счёта в файле — импорт заблокирован до выбора (экран
+        // не даёт нажать кнопку; это защита от вызова в обход).
+        check(plan.reviews.none { it.reason == ReviewReason.ACCOUNT_CURRENCY_CONFLICT }) {
+            "Import is blocked: an account appears in several currencies and no decision was made"
+        }
+
         // F0.5: до любой записи — счёт-тёзка в другой валюте абортит импорт целиком.
         val existingByName = db.accountDao().observeAll().first().associateBy { it.name }
         plan.accounts.firstOrNull { p -> existingByName[p.name]?.let { it.currencyCode != p.currency.code } == true }

@@ -170,7 +170,8 @@ private fun ReadyBody(
     HorizontalDivider()
     Text(stringResource(R.string.import_confirm_hint), style = MaterialTheme.typography.bodySmall)
     val blocked = ready.reviews.any {
-        it.reason == ReviewReason.EXISTING_ACCOUNT_CURRENCY_MISMATCH && it.decision == null
+        (it.reason == ReviewReason.EXISTING_ACCOUNT_CURRENCY_MISMATCH ||
+            it.reason == ReviewReason.ACCOUNT_CURRENCY_CONFLICT) && it.decision == null
     }
     Button(onClick = onConfirm, enabled = !blocked) { Text(stringResource(R.string.import_confirm)) }
 }
@@ -188,7 +189,9 @@ private fun ReviewCardView(card: ReviewCard, onDecision: (ReviewRef, ReviewDecis
         Text("• ${reviewCardMessage(card)}", style = MaterialTheme.typography.bodyMedium)
 
         if (card.decision == null) {
-            val hint = if (card.reason == ReviewReason.EXISTING_ACCOUNT_CURRENCY_MISMATCH) {
+            val hint = if (card.reason == ReviewReason.EXISTING_ACCOUNT_CURRENCY_MISMATCH ||
+                card.reason == ReviewReason.ACCOUNT_CURRENCY_CONFLICT
+            ) {
                 R.string.import_review_blocked
             } else {
                 R.string.import_review_hint_unresolved
@@ -229,7 +232,7 @@ private fun ReviewCardView(card: ReviewCard, onDecision: (ReviewRef, ReviewDecis
                 ReviewReason.ACCOUNT_CURRENCY_CONFLICT -> {
                     card.currencyChoices.forEach { code ->
                         val chosen = (card.decision as? ReviewDecision.AccountCurrency)?.code?.code == code
-                        DecisionChip(code, chosen) {
+                        DecisionChip(stringResource(R.string.import_review_keep_currency, code), chosen) {
                             onDecision(card.ref, ReviewDecision.AccountCurrency(CurrencyCode(code)))
                         }
                     }
@@ -333,8 +336,7 @@ private fun reviewCardMessage(card: ReviewCard): String = when (card.reason) {
     ReviewReason.ACCOUNT_CURRENCY_CONFLICT -> stringResource(
         R.string.import_review_account_currency_conflict,
         card.account.orEmpty(),
-        card.currencyChoices.getOrElse(0) { "" },
-        card.currencyChoices.getOrElse(1) { "" },
+        card.currencyChoices.joinToString(", "),
     )
     ReviewReason.EXISTING_ACCOUNT_CURRENCY_MISMATCH -> stringResource(
         R.string.import_review_existing_account_mismatch,
