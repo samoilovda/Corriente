@@ -1,6 +1,8 @@
 package com.corriente.app.recurring
 
 import com.corriente.data.db.entity.TxnKind
+import com.corriente.data.recurrence.MAX_CATCH_UP_DATES
+import com.corriente.data.recurrence.RecurrenceErrors
 import com.corriente.data.recurrence.advance
 import com.corriente.data.recurrence.dueDates
 import com.corriente.data.repository.RecurrenceRepository
@@ -37,11 +39,20 @@ object RecurrenceMaterializer {
         autoNoteMarker: String,
         atomically: suspend (suspend () -> Unit) -> Unit = { it() },
         onResult: suspend (ruleId: String, error: String?) -> Unit = { _, _ -> },
+        /** A3.8: `true` — счёт правила в архиве, правило пропускается с пометкой (в скрытый счёт не пишем). */
+        isAccountArchived: suspend (accountId: String) -> Boolean = { false },
     ): Int {
         var failed = 0
         recurrences.getAll().forEach { rule ->
-            val dates = dueDates(rule.rule, rule.nextRunOn, today)
-            if (dates.isEmpty()) return@forEach
+            // limit + 1: чтобы отличить «ровно limit» от «есть ещё» (A3.8)
+            val candidates = dueDates(rule.rule, rule.nextRunOn, today, MAX_CATCH_UP_DATES + 1)
+            if (candidates.isEmpty()) return@forEach
+            if (isAccountArchived(rule.accountId)) {
+                onResult(rule.id, RecurrenceErrors.CODE_ARCHIVED_ACCOUNT)
+                return@forEach
+            }
+            val dates = candidates.take(MAX_CATCH_UP_DATES)
+            val truncated = candidates.size > MAX_CATCH_UP_DATES
             try {
                 atomically {
                     var lastTxnId = rule.lastCreatedTxnId
@@ -56,7 +67,7 @@ object RecurrenceMaterializer {
                     }
                     recurrences.recordRun(rule.id, advance(rule.rule, dates.last()), lastTxnId)
                 }
-                onResult(rule.id, null)
+                onResult(rule.id, if (truncated) RecurrenceErrors.CODE_CATCH_UP_LIMITED else null)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {

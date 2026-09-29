@@ -32,6 +32,7 @@ class RecurrenceWorker(
                 autoNoteMarker = applicationContext.getString(R.string.recurring_auto_created_note),
                 atomically = { block -> container.database.withTransaction { block() } },
                 onResult = { id, error -> if (error == null) errors.clear(id) else errors.record(id, error) },
+                isAccountArchived = { id -> container.accountRepository.getById(id)?.isArchived == true },
             )
             Result.success()
         } catch (e: Exception) {

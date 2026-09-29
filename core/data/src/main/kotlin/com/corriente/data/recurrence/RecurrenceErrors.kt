@@ -23,5 +23,11 @@ class RecurrenceErrors(private val dao: AppSettingDao) {
 
     companion object {
         const val PREFIX = "recurrence.last_error."
+
+        /** A3.8: правило пропущено — его счёт в архиве (операции не пишутся в скрытый счёт). Не текст, а код: экран локализует. */
+        const val CODE_ARCHIVED_ACCOUNT = "code:archived_account"
+
+        /** A3.8: за один запуск создан максимум [com.corriente.data.recurrence.MAX_CATCH_UP_DATES] операций; остальные — в следующий. */
+        const val CODE_CATCH_UP_LIMITED = "code:catch_up_limited"
     }
 }

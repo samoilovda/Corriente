@@ -350,6 +350,8 @@
     <string name="recurring_rule_every_n_days">Every N days</string>
     <string name="recurring_day_of_month">Day of month (1–31)</string>
     <string name="recurring_interval_days">Interval, days</string>
+    <string name="recurring_skipped_archived_account">Skipped: the rule\'s account is archived — unarchive the account or delete the rule</string>
+    <string name="recurring_catch_up_limited">Part of the missed transactions was created — the rest will follow on the next run</string>
     <string name="recurring_last_error">Could not create the transaction: %1$s</string>
     <string name="recurring_next_run">Next transaction: %1$s</string>
     <string name="recurring_auto_created_note">Created automatically by a recurring rule</string>

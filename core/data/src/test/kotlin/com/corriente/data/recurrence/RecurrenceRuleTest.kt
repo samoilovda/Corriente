@@ -100,4 +100,12 @@ class RecurrenceRuleTest {
         assertThrows(IllegalArgumentException::class.java) { RecurrenceRule.DayOfMonth(32) }
         assertThrows(IllegalArgumentException::class.java) { RecurrenceRule.EveryNDays(0) }
     }
+
+    // A3.8
+    @Test
+    fun `dueDates honours the catch-up limit`() {
+        val dates = dueDates(RecurrenceRule.EveryNDays(1), LocalDate.of(2026, 1, 1), LocalDate.of(2026, 12, 31), limit = 5)
+        assertEquals(5, dates.size)
+        assertEquals(LocalDate.of(2026, 1, 5), dates.last())
+    }
 }

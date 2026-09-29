@@ -350,6 +350,8 @@
     <string name="recurring_rule_every_n_days">Каждые N дней</string>
     <string name="recurring_day_of_month">День месяца (1–31)</string>
     <string name="recurring_interval_days">Интервал, дней</string>
+    <string name="recurring_skipped_archived_account">Пропущено: счёт правила в архиве — верните счёт или удалите правило</string>
+    <string name="recurring_catch_up_limited">Создана часть пропущенных операций — остальные появятся при следующем запуске</string>
     <string name="recurring_last_error">Не удалось создать операцию: %1$s</string>
     <string name="recurring_next_run">Следующая операция: %1$s</string>
     <string name="recurring_auto_created_note">Создано автоматически по повторяющемуся правилу</string>

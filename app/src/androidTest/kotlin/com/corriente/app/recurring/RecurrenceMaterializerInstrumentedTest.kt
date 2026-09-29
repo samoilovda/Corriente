@@ -216,4 +216,46 @@ class RecurrenceMaterializerInstrumentedTest {
         )
         assertEquals(3, txns.observeAll().first().size)
     }
+
+    // A3.8: «догонка» ограничена — 100 пропущенных дней дают не больше MAX_CATCH_UP_DATES операций за запуск,
+    // остальные создаются следующим запуском.
+    @Test
+    fun catchUpIsCappedPerRunAndContinuesNextRun() = runBlocking {
+        recurrences.create(
+            kind = TxnKind.EXPENSE, accountId = "cash", categoryId = null,
+            amount = Money(Minor(10_00), rub), note = null,
+            rule = RecurrenceRule.EveryNDays(1), startsOn = LocalDate.of(2026, 1, 1),
+        )
+        val today = LocalDate.of(2026, 1, 1).plusDays(99) // 100 дат
+        val results = mutableListOf<String?>()
+
+        RecurrenceMaterializer.materializeDue(today, recurrences, txns, "[авто]", onResult = { _, e -> results += e })
+        assertEquals(62, txns.observeAll().first().size)
+        assertEquals(listOf(com.corriente.data.recurrence.RecurrenceErrors.CODE_CATCH_UP_LIMITED), results)
+
+        RecurrenceMaterializer.materializeDue(today, recurrences, txns, "[авто]", onResult = { _, e -> results += e })
+        assertEquals(100, txns.observeAll().first().size)
+        assertEquals(null, results.last())
+    }
+
+    // A3.8: правило по архивному счёту пропускается с пометкой, nextRunOn не двигается.
+    @Test
+    fun archivedAccountRuleIsSkippedWithAMarker() = runBlocking {
+        val rule = recurrences.create(
+            kind = TxnKind.EXPENSE, accountId = "cash", categoryId = null,
+            amount = Money(Minor(10_00), rub), note = null,
+            rule = RecurrenceRule.EveryNDays(1), startsOn = LocalDate.of(2026, 9, 1),
+        )
+        val results = mutableMapOf<String, String?>()
+
+        RecurrenceMaterializer.materializeDue(
+            LocalDate.of(2026, 9, 3), recurrences, txns, "[авто]",
+            onResult = { id, e -> results[id] = e },
+            isAccountArchived = { true },
+        )
+
+        assertTrue(txns.observeAll().first().isEmpty())
+        assertEquals(com.corriente.data.recurrence.RecurrenceErrors.CODE_ARCHIVED_ACCOUNT, results[rule.id])
+        assertEquals(LocalDate.of(2026, 9, 1), recurrences.getById(rule.id)!!.nextRunOn)
+    }
 }

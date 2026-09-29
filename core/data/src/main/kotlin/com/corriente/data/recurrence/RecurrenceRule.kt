@@ -50,15 +50,21 @@ fun firstOccurrenceOnOrAfter(rule: RecurrenceRule, from: LocalDate): LocalDate =
  * (включительно) до [today] (включительно), в порядке возрастания. Пусто, если [nextRunOn] в
  * будущем — операции создаются только за прошедшие/сегодняшние даты, никогда авансом.
  *
+ * [limit] (A3.8) ограничивает «догонку»: перевод часов далеко вперёд или восстановление очень старого бэкапа
+ * иначе создали бы сотни операций за один запуск. Оставшиеся даты воркер возьмёт при следующем запуске.
+ *
  * Пропуск нескольких периодов (устройство долго было выключено/дата переведена вперёд) даёт
  * несколько дат за один вызов — ровно по одной на каждый пропущенный период, не одну "догоняющую".
  */
-fun dueDates(rule: RecurrenceRule, nextRunOn: LocalDate, today: LocalDate): List<LocalDate> {
+fun dueDates(rule: RecurrenceRule, nextRunOn: LocalDate, today: LocalDate, limit: Int = Int.MAX_VALUE): List<LocalDate> {
     val dates = mutableListOf<LocalDate>()
     var cursor = nextRunOn
-    while (!cursor.isAfter(today)) {
+    while (!cursor.isAfter(today) && dates.size < limit) {
         dates += cursor
         cursor = advance(rule, cursor)
     }
     return dates
 }
+
+/** A3.8: сколько дат правила материализуется за один запуск воркера (~два месяца ежедневного правила). */
+const val MAX_CATCH_UP_DATES = 62

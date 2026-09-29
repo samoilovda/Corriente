@@ -47,6 +47,7 @@ import com.corriente.app.corrienteContainer
 import com.corriente.app.ui.common.rememberMessageSnackbarState
 import com.corriente.data.db.entity.RecurrenceRuleType
 import com.corriente.data.db.entity.TxnKind
+import com.corriente.data.recurrence.RecurrenceErrors
 import com.corriente.data.recurrence.RecurrenceRule
 
 /** R2.4: экран «Повторяющиеся» из «Настроек» — список + создание/правка/удаление правил. */
@@ -106,7 +107,7 @@ fun RecurringScreen(
                                 )
                                 row.lastError?.let { error ->
                                     Text(
-                                        stringResource(R.string.recurring_last_error, error),
+                                        recurringErrorText(error),
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.error,
                                     )
@@ -305,4 +306,12 @@ private fun SimpleDropdown(
             }
         }
     }
+}
+
+/** A1.5/A3.8: текст ошибки правила — коды ([RecurrenceErrors]) локализуются, остальное — сообщение исключения. */
+@Composable
+private fun recurringErrorText(error: String): String = when (error) {
+    RecurrenceErrors.CODE_ARCHIVED_ACCOUNT -> stringResource(R.string.recurring_skipped_archived_account)
+    RecurrenceErrors.CODE_CATCH_UP_LIMITED -> stringResource(R.string.recurring_catch_up_limited)
+    else -> stringResource(R.string.recurring_last_error, error)
 }
