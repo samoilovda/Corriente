@@ -42,6 +42,8 @@ data class TransferUiState(
     val fromAmountText: String = "",
     val toAmountText: String = "",
     val rateText: String = "",
+    /** A2.6: пересчёт по курсу не помещается в сумму — сумма-приёмник не менялась, поле курса подсвечивается. */
+    val rateError: Boolean = false,
     val date: LocalDate = LocalDate.now(),
     val note: String = "",
     /** F2.5: false до первой эмиссии репозиториев. */
@@ -101,6 +103,7 @@ class TransferEntryViewModel(
         val fromAmountText: String = "",
         val toAmountText: String = "",
         val rateText: String = "",
+        val rateError: Boolean = false,
         val date: LocalDate,
         val note: String = "",
         /** Двойной тап «Сохранить» до навигации прочь с экрана иначе создавал второй перевод —
@@ -170,6 +173,7 @@ class TransferEntryViewModel(
             fromAmountText = f.fromAmountText,
             toAmountText = f.toAmountText,
             rateText = f.rateText,
+            rateError = f.rateError,
             date = f.date,
             note = f.note,
             loaded = true,
@@ -183,34 +187,36 @@ class TransferEntryViewModel(
     fun setNote(note: String) = form.update { it.copy(note = note) }
 
     fun setFromAmount(text: String) = form.update { f ->
-        val rate = f.rateText.toPositiveRateOrNull()
-        val recomputedTo = if (rate != null) recomputeTo(text, rate) else f.toAmountText
-        f.copy(fromAmountText = text, toAmountText = recomputedTo)
+        val rate = DealRate.parseRate(f.rateText)
+        if (rate == null) return@update f.copy(fromAmountText = text, rateError = false)
+        recomputeTo(f.copy(fromAmountText = text), rate)
     }
 
-    fun setToAmount(text: String) = form.update { it.copy(toAmountText = text) }
+    fun setToAmount(text: String) = form.update { it.copy(toAmountText = text, rateError = false) }
 
-    /** Курс — вспомогательный ввод: меняет сумму-приёмник, но сам не хранится (I-7а). */
+    /** Курс — вспомогательный ввод: меняет сумму-приёмник, но сам не хранится (I-7а). «86,95» и «86.95» — одно и то же. */
     fun setRate(text: String) = form.update { f ->
-        val rate = text.toPositiveRateOrNull()
-        val recomputedTo = if (rate != null) recomputeTo(f.fromAmountText, rate) else f.toAmountText
-        f.copy(rateText = text, toAmountText = recomputedTo)
+        val rate = DealRate.parseRate(text)
+        if (rate == null) return@update f.copy(rateText = text, rateError = false)
+        recomputeTo(f.copy(rateText = text), rate)
     }
 
     /**
-     * Курс имеет смысл только строго положительный. Клавиатура `Decimal` на части IME
-     * пропускает «−» (и вставку), а отрицательная сумма-приёмник уронила бы [AmountInput.fromMinor].
+     * Пересчитывает сумму-приёмник по [rate]. Переполнение (A2.6) — не исключение: сумма-приёмник остаётся
+     * прежней, выставляется [Form.rateError]. Вызывается внутри `form.update {}` на главном потоке.
      */
-    private fun String.toPositiveRateOrNull(): BigDecimal? =
-        toBigDecimalOrNull()?.takeIf { it.signum() > 0 }
-
-    private fun recomputeTo(fromText: String, rate: BigDecimal): String {
+    private fun recomputeTo(f: Form, rate: BigDecimal): Form {
         val state = uiState.value
-        val fromCur = state.fromAccount?.currency ?: return state.toAmountText
-        val toCur = state.toAccount?.currency ?: return state.toAmountText
-        val fromMinor = AmountInput.fromText(fromText, fromCur).toMinorOrNull(fromCur) ?: return ""
-        val toMinor = DealRate.applyRate(Money(fromMinor, fromCur.code), fromCur, rate, toCur)
-        return AmountInput.fromMinor(toMinor, toCur).displayText()
+        val fromCur = state.fromAccount?.currency ?: return f.copy(rateError = false)
+        val toCur = state.toAccount?.currency ?: return f.copy(rateError = false)
+        val fromMinor = AmountInput.fromText(f.fromAmountText, fromCur).toMinorOrNull(fromCur)
+            ?: return f.copy(toAmountText = "", rateError = false)
+        return try {
+            val toMinor = DealRate.applyRate(Money(fromMinor, fromCur.code), fromCur, rate, toCur)
+            f.copy(toAmountText = AmountInput.fromMinor(toMinor, toCur).displayText(), rateError = false)
+        } catch (e: ArithmeticException) {
+            f.copy(rateError = true)
+        }
     }
 
     fun save(): Boolean {

@@ -32,19 +32,44 @@ object DealRate {
         return to.amount.toMajor(toCurrency).divide(fromMajor, RATE_SCALE, RoundingMode.HALF_UP)
     }
 
-    /** Пересчёт суммы-приёмника из суммы-источника по курсу [rate] (единиц to за 1 единицу from). */
+    private val CODE_RATE = Regex("""\d{1,12}([.,]\d{1,10})?""")
+
+    /**
+     * Курс из поля ввода (A2.6): «86.95» и «86,95» (запятая — десятичный разделитель русской раскладки), без
+     * экспоненты, знака и пробелов. `null` — не парсится или не строго положителен.
+     */
+    fun parseRate(text: String): BigDecimal? {
+        val trimmed = text.trim()
+        if (!CODE_RATE.matches(trimmed)) return null
+        return BigDecimal(trimmed.replace(',', '.')).takeIf { it.signum() > 0 }
+    }
+
+    /**
+     * Результат пересчёта, не помещающийся в `Long` или длиннее лимита [AmountInput] (18 цифр), — переполнение:
+     * `BigDecimal.toLong()` молча отбрасывает старшие биты (нарушение I-3), поэтому `longValueExact`.
+     */
+    private fun BigDecimal.toMinorExact(): Minor {
+        val raw = setScale(0, RoundingMode.HALF_UP).longValueExact()
+        if (Math.abs(raw) > MAX_CALC_ABS) throw ArithmeticException("amount exceeds the input limit")
+        return Minor(raw)
+    }
+
+    /**
+     * Пересчёт суммы-приёмника из суммы-источника по курсу [rate] (единиц to за 1 единицу from).
+     * @throws ArithmeticException если результат не помещается в сумму (I-3).
+     */
     fun applyRate(from: Money, fromCurrency: Currency, rate: BigDecimal, toCurrency: Currency): Minor {
         require(from.currency == fromCurrency.code) { "DealRate.applyRate: currency mismatch" }
         val toMajor = from.amount.toMajor(fromCurrency).multiply(rate)
-        return Minor(toMajor.movePointRight(toCurrency.minorUnits).setScale(0, RoundingMode.HALF_UP).toLong())
+        return toMajor.movePointRight(toCurrency.minorUnits).toMinorExact()
     }
 
-    /** Обратный пересчёт: сумма-источник из суммы-приёмника по тому же курсу. */
+    /** Обратный пересчёт: сумма-источник из суммы-приёмника по тому же курсу (переполнение — [ArithmeticException]). */
     fun applyRateInverse(to: Money, toCurrency: Currency, rate: BigDecimal, fromCurrency: Currency): Minor {
         require(to.currency == toCurrency.code) { "DealRate.applyRateInverse: currency mismatch" }
         if (rate.signum() == 0) return Minor(0)
         val fromMajor = to.amount.toMajor(toCurrency).divide(rate, RATE_SCALE, RoundingMode.HALF_UP)
-        return Minor(fromMajor.movePointRight(fromCurrency.minorUnits).setScale(0, RoundingMode.HALF_UP).toLong())
+        return fromMajor.movePointRight(fromCurrency.minorUnits).toMinorExact()
     }
 
     /** Строка вида «1 USD = 86.95 RUB»; `null`, если курс не определён. */

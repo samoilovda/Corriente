@@ -146,6 +146,12 @@ fun TransferEntryScreen(
                     value = state.rateText,
                     onValueChange = viewModel::setRate,
                     label = { Text(stringResource(R.string.transfer_rate_manual)) },
+                    isError = state.rateError,
+                    supportingText = if (state.rateError) {
+                        { Text(stringResource(R.string.transfer_error_amount_too_large)) }
+                    } else {
+                        null
+                    },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     modifier = Modifier.fillMaxWidth(),

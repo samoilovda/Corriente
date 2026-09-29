@@ -51,4 +51,26 @@ class DealRateTest {
         val back = DealRate.applyRateInverse(Money(to, usd.code), usd, rate, rub)
         assertEquals(Minor(8_695_00), back)
     }
+
+    // A2.6: переполнение бросает, а не оборачивается (BigDecimal.toLong() молча отбрасывал старшие биты).
+    @Test
+    fun `applyRate throws on overflow instead of wrapping`() {
+        val huge = Money(Minor(900_000_000_000_000_00L), usd.code) // 9·10^14 USD
+        org.junit.Assert.assertThrows(ArithmeticException::class.java) {
+            DealRate.applyRate(huge, usd, BigDecimal("1000000"), rub)
+        }
+        org.junit.Assert.assertThrows(ArithmeticException::class.java) {
+            DealRate.applyRateInverse(huge, usd, BigDecimal("0.0000001"), rub)
+        }
+    }
+
+    @Test
+    fun `parseRate accepts a dot or a comma and rejects exponents, signs and garbage`() {
+        assertEquals(0, BigDecimal("86.95").compareTo(DealRate.parseRate("86.95")))
+        assertEquals(0, BigDecimal("86.95").compareTo(DealRate.parseRate("86,95")))
+        assertEquals(0, BigDecimal("90").compareTo(DealRate.parseRate(" 90 ")))
+        listOf("1e10", "-5", "+5", "0", "0,0", "", "abc", "1,2,3", "1 000", "9".repeat(13)).forEach {
+            assertNull(it, DealRate.parseRate(it))
+        }
+    }
 }

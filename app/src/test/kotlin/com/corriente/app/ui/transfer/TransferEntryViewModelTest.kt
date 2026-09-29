@@ -218,4 +218,63 @@ class TransferEntryViewModelTest {
         assertEquals("5", model.uiState.value.toAmountText)
         assertEquals("старый", model.uiState.value.note)
     }
+
+    // A2.6: запятая — десятичный разделитель (русская раскладка Decimal-клавиатуры).
+    @Test
+    fun `a comma decimal rate recomputes the received amount like a dot`() = runTest(dispatcher) {
+        val fakes = Fakes().apply { seed() }
+        val model = vm(fakes)
+        backgroundScope.observe(model)
+        advanceUntilIdle()
+        model.selectTo("usd1")
+        advanceUntilIdle()
+
+        model.setFromAmount("100")
+        model.setRate("0,5")
+        advanceUntilIdle()
+
+        assertEquals("50", model.uiState.value.toAmountText)
+    }
+
+    @Test
+    fun `an exponent rate is not accepted`() = runTest(dispatcher) {
+        val fakes = Fakes().apply { seed() }
+        val model = vm(fakes)
+        backgroundScope.observe(model)
+        advanceUntilIdle()
+        model.selectTo("usd1")
+        advanceUntilIdle()
+        model.setFromAmount("100")
+        model.setToAmount("7")
+        advanceUntilIdle()
+
+        model.setRate("1e10")
+        advanceUntilIdle()
+
+        assertEquals("7", model.uiState.value.toAmountText)
+    }
+
+    // A2.6: переполнение пересчёта — не краш и не мусор: сумма-приёмник прежняя, выставлена ошибка курса.
+    @Test
+    fun `an overflowing rate sets a field error and keeps the received amount`() = runTest(dispatcher) {
+        val fakes = Fakes().apply { seed() }
+        val model = vm(fakes)
+        backgroundScope.observe(model)
+        advanceUntilIdle()
+        model.selectTo("usd1")
+        advanceUntilIdle()
+        model.setFromAmount("999999999999999")
+        model.setToAmount("7")
+        advanceUntilIdle()
+
+        model.setRate("999999")
+        advanceUntilIdle()
+
+        assertEquals(true, model.uiState.value.rateError)
+        assertEquals("7", model.uiState.value.toAmountText)
+
+        model.setRate("2") // исправили курс — ошибка снимается
+        advanceUntilIdle()
+        assertEquals(false, model.uiState.value.rateError)
+    }
 }

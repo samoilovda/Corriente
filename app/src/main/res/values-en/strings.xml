@@ -246,6 +246,7 @@
     <string name="transfer_received">Received</string>
     <string name="transfer_rate_manual">Rate (optional)</string>
     <string name="transfer_need_two_accounts">A transfer needs at least two accounts.</string>
+    <string name="transfer_error_amount_too_large">The amount is too large</string>
     <string name="transfer_error_save">Could not save the transfer</string>
     <string name="transfer_error_delete">Could not delete the transfer</string>
     <string name="transfer_error_restore">Could not restore the transfer</string>

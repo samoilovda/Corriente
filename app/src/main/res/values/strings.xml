@@ -246,6 +246,7 @@
     <string name="transfer_received">Зачислено</string>
     <string name="transfer_rate_manual">Курс (необязательно)</string>
     <string name="transfer_need_two_accounts">Для перевода нужно минимум два счёта.</string>
+    <string name="transfer_error_amount_too_large">Слишком большая сумма</string>
     <string name="transfer_error_save">Не удалось сохранить перевод</string>
     <string name="transfer_error_delete">Не удалось удалить перевод</string>
     <string name="transfer_error_restore">Не удалось восстановить перевод</string>
