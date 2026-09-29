@@ -20,7 +20,10 @@ class ImportHistoryViewModel(private val importer: MonefyImportRepository) : Wri
 
     fun rollback(batchId: String) {
         launchWrite(onError = { uiMessage(R.string.import_history_error_rollback) }) {
-            importer.rollback(batchId)
+            val kept = importer.rollback(batchId)
+            if (kept.keptAccounts > 0 || kept.keptCategories > 0) {
+                postMessage(R.string.import_history_rollback_kept, kept.keptAccounts, kept.keptCategories)
+            }
         }
     }
 

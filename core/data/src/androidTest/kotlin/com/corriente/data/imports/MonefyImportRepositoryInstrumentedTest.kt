@@ -75,6 +75,27 @@ class MonefyImportRepositoryInstrumentedTest {
             db.categoryDao().observeAll().first().none { it.origin == CategoryOrigin.IMPORT },
         ) // осиротевшие IMPORT-категории удалены
         assertTrue(db.importBatchDao().getAll().none { it.id == first.batchId })
+        // A1.9: и созданные импортом счета тоже — «как до импорта».
+        assertTrue(db.accountDao().observeAll().first().isEmpty())
+    }
+
+    // A1.9: счёт, по которому пользователь уже добавил свою операцию, откат оставляет.
+    @Test
+    fun rollbackKeepsACreatedAccountTheUserAlreadyUses() = runBlocking {
+        val result = repo.import(plan, "monefy_sample.csv")
+        val cash = db.accountDao().observeAll().first().first { it.name == "Cash" }
+        db.txnDao().insert(
+            com.corriente.data.db.entity.TxnEntity(
+                "mine", com.corriente.data.db.entity.TxnKind.EXPENSE, "2026-09-01", 0, 0,
+                cash.id, 100, cash.currencyCode,
+            ),
+        )
+
+        val rollback = repo.rollback(result.batchId)
+
+        assertEquals(1, rollback.keptAccounts)
+        assertEquals(listOf("Cash"), db.accountDao().observeAll().first().map { it.name })
+        assertEquals(1, db.txnDao().observeAll().first().size)
     }
 
     // F0.5 — счёт-тёзка в другой валюте: без решения импорт отклонён, с «отдельным счётом» — новый счёт.

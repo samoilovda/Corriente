@@ -17,6 +17,8 @@ data class MonefyImportReport(
     val unpairedHalves: Int = 0,
     val reviews: Int = 0,
     val errors: Int = 0,
+    /** A1.9: счета, созданные этим импортом — откат удаляет те из них, которыми никто не пользуется. */
+    val createdAccountIds: List<String> = emptyList(),
 ) {
     fun encode(): String = JSON.encodeToString(serializer(), this)
 

@@ -46,6 +46,9 @@ interface ImportBatchDao {
     @Query("SELECT COUNT(*) FROM category WHERE origin = 'IMPORT' AND import_batch_id = :batchId")
     suspend fun countInUseImportCategoriesForBatch(batchId: String): Int
 
+    @Query("UPDATE import_batch SET report_json = :json WHERE id = :id")
+    suspend fun updateReport(id: String, json: String)
+
     @Query("DELETE FROM import_batch")
     suspend fun deleteAll()
 }

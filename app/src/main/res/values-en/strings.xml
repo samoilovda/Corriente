@@ -86,6 +86,7 @@
     <string name="import_history_summary">Transactions: %1$d · transfers: %2$d · categories: %3$d</string>
     <string name="import_history_rollback">Roll back</string>
     <string name="import_history_error_rollback">Could not roll back the import</string>
+    <string name="import_history_rollback_kept">Import rolled back. Kept because they are in use: accounts — %1$d, categories — %2$d</string>
     <string name="import_history_rollback_confirm">Delete all transactions and categories created by import "%1$s"? Transactions and categories from other imports are left untouched.</string>
     <string name="import_title">Import from Monefy</string>
     <string name="import_pick_file">Choose a CSV file</string>

@@ -40,6 +40,9 @@ class MonefyImportRepository(private val db: AppDatabase) {
 
     data class ImportResult(val batchId: String, val inserted: Int, val skipped: Int)
 
+    /** A1.9: что откат оставил, потому что этим уже пользуются (счета — операциями/правилами, категории — бюджетами и т.п.). */
+    data class RollbackResult(val keptAccounts: Int, val keptCategories: Int)
+
     /** Запись истории импортов для экрана «История импортов» (F1.5). */
     data class ImportBatchInfo(
         val id: String,
@@ -100,12 +103,14 @@ class MonefyImportRepository(private val db: AppDatabase) {
 
             // счета: существующий по имени переиспользуем, иначе создаём
             val accountIdByName = HashMap<String, String>()
+            val createdAccountIds = mutableListOf<String>()
             val existingAccounts = db.accountDao().observeAll().first().associateBy { it.name }
             plan.accounts.forEach { planned ->
                 // F0.5: переиспользуем существующий счёт только при совпадении имени И валюты.
                 val existing = existingAccounts[planned.name]?.takeIf { it.currencyCode == planned.currency.code }
                 accountIdByName[planned.name] = existing?.id ?: run {
                     val id = UUID.randomUUID().toString()
+                    createdAccountIds += id
                     db.accountDao().insert(
                         AccountEntity(
                             id = id, name = planned.name, currencyCode = planned.currency.code,
@@ -188,20 +193,35 @@ class MonefyImportRepository(private val db: AppDatabase) {
                     t.naturalKey,
                 )
             }
+
+            // A1.9: запоминаем созданные счета в отчёте батча — откат удалит те, что останутся без операций.
+            if (createdAccountIds.isNotEmpty()) {
+                val withAccounts = MonefyImportReport.decode(reportJson).copy(createdAccountIds = createdAccountIds)
+                db.importBatchDao().updateReport(batchId, withAccounts.encode())
+            }
         }
         return ImportResult(batchId, inserted, skipped)
     }
 
     /**
-     * Откат: удалить операции батча, осиротевшие IMPORT-категории **этого** батча и сам батч.
-     * Категории и операции прошлых импортов не трогаются (F1.5).
+     * Откат (I-19): удалить операции батча, осиротевшие IMPORT-категории **этого** батча, созданные им счета,
+     * на которые больше никто не ссылается, и сам батч. Категории, счета и операции прошлых импортов не
+     * трогаются (F1.5). Всё, чем пользователь уже воспользовался (бюджет/правило на категорию, своя
+     * операция в созданном счёте), остаётся — [RollbackResult] сообщает, сколько (A1.7/A1.9).
      */
-    suspend fun rollback(batchId: String) {
-        db.withTransaction {
-            db.txnDao().deleteByImportBatch(batchId)
-            db.importBatchDao().deleteOrphanedImportCategoriesForBatch(batchId)
-            db.importBatchDao().getAll().firstOrNull { it.id == batchId }?.let { db.importBatchDao().delete(it) }
+    suspend fun rollback(batchId: String): RollbackResult = db.withTransaction {
+        val batch = db.importBatchDao().getAll().firstOrNull { it.id == batchId }
+        db.txnDao().deleteByImportBatch(batchId)
+        db.importBatchDao().deleteOrphanedImportCategoriesForBatch(batchId)
+        val keptCategories = db.importBatchDao().countInUseImportCategoriesForBatch(batchId)
+
+        var keptAccounts = 0
+        batch?.let { MonefyImportReport.decode(it.reportJson) }?.createdAccountIds?.forEach { accountId ->
+            val account = db.accountDao().getById(accountId) ?: return@forEach
+            if (db.accountDao().isInUse(accountId)) keptAccounts++ else db.accountDao().delete(account)
         }
+        batch?.let { db.importBatchDao().delete(it) }
+        RollbackResult(keptAccounts, keptCategories)
     }
 
     private companion object {

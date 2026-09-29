@@ -86,6 +86,7 @@
     <string name="import_history_summary">Операций: %1$d · переводов: %2$d · категорий: %3$d</string>
     <string name="import_history_rollback">Откатить</string>
     <string name="import_history_error_rollback">Не удалось откатить импорт</string>
+    <string name="import_history_rollback_kept">Импорт откачен. Оставлено, потому что уже используется: счетов — %1$d, категорий — %2$d</string>
     <string name="import_history_rollback_confirm">Удалить все операции и созданные категории импорта «%1$s»? Операции и категории прошлых импортов не тронутся.</string>
     <string name="import_title">Импорт из Monefy</string>
     <string name="import_pick_file">Выбрать CSV-файл</string>

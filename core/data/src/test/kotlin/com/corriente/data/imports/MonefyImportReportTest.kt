@@ -21,4 +21,11 @@ class MonefyImportReportTest {
     fun `garbage decodes to all zeros instead of throwing`() {
         assertEquals(MonefyImportReport(), MonefyImportReport.decode("not json"))
     }
+
+    @Test
+    fun `an old report without createdAccountIds still decodes`() {
+        val old = MonefyImportReport.decode("""{"accounts":3,"categories":5}""")
+        assertEquals(3, old.accounts)
+        assertEquals(emptyList<String>(), old.createdAccountIds)
+    }
 }
