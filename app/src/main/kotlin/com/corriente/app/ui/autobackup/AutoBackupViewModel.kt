@@ -163,12 +163,25 @@ class AutoBackupViewModel(
         }
     }
 
+    /**
+     * A3.13: если постоянное разрешение на новую папку взять не удалось, папка не сохраняется и автобэкап не
+     * включается (раньше ошибка глоталась, и воркер потом молча падал на `SecurityException`); разрешение на
+     * прежнюю папку освобождается — лимит persisted-грантов конечен.
+     */
     fun setFolder(uri: Uri) {
         val flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-        runCatching { app.contentResolver.takePersistableUriPermission(uri, flags) }
+        val granted = runCatching { app.contentResolver.takePersistableUriPermission(uri, flags) }.isSuccess
+        if (!granted) {
+            _folderError.value = true
+            return
+        }
         viewModelScope.launch {
+            val previous = settings.current().treeUri
             settings.setTreeUri(uri.toString())
             settings.setEnabled(true)
+            if (previous != null && previous != uri.toString()) {
+                runCatching { app.contentResolver.releasePersistableUriPermission(previous.toUri(), flags) }
+            }
             AutoBackupScheduler.runNow(app)
         }
     }
