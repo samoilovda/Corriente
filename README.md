@@ -7,7 +7,7 @@ replacement): multi-currency accounting with **no currency conversion**
 (each currency is its own closed loop — ADR-012), a home-screen widget,
 Monefy history import, and local backups. Single-user, no server component,
 **no network code at all** — no networking library and no `INTERNET`
-permission anywhere in the manifest (ADR-013/I-24; see
+permission in the built app (ADR-013/I-24; the build checks the merged manifest; see
 [`PRIVACY.md`](PRIVACY.md) for what that means for your data).
 
 * **License:** [MIT](LICENSE).
@@ -175,9 +175,12 @@ shrinkResources; при первой реальной сборке вне пес
   `build.gradle.kts` всех модулей и самого `libs.versions.toml`).
 * `kotlin-csv-jvm` (`com.github.doyaaaaaken`) — импорт/экспорт CSV, MIT.
 
-В манифестах (`app/`, `widget/`) нет ни одного `<uses-permission>` (I-24) — само
-отсутствие разрешения `INTERNET` физически не даёт приложению открыть сетевое
-соединение, независимо от того, что попытался бы сделать код.
+В исходных манифестах (`app/`, `widget/`) нет ни одного `<uses-permission>` (I-24; допускается
+только `tools:node="remove"` для лишних разрешений из зависимостей), а итоговый манифест каждого варианта сборки
+проверяет задача `verify<Variant>MergedManifest` (входит в `check`): `INTERNET` и любое разрешение вне allowlist
+(`buildSrc/.../MergedManifestGuard.kt`, список — в `PRIVACY.md`) валят сборку. Само отсутствие `INTERNET`
+физически не даёт приложению открыть сетевое соединение. Проверить готовый APK:
+`aapt2 dump permissions app/build/outputs/apk/release/app-release.apk`.
 
 ### Инструментальные тесты
 

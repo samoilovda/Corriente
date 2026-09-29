@@ -6,12 +6,27 @@
 
 This app has no networking code at all. Not "we don't send your data" as a
 promise — there is no HTTP client, no analytics SDK, no crash reporter, no
-ad library, and no `INTERNET` permission in the manifest (verify yourself:
-`grep -r uses-permission app/src/main/AndroidManifest.xml` finds nothing).
+ad library, and no `INTERNET` permission in the built app (verify yourself:
+`aapt2 dump permissions app-release.apk` never lists `android.permission.INTERNET`;
+the build itself fails if the merged manifest ever contains it).
 Android enforces permissions at the OS level, so an app without `INTERNET`
 is physically unable to open a network socket, regardless of what its code
 tries to do. This is architectural, not a setting you could turn off or a
 policy that could quietly change in an update.
+
+### Permissions the built APK does request
+
+The libraries the app is built on add a few permissions of their own. None of them
+gives network access; each one is on a fixed allowlist checked at build time
+(`verify<Variant>MergedManifest`, `buildSrc/.../MergedManifestGuard.kt`):
+
+| Permission | Why |
+|---|---|
+| `WAKE_LOCK` | WorkManager keeps the device awake while a background backup / recurring-transaction run is in progress |
+| `RECEIVE_BOOT_COMPLETED` | WorkManager restores its schedule after a reboot |
+| `FOREGROUND_SERVICE` | WorkManager, long background jobs (backup export) |
+| `USE_BIOMETRIC`, `USE_FINGERPRINT` | the optional app lock (biometrics / device PIN); the second one is for older Android versions |
+| `com.corriente.app.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION` | internal androidx.core permission that protects the app's own broadcast receivers |
 
 This is a deliberate design decision (see `docs/ARCHITECTURE.md`, ADR-013,
 and `docs/INVARIANTS.md`, invariant I-24), not an oversight.

@@ -99,12 +99,16 @@ object InvariantGuards {
         return violations
     }
 
-    /** I-24: в приложении нет сети — ни одного `uses-permission` в манифесте. */
+    /**
+     * I-24: в исходных манифестах модулей нет ни одного `uses-permission` — кроме строк с `tools:node="remove"`
+     * (A2.12: так убираются лишние разрешения, приходящие из зависимостей). Итоговый манифест проверяет
+     * [MergedManifestGuard].
+     */
     fun scanManifest(relativePath: String, source: String): List<String> {
         val withoutComments = source.replace(Regex("""<!--.*?-->""", RegexOption.DOT_MATCHES_ALL), "")
         val violations = mutableListOf<String>()
         withoutComments.lineSequence().forEachIndexed { index, line ->
-            if (line.contains("uses-permission")) {
+            if (line.contains("uses-permission") && !line.contains("""tools:node="remove"""")) {
                 violations += "$relativePath:${index + 1}: uses-permission запрещён (I-24, нет сети)\n    ${line.trim()}"
             }
         }

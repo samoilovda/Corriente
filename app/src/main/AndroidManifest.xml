@@ -1,7 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- Инвариант I-24 (ADR-013): ни здесь, ни где-либо ещё в проекте не должно появиться
-         ни одного uses-permission. Приложение не умеет обращаться в сеть в принципе. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <!-- Инвариант I-24 (ADR-013): приложение не умеет обращаться в сеть в принципе — разрешения INTERNET нет и
+         не будет; итоговый манифест проверяет задача verify<Variant>MergedManifest (allowlist в buildSrc,
+         PRIVACY.md — список разрешений с объяснениями).
+         ACCESS_NETWORK_STATE тянет WorkManager ради сетевых ограничений, которых в проекте нет — убираем. -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" tools:node="remove" />
+
     <application
         android:name=".CorrienteApplication"
         android:allowBackup="false"

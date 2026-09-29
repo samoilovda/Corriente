@@ -106,6 +106,16 @@ class InvariantGuardsTest {
     }
 
     @Test
+    fun `a uses-permission removed via tools-node is allowed in a source manifest`() {
+        val xml = """
+            <manifest>
+                <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" tools:node="remove" />
+            </manifest>
+        """.trimIndent()
+        assertEquals(emptyList<String>(), InvariantGuards.scanManifest("app/src/main/AndroidManifest.xml", xml))
+    }
+
+    @Test
     fun `the real repository is clean`() {
         val repoRoot = generateSequence(File(".").absoluteFile) { it.parentFile }
             .firstOrNull { File(it, "settings.gradle.kts").exists() && File(it, "buildSrc").exists() }

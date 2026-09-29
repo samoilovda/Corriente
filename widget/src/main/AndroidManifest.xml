@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- I-24: ни одного uses-permission и здесь. -->
+    <!-- I-24: ни одного uses-permission и здесь (итоговый манифест проверяет :app, A2.12). -->
     <application>
         <receiver
             android:name=".CorrienteWidgetReceiver"

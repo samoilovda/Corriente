@@ -1,3 +1,5 @@
+import com.android.build.api.artifact.SingleArtifact
+import corriente.buildsupport.MergedManifestGuard
 import java.util.Properties
 
 plugins {
@@ -160,4 +162,33 @@ dependencies {
     androidTestImplementation(platform(libs.compose.bom))
     androidTestImplementation(libs.compose.ui.test.junit4)
     debugImplementation(libs.compose.ui.test.manifest)
+}
+
+// A2.12 (I-24): итоговый манифест каждого варианта — только разрешения из allowlist, `INTERNET` — никогда.
+abstract class VerifyMergedManifestTask : DefaultTask() {
+    @get:InputFile
+    abstract val manifest: RegularFileProperty
+
+    @get:Input
+    abstract val applicationId: Property<String>
+
+    @TaskAction
+    fun verify() {
+        val violations = MergedManifestGuard.scan(manifest.get().asFile.readText(), applicationId.get())
+        if (violations.isNotEmpty()) {
+            throw GradleException("Итоговый манифест нарушает I-24:\n" + violations.joinToString("\n") { " - $it" })
+        }
+    }
+}
+
+androidComponents {
+    onVariants { variant ->
+        val verify = tasks.register<VerifyMergedManifestTask>("verify${variant.name.replaceFirstChar { it.uppercase() }}MergedManifest") {
+            group = "verification"
+            description = "Проверяет разрешения итогового манифеста варианта ${variant.name} (I-24)"
+            manifest.set(variant.artifacts.get(SingleArtifact.MERGED_MANIFEST))
+            applicationId.set(variant.applicationId)
+        }
+        tasks.matching { it.name == "check" }.configureEach { dependsOn(verify) }
+    }
 }
