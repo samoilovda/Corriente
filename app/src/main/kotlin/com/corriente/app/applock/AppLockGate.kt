@@ -28,6 +28,7 @@ import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
 import com.corriente.app.CorrienteApplication
 import com.corriente.app.R
+import com.corriente.data.applock.AppLockMode
 
 /**
  * R5.2: оборачивает содержимое экрана — [com.corriente.app.MainActivity] и обе полупрозрачные
@@ -42,6 +43,14 @@ import com.corriente.app.R
 fun AppLockGate(content: @Composable () -> Unit) {
     val app = LocalContext.current.applicationContext as CorrienteApplication
     val locked by app.appLockCoordinator.locked.collectAsState()
+
+    // A2.9: при включённом режиме замка (любом, кроме «Выключен») содержимое скрыто в «Недавних».
+    val activity = androidx.activity.compose.LocalActivity.current
+    val lockConfig by app.container.appLockSettings.config.collectAsState(initial = null)
+    val protect = lockConfig?.let { it.mode != AppLockMode.OFF }
+    LaunchedEffect(protect) {
+        if (activity != null && protect != null) RecentsProtection.apply(activity, protect)
+    }
 
     when (locked) {
         null -> Box(Modifier.fillMaxSize())
