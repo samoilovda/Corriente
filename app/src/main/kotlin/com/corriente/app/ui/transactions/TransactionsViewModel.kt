@@ -311,7 +311,8 @@ class TransactionsViewModel(
                     filter.map { it.query }.distinctUntilChanged()
                         .flatMapLatest { q -> txns.search(q).map { TxnSource(null, it, isSearch = true) } }
                 } else {
-                    combine(txns.observeRange(start, today().plusDays(1)), txns.observeAnyBefore(start)) { range, before ->
+                    // A2.7: верхней границы нет — операции с будущей датой (уже учтённые в балансе счёта) видны сверху списка.
+                    combine(txns.observeRange(start, OPEN_END), txns.observeAnyBefore(start)) { range, before ->
                         TxnSource(start, range, isSearch = false, anyBefore = before)
                     }
                 }
@@ -399,6 +400,9 @@ class TransactionsViewModel(
     }
 
     companion object {
+        /** «Без верхней границы» для `observeRange`: даты в БД — ISO-строки, сравнение лексикографическое. */
+        private val OPEN_END: LocalDate = LocalDate.of(9999, 12, 31)
+
         fun factory(
             txns: TxnRepository,
             accounts: AccountRepository,

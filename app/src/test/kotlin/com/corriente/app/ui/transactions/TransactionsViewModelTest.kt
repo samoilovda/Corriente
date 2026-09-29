@@ -231,4 +231,25 @@ class TransactionsViewModelTest {
         assertTrue(out.size() > 0)
         assertEquals(com.corriente.app.R.string.file_saved, vm.messages.value?.resId)
     }
+
+    // A2.7: операция «на следующую неделю» видна в списке сверху (раньше верхняя граница была «завтра»).
+    @Test
+    fun `a transaction dated a week ahead is listed on top`() = runTest(dispatcher) {
+        val accountDao = FakeAccountDao()
+        accountDao.insert(AccountEntity("cash", "Наличные", "RUB", AccountKind.CASH, 0, 0))
+        val txns = TxnRepository(FakeTxnDao(), accountDao)
+        val today = LocalDate.of(2026, 9, 15)
+        txns.addExpense("cash", Money(Minor(100_00), rub), null, today.minusDays(1), null)
+        txns.addExpense("cash", Money(Minor(200_00), rub), null, today.plusDays(7), null)
+
+        val vm = TransactionsViewModel(
+            txns, AccountRepository(accountDao), CategoryRepository(FakeCategoryDao()),
+            CurrencyRepository(FakeCurrencyDao(listOf(CurrencyEntity("RUB", 2, 2, "₽", true, 0)))),
+            today = { today },
+        )
+        backgroundScope.observe(vm)
+        advanceUntilIdle()
+
+        assertEquals(listOf(today.plusDays(7), today.minusDays(1)), vm.uiState.value.sections.map { it.date })
+    }
 }
