@@ -31,15 +31,20 @@
                 android:name="android.app.shortcuts"
                 android:resource="@xml/shortcuts" />
         </activity>
+        <!-- A3.12: быстрый ввод из виджета — в СВОЕЙ задаче (`taskAffinity=""`). Запуск с FLAG_ACTIVITY_NEW_TASK
+             при общей с приложением аффинити клал окно поверх уже открытой задачи приложения, и после
+             сохранения пользователь оказывался в приложении, а не на домашнем экране. -->
         <activity
             android:name=".quick.QuickExpenseActivity"
             android:exported="false"
             android:excludeFromRecents="true"
+            android:taskAffinity=""
             android:theme="@style/Theme.Corriente.Translucent" />
         <activity
             android:name=".quick.ChangeActiveAccountActivity"
             android:exported="false"
             android:excludeFromRecents="true"
+            android:taskAffinity=""
             android:theme="@style/Theme.Corriente.Translucent" />
 
         <!-- R4.0: ловит внутреннюю ретрансляцию ACTION_APPWIDGET_ENABLED/UPDATE от
