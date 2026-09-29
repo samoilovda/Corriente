@@ -65,7 +65,8 @@ class BackupRepository(private val db: AppDatabase) : BackupIo {
         transactions = db.txnDao().observeAll().first().map { it.toBackup() },
         importBatches = db.importBatchDao().getAll().map { it.toBackup() },
         importAliases = db.importAliasDao().getAll().map { it.toBackup() },
-        appSettings = db.appSettingDao().getAll().map { it.toBackup() },
+        // A2.16: настройки, привязанные к устройству, в файл не попадают (см. [isDeviceBoundSetting]).
+        appSettings = db.appSettingDao().getAll().filterNot { isDeviceBoundSetting(it.key) }.map { it.toBackup() },
         budgets = db.budgetDao().getAll().map { it.toBackup() },
         recurrences = db.recurrenceDao().getAll().map { it.toBackup() },
     )
@@ -102,6 +103,9 @@ class BackupRepository(private val db: AppDatabase) : BackupIo {
         // Копия текущей БД на случай, если восстановление всё же не задастся (F1.4).
         beforeReplace()
         db.withTransaction {
+            // A2.16: настройки этого устройства (папка автобэкапа, замок…) переживают восстановление; из файла
+            // (в т.ч. от старой версии, где они экспортировались) такие ключи не берутся.
+            val keptDeviceSettings = db.appSettingDao().getAll().filter { isKeptOnRestore(it.key) }
             // Порядок удаления - по внешним ключам, от зависимых к независимым.
             db.recurrenceDao().deleteAll()
             db.budgetDao().deleteAll()
@@ -123,7 +127,8 @@ class BackupRepository(private val db: AppDatabase) : BackupIo {
             payload.importBatches.forEach { db.importBatchDao().insert(it.toEntity()) }
             db.txnDao().insertAll(payload.transactions.map { it.toEntity() })
             payload.importAliases.forEach { db.importAliasDao().upsert(it.toEntity()) }
-            payload.appSettings.forEach { db.appSettingDao().set(it.toEntity()) }
+            payload.appSettings.filterNot { isDeviceBoundSetting(it.key) }.forEach { db.appSettingDao().set(it.toEntity()) }
+            keptDeviceSettings.forEach { db.appSettingDao().set(it) }
             payload.budgets.forEach { db.budgetDao().insert(it.toEntity()) }
             payload.recurrences.forEach { db.recurrenceDao().insert(it.toEntity()) }
         }
@@ -138,6 +143,20 @@ class BackupRepository(private val db: AppDatabase) : BackupIo {
         // категории «из коробки», структура бэкапа не меняется. v7: только токенайзер txn_fts (A1.10).
         // Версия формата бэкапа = версия схемы БД (A3.2) — один источник.
         const val SCHEMA_VERSION = com.corriente.data.db.AppDatabase.SCHEMA_VERSION
+
+        /**
+         * A2.16: ключи `app_setting`, привязанные к этому устройству/установке, а не к данным пользователя:
+         * `auto_backup.*` (URI папки SAF без persisted-разрешения на другом устройстве ломал бы автобэкап; время и
+         * итог последнего запуска путали бы плашку R1.5), `app_lock.*` (восстановление бэкапа с устройства без замка
+         * молча снимало бы замок), `recurrence.last_error.*` (диагностика воркера этого устройства).
+         */
+        private val DEVICE_BOUND_PREFIXES = listOf("auto_backup.", "app_lock.", "recurrence.last_error.")
+
+        fun isDeviceBoundSetting(key: String): Boolean = DEVICE_BOUND_PREFIXES.any { key.startsWith(it) }
+
+        /** Из привязанных к устройству при восстановлении сохраняются текущие значения — кроме диагностики правил. */
+        private fun isKeptOnRestore(key: String): Boolean =
+            isDeviceBoundSetting(key) && !key.startsWith("recurrence.last_error.")
 
         private val json = Json { prettyPrint = true; ignoreUnknownKeys = true }
 

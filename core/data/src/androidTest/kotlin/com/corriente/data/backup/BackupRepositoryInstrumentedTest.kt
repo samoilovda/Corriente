@@ -230,4 +230,35 @@ class BackupRepositoryInstrumentedTest {
         assertEquals(emptyList<BackupProblem>(), BackupRepository.validate(payload))
         assertEquals(emptyList<BackupProblem>(), BackupRepository.validate(backup.buildPayload()))
     }
+
+    // A2.16: восстановление не переносит настройки устройства и не затирает текущие.
+    @Test
+    fun restoreKeepsDeviceBoundSettingsAndDoesNotExportThem() = runBlocking {
+        val settings = db.appSettingDao()
+        settings.set(com.corriente.data.db.entity.AppSettingEntity("auto_backup.tree_uri", "content://this/device"))
+        settings.set(com.corriente.data.db.entity.AppSettingEntity("app_lock.mode", "EVERY_OPEN"))
+        settings.set(com.corriente.data.db.entity.AppSettingEntity("recurrence.last_error.r1", "old error"))
+        settings.set(com.corriente.data.db.entity.AppSettingEntity("theme", "dark"))
+
+        // Экспорт: только переносимое.
+        val exported = backup.buildPayload()
+        assertEquals(listOf("theme"), exported.appSettings.map { it.key })
+
+        // Файл «с другого устройства» (или от старой версии, где всё экспортировалось).
+        val foreign = exported.copy(
+            currencies = listOf(CurrencyBackup("RUB", 2, 2, "₽", true, 0)),
+            appSettings = listOf(
+                AppSettingBackup("auto_backup.tree_uri", "content://other/device"),
+                AppSettingBackup("app_lock.mode", "OFF"),
+                AppSettingBackup("theme", "light"),
+            ),
+        )
+        backup.restorePayload(foreign)
+
+        val after = db.appSettingDao().getAll().associate { it.key to it.value }
+        assertEquals("content://this/device", after["auto_backup.tree_uri"])
+        assertEquals("EVERY_OPEN", after["app_lock.mode"])
+        assertEquals("light", after["theme"])
+        assertEquals(null, after["recurrence.last_error.r1"])
+    }
 }

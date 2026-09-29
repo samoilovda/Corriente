@@ -256,4 +256,12 @@ class BackupRoundTripTest {
         assertEquals(null, decoded.categoryId)
         assertEquals(expense, decoded)
     }
+
+    // A2.16
+    @Test
+    fun `device-bound settings are recognised by prefix`() {
+        listOf("auto_backup.tree_uri", "auto_backup.enabled", "app_lock.mode", "app_lock.last_unlock_at", "recurrence.last_error.x")
+            .forEach { assert(BackupRepository.isDeviceBoundSetting(it)) { it } }
+        listOf("theme", "auto_backupx", "widget.pinned").forEach { assert(!BackupRepository.isDeviceBoundSetting(it)) { it } }
+    }
 }
