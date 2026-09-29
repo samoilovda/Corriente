@@ -30,7 +30,18 @@ data class WidgetSnapshot(
     val activeAccountName: String,
     val computedAt: Long,
 ) {
+    /**
+     * A3.10: снимок без сумм — балансы и траты заменены маской [AMOUNT_MASK] (коды валют остаются, чтобы виджет не
+     * «схлопнулся»). Для включённой блокировки приложения, если пользователь выбрал скрывать суммы на рабочем столе.
+     */
+    fun masked(): WidgetSnapshot = copy(
+        balances = balances.map { it.copy(formatted = AMOUNT_MASK) },
+        monthExpenses = monthExpenses.map { it.copy(formatted = AMOUNT_MASK) },
+    )
+
     companion object {
+        const val AMOUNT_MASK = "•••"
+
         /** Заглушка до первого пересчёта / при недоступном хранилище (Direct Boot). */
         val EMPTY = WidgetSnapshot(emptyList(), emptyList(), emptyList(), "", "", 0L)
     }

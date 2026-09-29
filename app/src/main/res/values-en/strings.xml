@@ -104,6 +104,8 @@
     <string name="quick_expense_save_failed">Could not save the transaction. Please try again.</string>
     <string name="quick_expense_no_category">No category</string>
     <string name="quick_change_account_failed">Could not switch the account. Please try again.</string>
+    <string name="widget_hide_amounts_when_locked">Hide amounts while the app lock is on</string>
+    <string name="widget_hide_amounts_when_locked_hint">Balances and spending in the widget show "•••" while the app lock is enabled</string>
     <string name="widget_reset_defaults">Reset to defaults</string>
     <string name="widget_settings_error_save">Could not save the widget settings</string>
     <string name="widget_settings_error_reset">Could not reset the widget settings</string>

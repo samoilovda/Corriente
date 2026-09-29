@@ -87,4 +87,28 @@ class WidgetSnapshotsFlowTest {
         assertEquals(listOf(LocalDate.of(2026, 8, 31), LocalDate.of(2026, 9, 1)), seen)
         job.cancel()
     }
+
+    // A3.10: маска включается только при включённом замке И включённой опции.
+    @Test
+    fun `amounts are masked only when the lock is on and the option is on`() = runTest {
+        suspend fun latest(hide: Boolean, lock: Boolean): WidgetSnapshot {
+            var out: WidgetSnapshot? = null
+            widgetSnapshots(
+                dateTicker = flowOf(LocalDate.of(2026, 8, 31)),
+                accounts = flowOf(listOf(account)),
+                txnsInRange = { _, _ -> flowOf(emptyList()) },
+                deltas = flowOf(emptyMap()),
+                currencies = flowOf(listOf(rubMeta)),
+                categories = flowOf(emptyList()),
+                config = flowOf(WidgetConfig(hideAmountsWhenLocked = hide)),
+                lockEnabled = flowOf(lock),
+                clock = { 0L },
+            ).collect { out = it }
+            return out!!
+        }
+
+        assertEquals(WidgetSnapshot.AMOUNT_MASK, latest(hide = true, lock = true).balances.single().formatted)
+        assertTrue(latest(hide = true, lock = false).balances.single().formatted != WidgetSnapshot.AMOUNT_MASK)
+        assertTrue(latest(hide = false, lock = true).balances.single().formatted != WidgetSnapshot.AMOUNT_MASK)
+    }
 }

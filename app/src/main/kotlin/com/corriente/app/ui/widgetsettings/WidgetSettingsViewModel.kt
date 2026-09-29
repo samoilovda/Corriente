@@ -35,6 +35,8 @@ data class WidgetSettingsUiState(
     val currencies: List<CurrencyRow> = emptyList(),
     val accounts: List<AccountRow> = emptyList(),
     val categories: List<CategoryRow> = emptyList(),
+    /** A3.10 */
+    val hideAmountsWhenLocked: Boolean = false,
 ) {
     val pinnedCount: Int get() = currencies.count { it.pinned }
     val canPinMore: Boolean get() = pinnedCount < MAX_PINNED_CURRENCIES
@@ -65,6 +67,7 @@ internal fun widgetSettingsUiState(
         currencies = currencies.map { CurrencyRow(it.code.code, it.symbol, it.code.code in effectivePinned) },
         accounts = accounts.map { AccountRow(it.id, it.name, it.currency.code, it.id == effectiveActive) },
         categories = categories.map { CategoryRow(it.id, it.name, it.icon, it.id in effectivePinnedCategories) },
+        hideAmountsWhenLocked = config.hideAmountsWhenLocked,
     )
 }
 
@@ -123,6 +126,11 @@ class WidgetSettingsViewModel(
 
     fun setActiveAccount(id: String) {
         launchWrite(onError = { uiMessage(R.string.widget_settings_error_save) }) { configStore.setActiveAccount(id) }
+    }
+
+    /** A3.10: скрывать суммы в виджете, пока включена блокировка приложения. */
+    fun setHideAmountsWhenLocked(hide: Boolean) {
+        launchWrite(onError = { uiMessage(R.string.widget_settings_error_save) }) { configStore.setHideAmountsWhenLocked(hide) }
     }
 
     fun resetToDefaults() {

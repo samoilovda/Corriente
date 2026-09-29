@@ -15,6 +15,7 @@ import androidx.compose.material3.ListItem
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -135,6 +136,15 @@ fun WidgetSettingsScreen(
                 )
             }
 
+            HorizontalDivider()
+            // A3.10
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.widget_hide_amounts_when_locked)) },
+                supportingContent = { Text(stringResource(R.string.widget_hide_amounts_when_locked_hint)) },
+                trailingContent = {
+                    Switch(checked = state.hideAmountsWhenLocked, onCheckedChange = viewModel::setHideAmountsWhenLocked)
+                },
+            )
             HorizontalDivider()
             TextButton(
                 onClick = viewModel::resetToDefaults,

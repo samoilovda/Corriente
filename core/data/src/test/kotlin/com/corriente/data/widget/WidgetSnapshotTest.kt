@@ -275,4 +275,26 @@ class WidgetSnapshotTest {
         )
         assertEquals(listOf("c2", "c1"), defaultQuickCategories(txns, cats, today).map { it.id })
     }
+
+    // A3.10: замаскированный снимок не содержит сумм, но сохраняет коды валют и категории.
+    @Test
+    fun `masked snapshot hides balances and month expenses but keeps codes and categories`() {
+        val snapshot = buildWidgetSnapshot(
+            accounts = listOf(account("cash", rub, 100_000)),
+            transactions = listOf(expense("cash", 25_000, "c1", today)),
+            currencies = listOf(rubMeta),
+            categories = listOf(category("c1")),
+            pinnedCurrencies = listOf(rub),
+            activeAccountId = "cash",
+            today = today,
+            computedAt = 1L,
+        )
+
+        val masked = snapshot.masked()
+
+        assertEquals(listOf(CurrencyLine("RUB", WidgetSnapshot.AMOUNT_MASK)), masked.balances)
+        assertEquals(listOf(CurrencyLine("RUB", WidgetSnapshot.AMOUNT_MASK)), masked.monthExpenses)
+        assertEquals(snapshot.quickCategories, masked.quickCategories)
+        assertEquals(snapshot.activeAccountName, masked.activeAccountName)
+    }
 }

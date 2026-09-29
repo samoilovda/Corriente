@@ -104,6 +104,8 @@
     <string name="quick_expense_save_failed">Не удалось сохранить операцию. Попробуйте ещё раз.</string>
     <string name="quick_expense_no_category">Без категории</string>
     <string name="quick_change_account_failed">Не удалось сменить счёт. Попробуйте ещё раз.</string>
+    <string name="widget_hide_amounts_when_locked">Скрывать суммы при включённой блокировке</string>
+    <string name="widget_hide_amounts_when_locked_hint">Балансы и траты в виджете заменяются на «•••», пока в приложении включён замок</string>
     <string name="widget_reset_defaults">Сбросить к значениям по умолчанию</string>
     <string name="widget_settings_error_save">Не удалось сохранить настройки виджета</string>
     <string name="widget_settings_error_reset">Не удалось сбросить настройки виджета</string>

@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.glance.appwidget.GlanceAppWidgetManager
 import androidx.glance.appwidget.updateAll
 import com.corriente.app.AppContainer
+import com.corriente.data.applock.AppLockMode
 import com.corriente.data.model.Account
 import com.corriente.data.model.Category
 import com.corriente.data.model.Txn
@@ -22,6 +23,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -94,6 +96,7 @@ class WidgetUpdater(
                         currencies = container.currencyRepository.observeAll(),
                         categories = container.categoryRepository.observeActive(),
                         config = configStore.config,
+                        lockEnabled = container.appLockSettings.config.map { it.mode != AppLockMode.OFF },
                         clock = System::currentTimeMillis,
                     )
                 }
@@ -126,7 +129,10 @@ class WidgetUpdater(
             currencies = container.currencyRepository.observeAll().first(),
             categories = container.categoryRepository.observeActive().first(),
         )
-        push(assembleSnapshot(d, configStore.config.first(), now, System.currentTimeMillis()))
+        val config = configStore.config.first()
+        val locked = container.appLockSettings.current().mode != AppLockMode.OFF
+        val snapshot = assembleSnapshot(d, config, now, System.currentTimeMillis())
+        push(if (locked && config.hideAmountsWhenLocked) snapshot.masked() else snapshot)
     }
 
     private suspend fun push(snapshot: WidgetSnapshot) {
@@ -171,13 +177,17 @@ internal fun widgetSnapshots(
     currencies: Flow<List<Currency>>,
     categories: Flow<List<Category>>,
     config: Flow<WidgetConfig>,
+    /** A3.10: включена ли блокировка приложения — вместе с [WidgetConfig.hideAmountsWhenLocked] решает, маскировать ли суммы. */
+    lockEnabled: Flow<Boolean> = flowOf(false),
     clock: () -> Long,
 ): Flow<WidgetSnapshot> = dateTicker.flatMapLatest { now ->
     val windowStart = now.minusDays(WIDGET_RECENT_WINDOW_DAYS)
     val dbInputs = combine(
         accounts, txnsInRange(windowStart, now), deltas, currencies, categories,
     ) { a, recent, d, cur, cat -> DbInputs(a, recent, d, cur, cat) }
-    combine(dbInputs, config) { d, c -> assembleSnapshot(d, c, now, clock()) }
+    combine(dbInputs, config, lockEnabled) { d, c, locked ->
+        assembleSnapshot(d, c, now, clock()).let { if (locked && c.hideAmountsWhenLocked) it.masked() else it }
+    }
 }
 
 internal fun assembleSnapshot(d: DbInputs, config: WidgetConfig, now: LocalDate, computedAt: Long): WidgetSnapshot {

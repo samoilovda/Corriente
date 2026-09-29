@@ -3,6 +3,7 @@ package com.corriente.data.widget
 import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
@@ -21,6 +22,8 @@ data class WidgetConfig(
     val pinnedCurrencyCodes: List<String> = emptyList(),
     val activeAccountId: String? = null,
     val pinnedCategoryIds: List<String> = emptyList(),
+    /** A3.10: при включённой блокировке приложения показывать в виджете «•••» вместо балансов и трат. */
+    val hideAmountsWhenLocked: Boolean = false,
 )
 
 class WidgetConfigStore(private val context: Context) {
@@ -28,12 +31,14 @@ class WidgetConfigStore(private val context: Context) {
     private val pinnedKey = stringPreferencesKey("pinned_currency_codes")
     private val activeKey = stringPreferencesKey("active_account_id")
     private val pinnedCategoriesKey = stringPreferencesKey("pinned_category_ids")
+    private val hideAmountsKey = booleanPreferencesKey("hide_amounts_when_locked")
 
     val config: Flow<WidgetConfig> = context.widgetConfigDataStore.data.map { prefs ->
         WidgetConfig(
             pinnedCurrencyCodes = prefs[pinnedKey]?.split(',')?.filter { it.isNotBlank() } ?: emptyList(),
             activeAccountId = prefs[activeKey]?.takeIf { it.isNotBlank() },
             pinnedCategoryIds = prefs[pinnedCategoriesKey]?.split(',')?.filter { it.isNotBlank() } ?: emptyList(),
+            hideAmountsWhenLocked = prefs[hideAmountsKey] ?: false,
         )
     }
 
@@ -52,12 +57,17 @@ class WidgetConfigStore(private val context: Context) {
         }
     }
 
+    suspend fun setHideAmountsWhenLocked(hide: Boolean) {
+        context.widgetConfigDataStore.edit { it[hideAmountsKey] = hide }
+    }
+
     /** Сброс к значениям по умолчанию (F3.4): снять закреплённые валюты/категории и выбор счёта. */
     suspend fun reset() {
         context.widgetConfigDataStore.edit {
             it.remove(pinnedKey)
             it.remove(activeKey)
             it.remove(pinnedCategoriesKey)
+            it.remove(hideAmountsKey)
         }
     }
 }
