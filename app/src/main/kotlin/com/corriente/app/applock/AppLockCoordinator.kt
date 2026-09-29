@@ -54,7 +54,7 @@ class AppLockCoordinator(
                 _locked.value = null
                 scope.launch {
                     val config = container.appLockSettings.current()
-                    _locked.value = shouldPromptForUnlock(config.mode, config.lastUnlockAtMs, now())
+                    _locked.value = shouldPromptForUnlock(config.mode, config.lastActiveAtMs, now())
                 }
             }
         }
@@ -64,6 +64,11 @@ class AppLockCoordinator(
     override fun onActivityStopped(activity: Activity) {
         if (activity.isChangingConfigurations) pendingConfigChangeRestart = true
         startedCount = (startedCount - 1).coerceAtLeast(0)
+        // A3.9: момент, когда приложение ушло в фон (не поворот) — от него считается «5 минут в фоне».
+        if (startedCount == 0 && !activity.isChangingConfigurations) {
+            val leftAt = now()
+            scope.launch { container.appLockSettings.recordBackground(leftAt) }
+        }
     }
 
     /** Зовётся после успешного прохождения биометрии/PIN — открывает контент и запоминает время. */

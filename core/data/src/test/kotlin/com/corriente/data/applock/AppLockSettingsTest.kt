@@ -52,4 +52,21 @@ class AppLockSettingsTest {
         settings.recordUnlock(2_000L)
         assertEquals(2_000L, settings.current().lastUnlockAtMs)
     }
+
+    // A3.9: «последняя активность» — более поздняя из разблокировки и ухода в фон.
+    @Test
+    fun `lastActiveAt is the later of unlock and going to background`() = runBlocking {
+        val settings = AppLockSettings(FakeAppSettingDao())
+        assertNull(settings.current().lastActiveAtMs)
+
+        settings.recordUnlock(1_000L)
+        assertEquals(1_000L, settings.current().lastActiveAtMs)
+
+        settings.recordBackground(5_000L)
+        assertEquals(5_000L, settings.current().lastActiveAtMs)
+        assertEquals(5_000L, settings.config.first().lastActiveAtMs)
+
+        settings.recordUnlock(9_000L) // разблокировали позже, чем уходили в фон
+        assertEquals(9_000L, settings.current().lastActiveAtMs)
+    }
 }

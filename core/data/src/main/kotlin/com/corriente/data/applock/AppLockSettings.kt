@@ -12,16 +12,20 @@ import kotlinx.coroutines.flow.combine
  */
 class AppLockSettings(private val dao: AppSettingDao) {
 
-    val config: Flow<AppLockConfig> = combine(dao.observe(KEY_MODE), dao.observe(KEY_LAST_UNLOCK_AT)) { mode, lastUnlock ->
+    val config: Flow<AppLockConfig> = combine(
+        dao.observe(KEY_MODE), dao.observe(KEY_LAST_UNLOCK_AT), dao.observe(KEY_LAST_BACKGROUND_AT),
+    ) { mode, lastUnlock, lastBackground ->
         AppLockConfig(
             mode = mode?.let(::parseMode) ?: AppLockMode.OFF,
             lastUnlockAtMs = lastUnlock?.toLongOrNull(),
+            lastBackgroundAtMs = lastBackground?.toLongOrNull(),
         )
     }
 
     suspend fun current(): AppLockConfig = AppLockConfig(
         mode = dao.get(KEY_MODE)?.let(::parseMode) ?: AppLockMode.OFF,
         lastUnlockAtMs = dao.get(KEY_LAST_UNLOCK_AT)?.toLongOrNull(),
+        lastBackgroundAtMs = dao.get(KEY_LAST_BACKGROUND_AT)?.toLongOrNull(),
     )
 
     suspend fun setMode(mode: AppLockMode) = dao.set(AppSettingEntity(KEY_MODE, mode.name))
@@ -29,10 +33,14 @@ class AppLockSettings(private val dao: AppSettingDao) {
     /** Записывается после каждого успешного прохождения биометрии/PIN. */
     suspend fun recordUnlock(atEpochMs: Long) = dao.set(AppSettingEntity(KEY_LAST_UNLOCK_AT, atEpochMs.toString()))
 
+    /** A3.9: приложение целиком ушло в фон. */
+    suspend fun recordBackground(atEpochMs: Long) = dao.set(AppSettingEntity(KEY_LAST_BACKGROUND_AT, atEpochMs.toString()))
+
     private fun parseMode(raw: String): AppLockMode = runCatching { AppLockMode.valueOf(raw) }.getOrDefault(AppLockMode.OFF)
 
     private companion object {
         const val KEY_MODE = "app_lock.mode"
         const val KEY_LAST_UNLOCK_AT = "app_lock.last_unlock_at"
+        const val KEY_LAST_BACKGROUND_AT = "app_lock.last_background_at"
     }
 }
