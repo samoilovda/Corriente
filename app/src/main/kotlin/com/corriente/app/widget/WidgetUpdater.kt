@@ -18,7 +18,10 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -64,6 +67,9 @@ class WidgetUpdater(
      */
     private val recheckPlacement = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
 
+    /** A1.2: «перечитай дату сейчас» — из [refreshNow]/полночного воркера, кроме периодической проверки. */
+    private val dateSignal = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+
     private suspend fun widgetPlaced(): Boolean =
         GlanceAppWidgetManager(appContext).getGlanceIds(CorrienteWidget::class.java).isNotEmpty()
 
@@ -78,18 +84,18 @@ class WidgetUpdater(
                 if (!placed) {
                     emptyFlow()
                 } else {
-                    val now = today()
-                    val windowStart = now.minusDays(RECENT_WINDOW_DAYS)
-                    val dbInputs = combine(
-                        container.accountRepository.observeActive(),
-                        container.txnRepository.observeRange(windowStart, now),
-                        container.txnRepository.observeAccountDeltas(),
-                        container.currencyRepository.observeAll(),
-                        container.categoryRepository.observeActive(),
-                    ) { accounts, recentTxns, deltas, currencies, categories ->
-                        DbInputs(accounts, recentTxns, deltas, currencies, categories)
-                    }
-                    combine(dbInputs, configStore.config) { d, config -> assemble(d, config, now) }
+                    // A1.2: дата — часть реактивного ключа. Подписка на окно операций и «сегодня» в
+                    // assemble пересоздаются при смене суток, а не живут с датой момента подписки.
+                    widgetSnapshots(
+                        dateTicker = dateTicker(today, dateSignal),
+                        accounts = container.accountRepository.observeActive(),
+                        txnsInRange = container.txnRepository::observeRange,
+                        deltas = container.txnRepository.observeAccountDeltas(),
+                        currencies = container.currencyRepository.observeAll(),
+                        categories = container.categoryRepository.observeActive(),
+                        config = configStore.config,
+                        clock = System::currentTimeMillis,
+                    )
                 }
             }
             .conflate()
@@ -109,9 +115,10 @@ class WidgetUpdater(
      * а месячный итог/«сегодня» уже устарели. No-op, если виджет не размещён.
      */
     suspend fun refreshNow() {
+        dateSignal.tryEmit(Unit)
         if (!widgetPlaced()) return
         val now = today()
-        val windowStart = now.minusDays(RECENT_WINDOW_DAYS)
+        val windowStart = now.minusDays(WIDGET_RECENT_WINDOW_DAYS)
         val d = DbInputs(
             accounts = container.accountRepository.observeActive().first(),
             recentTxns = container.txnRepository.observeRange(windowStart, now).first(),
@@ -119,45 +126,77 @@ class WidgetUpdater(
             currencies = container.currencyRepository.observeAll().first(),
             categories = container.categoryRepository.observeActive().first(),
         )
-        push(assemble(d, configStore.config.first(), now))
+        push(assembleSnapshot(d, configStore.config.first(), now, System.currentTimeMillis()))
     }
 
     private suspend fun push(snapshot: WidgetSnapshot) {
         store.save(snapshot)
         CorrienteWidget().updateAll(appContext)
     }
+}
 
-    private fun assemble(d: DbInputs, config: WidgetConfig, now: LocalDate): WidgetSnapshot {
-        val pinned = config.pinnedCurrencyCodes
-            .mapNotNull { runCatching { CurrencyCode(it) }.getOrNull() }
-            .ifEmpty { defaultPinnedCurrencies(d.accounts, d.recentTxns, now) }
-        val activeAccountId = config.activeAccountId?.takeIf { id -> d.accounts.any { it.id == id } }
-            ?: d.accounts.firstOrNull()?.id
-            ?: ""
-        return buildWidgetSnapshot(
-            accounts = d.accounts,
-            transactions = d.recentTxns,
-            currencies = d.currencies,
-            categories = d.categories,
-            pinnedCurrencies = pinned,
-            activeAccountId = activeAccountId,
-            today = now,
-            computedAt = System.currentTimeMillis(),
-            accountDeltas = d.deltas,
-            pinnedCategoryIds = config.pinnedCategoryIds,
-        )
-    }
+/** Покрывает окно месячных трат и 60-дневное окно частых категорий. */
+internal const val WIDGET_RECENT_WINDOW_DAYS = 62L
 
-    private data class DbInputs(
-        val accounts: List<Account>,
-        val recentTxns: List<Txn>,
-        val deltas: Map<String, Long>,
-        val currencies: List<Currency>,
-        val categories: List<Category>,
+internal data class DbInputs(
+    val accounts: List<Account>,
+    val recentTxns: List<Txn>,
+    val deltas: Map<String, Long>,
+    val currencies: List<Currency>,
+    val categories: List<Category>,
+)
+
+/**
+ * A1.2: эмитит `today()` сразу, затем раз в [DATE_POLL_MS] и по [signal]; повторы отбрасываются, так что
+ * подписчик видит только реальную смену даты (полночь, ручной перевод часов, смена часового пояса).
+ */
+internal fun dateTicker(
+    today: () -> LocalDate,
+    signal: Flow<Unit> = emptyFlow(),
+    pollMs: Long = DATE_POLL_MS,
+): Flow<LocalDate> = merge(
+    flow { while (true) { emit(Unit); delay(pollMs) } },
+    signal,
+).map { today() }.distinctUntilChanged()
+
+private const val DATE_POLL_MS = 30_000L
+
+/** A1.2: поток снимков виджета; вся зависимость от «сегодня» — через [dateTicker] (тестируется без Android). */
+@OptIn(ExperimentalCoroutinesApi::class)
+internal fun widgetSnapshots(
+    dateTicker: Flow<LocalDate>,
+    accounts: Flow<List<Account>>,
+    txnsInRange: (LocalDate, LocalDate) -> Flow<List<Txn>>,
+    deltas: Flow<Map<String, Long>>,
+    currencies: Flow<List<Currency>>,
+    categories: Flow<List<Category>>,
+    config: Flow<WidgetConfig>,
+    clock: () -> Long,
+): Flow<WidgetSnapshot> = dateTicker.flatMapLatest { now ->
+    val windowStart = now.minusDays(WIDGET_RECENT_WINDOW_DAYS)
+    val dbInputs = combine(
+        accounts, txnsInRange(windowStart, now), deltas, currencies, categories,
+    ) { a, recent, d, cur, cat -> DbInputs(a, recent, d, cur, cat) }
+    combine(dbInputs, config) { d, c -> assembleSnapshot(d, c, now, clock()) }
+}
+
+internal fun assembleSnapshot(d: DbInputs, config: WidgetConfig, now: LocalDate, computedAt: Long): WidgetSnapshot {
+    val pinned = config.pinnedCurrencyCodes
+        .mapNotNull { runCatching { CurrencyCode(it) }.getOrNull() }
+        .ifEmpty { defaultPinnedCurrencies(d.accounts, d.recentTxns, now) }
+    val activeAccountId = config.activeAccountId?.takeIf { id -> d.accounts.any { it.id == id } }
+        ?: d.accounts.firstOrNull()?.id
+        ?: ""
+    return buildWidgetSnapshot(
+        accounts = d.accounts,
+        transactions = d.recentTxns,
+        currencies = d.currencies,
+        categories = d.categories,
+        pinnedCurrencies = pinned,
+        activeAccountId = activeAccountId,
+        today = now,
+        computedAt = computedAt,
+        accountDeltas = d.deltas,
+        pinnedCategoryIds = config.pinnedCategoryIds,
     )
-
-    private companion object {
-        /** Покрывает окно месячных трат и 60-дневное окно частых категорий. */
-        const val RECENT_WINDOW_DAYS = 62L
-    }
 }
