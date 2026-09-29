@@ -303,6 +303,8 @@
     <string name="csv_header_amount">Сумма</string>
     <string name="csv_header_share">Доля, %</string>
     <string name="csv_header_change">Изменение к прошлому периоду</string>
+    <string name="csv_header_amount_number">Сумма (число)</string>
+    <string name="csv_header_currency">Валюта</string>
     <string name="csv_header_date">Дата</string>
     <string name="csv_header_account">Счёт</string>
     <string name="csv_header_note">Заметка</string>

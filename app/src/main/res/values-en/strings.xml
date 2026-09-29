@@ -303,6 +303,8 @@
     <string name="csv_header_amount">Amount</string>
     <string name="csv_header_share">Share, %</string>
     <string name="csv_header_change">Change vs. previous period</string>
+    <string name="csv_header_amount_number">Amount (number)</string>
+    <string name="csv_header_currency">Currency</string>
     <string name="csv_header_date">Date</string>
     <string name="csv_header_account">Account</string>
     <string name="csv_header_note">Note</string>

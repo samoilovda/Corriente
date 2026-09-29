@@ -90,4 +90,13 @@ class MoneyFormatterTest {
         assertEquals("1\u00A0234\u00A0567.89\u00A0₽", text)
         assertEquals(false, text.contains(' '))
     }
+
+    // A3.15: число без группировки и символа.
+    @Test
+    fun `formatPlain has no grouping and no symbol`() {
+        assertEquals("-1234.56", MoneyFormatter.formatPlain(Money(Minor(-123_456), rub.code), rub))
+        assertEquals("55091.75", MoneyFormatter.formatPlain(Money(Minor(5_509_175), rub.code), rub))
+        assertEquals("0", MoneyFormatter.formatPlain(Money(Minor(-50), uzs.code), uzs))
+        assertEquals("1234567", MoneyFormatter.formatPlain(Money(Minor(1_234_567), clp.code), clp))
+    }
 }

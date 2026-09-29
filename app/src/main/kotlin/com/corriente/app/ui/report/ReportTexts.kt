@@ -47,12 +47,14 @@ class ResourceReportTexts(context: Context) : ReportTexts {
         get() = CsvHeaders(
             report = listOf(
                 app.getString(R.string.csv_header_category), app.getString(R.string.csv_header_amount),
+                app.getString(R.string.csv_header_amount_number), app.getString(R.string.csv_header_currency),
                 app.getString(R.string.csv_header_share), app.getString(R.string.csv_header_change),
             ),
             transactions = listOf(
                 app.getString(R.string.csv_header_date), app.getString(R.string.csv_header_account),
                 app.getString(R.string.csv_header_category), app.getString(R.string.csv_header_note),
-                app.getString(R.string.csv_header_amount),
+                app.getString(R.string.csv_header_amount), app.getString(R.string.csv_header_amount_number),
+                app.getString(R.string.csv_header_currency),
             ),
         )
 }

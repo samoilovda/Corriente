@@ -66,6 +66,10 @@ data class TxnRow(
     val accountColor: Int = 0,
     /** R3.3: название счёта — для CSV-выгрузки списка операций (у перевода — «откуда → куда»). */
     val accountName: String = "",
+    /** A3.15: сумма числом со знаком для CSV («-1234.56»); у перевода — сторона-источник. */
+    val amountPlain: String = "",
+    /** A3.15: код валюты [amountPlain]. */
+    val currencyCode: String = "",
 )
 
 /** Итог дня считается по каждой валюте отдельно (I-8) — сложение разных валют невозможно. */
@@ -231,6 +235,8 @@ private fun row(
             title = txn.categoryId?.let { categoryNames[it] } ?: "—",
             note = txn.note,
             amountText = MoneyFormatter.format(-txn.amount, currency),
+            amountPlain = MoneyFormatter.formatPlain(-txn.amount, currency),
+            currencyCode = currency.code.code,
             editable = true,
             icon = txn.categoryId?.let { categoryIcons[it] },
             color = txn.categoryId?.let { categoryColors[it] } ?: 0,
@@ -245,6 +251,8 @@ private fun row(
             title = txn.categoryId?.let { categoryNames[it] } ?: "—",
             note = txn.note,
             amountText = "+" + MoneyFormatter.format(txn.amount, currency),
+            amountPlain = MoneyFormatter.formatPlain(txn.amount, currency),
+            currencyCode = currency.code.code,
             editable = true,
             icon = txn.categoryId?.let { categoryIcons[it] },
             color = txn.categoryId?.let { categoryColors[it] } ?: 0,
@@ -262,6 +270,8 @@ private fun row(
             title = "$fromName → $toName",
             note = txn.note,
             amountText = "${MoneyFormatter.format(txn.fromAmount, from)} → ${MoneyFormatter.format(txn.toAmount, to)}",
+            amountPlain = MoneyFormatter.formatPlain(-txn.fromAmount, from),
+            currencyCode = from.code.code,
             editable = false,
             isTransfer = true,
             // R3.0: у перевода два счёта — маркер красим цветом счёта-источника.
@@ -383,7 +393,7 @@ class TransactionsViewModel(
      * [com.corriente.money.MoneyFormatter] (I-25).
      */
     /** A2.1: CSV списка в файл, выбранный через SAF ([open] вызывается на IO). */
-    fun exportCsvTo(open: () -> java.io.OutputStream) = writeFile(open) { exportCsv().toByteArray(Charsets.UTF_8) }
+    fun exportCsvTo(open: () -> java.io.OutputStream) = writeFile(open) { com.corriente.data.export.CsvExport.encodeForFile(exportCsv()) }
 
     fun exportCsv(): String {
         val rows = uiState.value.sections.flatMap { section ->
@@ -394,6 +404,8 @@ class TransactionsViewModel(
                     category = row.title,
                     note = row.note ?: "",
                     amountText = row.amountText,
+                    amountValue = row.amountPlain,
+                    currency = row.currencyCode,
                 )
             }
         }

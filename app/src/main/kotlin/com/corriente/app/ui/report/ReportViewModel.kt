@@ -43,6 +43,9 @@ data class ReportRow(
      * отсутствии данных за прошлый период уже вшит в текст (не 0 %, I-8/критерий приёмки).
      */
     val changeText: String? = null,
+    /** A3.15: сумма числом для CSV («1234.56»); у строки без валюты пусто. */
+    val amountPlain: String = "",
+    val currencyCode: String = "",
 )
 
 /** T5.3: столбец графика «по месяцам» — значение уже посчитано (I-1), Float только в Canvas. */
@@ -108,6 +111,8 @@ internal fun withShares(
             categoryId = total.categoryId,
             name = total.categoryId?.let { names[it] },
             amountText = MoneyFormatter.format(total.total, currency),
+            amountPlain = MoneyFormatter.formatPlain(total.total, currency),
+            currencyCode = currency.code.code,
             sharePercent = shares[i],
             color = total.categoryId?.let { colors[it] } ?: 0,
             changeText = changeSuffix?.let { suffix ->
@@ -325,7 +330,7 @@ class ReportViewModel(
      * A2.13: заголовки колонок, «Без категории» и текст сравнения берутся из [texts] (ресурсы приложения).
      */
     /** A2.1: CSV отчёта в файл, выбранный через SAF ([open] вызывается на IO). */
-    fun exportCsvTo(open: () -> java.io.OutputStream) = writeFile(open) { exportCsv().toByteArray(Charsets.UTF_8) }
+    fun exportCsvTo(open: () -> java.io.OutputStream) = writeFile(open) { com.corriente.data.export.CsvExport.encodeForFile(exportCsv()) }
 
     fun exportCsv(): String {
         val rows = uiState.value.rows.map { row ->
@@ -334,6 +339,8 @@ class ReportViewModel(
                 amountText = row.amountText,
                 sharePercent = row.sharePercent,
                 changeText = row.changeText ?: "",
+                amountValue = row.amountPlain,
+                currency = row.currencyCode,
             )
         }
         return com.corriente.data.export.CsvExport.reportCsv(rows, texts.csvHeaders)

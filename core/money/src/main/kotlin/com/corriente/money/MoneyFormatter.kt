@@ -53,6 +53,17 @@ object MoneyFormatter {
         return sb.toString()
     }
 
+    /**
+     * A3.15: число без группировки и символа — «-1234.56» (для CSV: в таблице такую ячейку можно складывать).
+     * Знаков после запятой — [Currency.displayScale], как и у [format]; знак — по тому же правилу («-0» не бывает).
+     */
+    fun formatPlain(money: Money, currency: Currency): String {
+        require(money.currency == currency.code) {
+            "Money currency ${money.currency} does not match Currency ${currency.code}"
+        }
+        return format(money, currency).removeSuffix("${NBSP}${currency.symbol}").replace(NBSP.toString(), "")
+    }
+
     private fun groupThousands(digits: String): String {
         val sb = StringBuilder()
         for ((index, char) in digits.reversed().withIndex()) {
