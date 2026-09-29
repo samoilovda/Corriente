@@ -68,4 +68,24 @@ class MonefyCsvParserTest {
     fun `legitimate duplicate rows are both kept`() {
         assertEquals(2, result.rows.count { it.line in listOf(3, 4) && it.rawCategory == "Food" })
     }
+
+    // A2.10: пустой/строчный код валюты — ошибка одной строки, остальные разбираются.
+    @Test
+    fun `a row with a bad currency code becomes one error and the other rows still parse`() {
+        val csv = """
+            date,account,category,amount,currency,converted amount,currency,description
+            02/03/2021,Cash,Food,-250,RUB,-250,RUB,
+            02/03/2021,Cash,Food,-250,,-250,RUB,
+            02/03/2021,Cash,Food,-250,rub,-250,RUB,
+            02/03/2021,Cash,Food,-250,RUB,-250,US,
+            03/03/2021,Cash,Food,-100,RUB,-100,RUB,
+        """.trimIndent() + "\n"
+
+        val result = MonefyCsvParser.parse(csv)
+
+        assertEquals(2, result.rows.size)
+        assertEquals(3, result.errors.size)
+        assertTrue(result.errors.all { it.issue is MonefyRowIssue.UnparseableCurrency })
+        assertEquals(listOf("", "rub", "US"), result.errors.map { (it.issue as MonefyRowIssue.UnparseableCurrency).raw })
+    }
 }

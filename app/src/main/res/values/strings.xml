@@ -155,6 +155,7 @@
     <string name="import_error_wrong_field_count">ожидалось %1$d полей, получено %2$d</string>
     <string name="import_error_unparseable_date">нераспознанная дата \'%1$s\'</string>
     <string name="import_error_unparseable_amount">сумма \'%1$s\': %2$s</string>
+    <string name="import_error_unparseable_currency">код валюты «%1$s» не распознан</string>
     <string name="import_error_unparseable_converted_amount">converted amount \'%1$s\': %2$s</string>
     <string name="import_review_account_currency_conflict">счёт «%1$s» встречается с разными валютами: %2$s</string>
     <string name="import_review_existing_account_mismatch">счёт «%1$s» уже ведётся в валюте %2$s, а в файле — %3$s</string>

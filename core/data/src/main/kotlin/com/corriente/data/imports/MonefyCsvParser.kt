@@ -43,6 +43,9 @@ sealed interface MonefyRowIssue {
     /** [detail] — сообщение [MonefyAmountParser], уже на английском (не требует локализации). */
     data class UnparseableAmount(val raw: String, val detail: String?) : MonefyRowIssue
     data class UnparseableConvertedAmount(val raw: String, val detail: String?) : MonefyRowIssue
+
+    /** A2.10: код валюты (колонка 5 или 7) пуст, в нижнем регистре или не из трёх латинских букв. */
+    data class UnparseableCurrency(val raw: String) : MonefyRowIssue
 }
 
 data class MonefyRowError(val line: Int, val raw: String, val issue: MonefyRowIssue)
@@ -83,8 +86,15 @@ object MonefyCsvParser {
                 errors += MonefyRowError(line, raw, MonefyRowIssue.UnparseableDate(fields[0]))
                 return@forEachIndexed
             }
-            val currency = CurrencyCode(fields[4].trim())
-            val baseCurrency = CurrencyCode(fields[6].trim())
+            // A2.10: некорректный код валюты — ошибка строки, а не исключение, обрывающее весь разбор.
+            val currency = runCatching { CurrencyCode(fields[4].trim()) }.getOrElse {
+                errors += MonefyRowError(line, raw, MonefyRowIssue.UnparseableCurrency(fields[4]))
+                return@forEachIndexed
+            }
+            val baseCurrency = runCatching { CurrencyCode(fields[6].trim()) }.getOrElse {
+                errors += MonefyRowError(line, raw, MonefyRowIssue.UnparseableCurrency(fields[6]))
+                return@forEachIndexed
+            }
             val amount = runCatching { MonefyAmountParser.parseLenient(fields[3], currencyOf(currency.code)) }
                 .getOrElse {
                     errors += MonefyRowError(line, raw, MonefyRowIssue.UnparseableAmount(fields[3], it.message))

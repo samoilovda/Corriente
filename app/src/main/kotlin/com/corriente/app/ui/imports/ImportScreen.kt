@@ -326,6 +326,7 @@ private fun monefyRowIssueText(issue: MonefyRowIssue): String = when (issue) {
     is MonefyRowIssue.WrongFieldCount -> stringResource(R.string.import_error_wrong_field_count, issue.expected, issue.actual)
     is MonefyRowIssue.UnparseableDate -> stringResource(R.string.import_error_unparseable_date, issue.raw)
     is MonefyRowIssue.UnparseableAmount -> stringResource(R.string.import_error_unparseable_amount, issue.raw, issue.detail.orEmpty())
+    is MonefyRowIssue.UnparseableCurrency -> stringResource(R.string.import_error_unparseable_currency, issue.raw)
     is MonefyRowIssue.UnparseableConvertedAmount ->
         stringResource(R.string.import_error_unparseable_converted_amount, issue.raw, issue.detail.orEmpty())
 }
