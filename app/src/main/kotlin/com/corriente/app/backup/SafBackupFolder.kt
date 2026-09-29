@@ -54,15 +54,52 @@ class SafBackupFolder(private val context: Context, private val treeUri: Uri) : 
 
     private val stamp = SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US)
 
-    /** Создаёт новый файл бэкапа и отдаёт writer через него. */
+    /**
+     * Создаёт новый файл бэкапа и отдаёт writer через него. A1.13: через временный `.part` и переименование
+     * ([writeBackupAtomically]) — сбой не оставляет файл с финальным именем.
+     */
     suspend fun writeNewBackup(now: Date, write: suspend (java.io.OutputStream) -> Unit) {
-        val treeDocId = DocumentsContract.getTreeDocumentId(treeUri)
-        val dirUri = DocumentsContract.buildDocumentUriUsingTree(treeUri, treeDocId)
         val name = "$AUTO_BACKUP_PREFIX${stamp.format(now)}$AUTO_BACKUP_SUFFIX"
-        val fileUri = DocumentsContract.createDocument(context.contentResolver, dirUri, "application/json", name)
-            ?: error(context.getString(R.string.safbackup_error_create_file))
-        val out = context.contentResolver.openOutputStream(fileUri) ?: error(context.getString(R.string.safbackup_error_open_for_write))
-        out.use { write(it) }
+        writeBackupAtomically(SafDocumentStore(), name, AUTO_BACKUP_PREFIX, write)
+    }
+
+    private inner class SafDocumentStore : BackupDocumentStore {
+        private val treeDocId = DocumentsContract.getTreeDocumentId(treeUri)
+        private val dirUri = DocumentsContract.buildDocumentUriUsingTree(treeUri, treeDocId)
+
+        private fun docUri(id: String) = DocumentsContract.buildDocumentUriUsingTree(treeUri, id)
+
+        override fun create(displayName: String): String {
+            // octet-stream: провайдер не дописывает к «….json.part» расширение по MIME.
+            val uri = DocumentsContract.createDocument(context.contentResolver, dirUri, "application/octet-stream", displayName)
+                ?: error(context.getString(R.string.safbackup_error_create_file))
+            return DocumentsContract.getDocumentId(uri)
+        }
+
+        override fun openOutput(documentId: String): java.io.OutputStream =
+            context.contentResolver.openOutputStream(docUri(documentId))
+                ?: error(context.getString(R.string.safbackup_error_open_for_write))
+
+        override fun rename(documentId: String, newName: String): Boolean =
+            runCatching { DocumentsContract.renameDocument(context.contentResolver, docUri(documentId), newName) != null }
+                .getOrDefault(false)
+
+        override fun delete(documentId: String) {
+            DocumentsContract.deleteDocument(context.contentResolver, docUri(documentId))
+        }
+
+        override fun list(): List<Pair<String, String>> {
+            val children = DocumentsContract.buildChildDocumentsUriUsingTree(treeUri, treeDocId)
+            val out = mutableListOf<Pair<String, String>>()
+            context.contentResolver.query(
+                children,
+                arrayOf(DocumentsContract.Document.COLUMN_DOCUMENT_ID, DocumentsContract.Document.COLUMN_DISPLAY_NAME),
+                null, null, null,
+            )?.use { c ->
+                while (c.moveToNext()) out += c.getString(0) to (c.getString(1) ?: continue)
+            }
+            return out
+        }
     }
 
     /**
