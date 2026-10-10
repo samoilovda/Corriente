@@ -489,4 +489,7 @@
     <string name="icon_section_family">Семья и учёба</string>
     <string name="icon_section_money">Деньги</string>
     <string name="icon_section_other">Прочее</string>
+    <string name="categories_auto_icons_hint">Подобрать линейные иконки по названиям категорий. Можно заполнить только категории без иконки или заменить и эмодзи — тогда всё будет в одном стиле. Иконки, выбранные из списка «Иконки», не меняются; если для названия ничего не нашлось, эмодзи остаётся.</string>
+    <string name="categories_auto_icons_replace">Заменить и эмодзи</string>
+    <string name="categories_auto_icons_empty_only">Только пустые</string>
 </resources>

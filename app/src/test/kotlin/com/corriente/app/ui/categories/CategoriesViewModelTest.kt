@@ -226,4 +226,23 @@ class CategoriesViewModelTest {
         assertNull(icons["Xyz"])
         assertEquals(listOf<Any>(1), vm.messages.value?.args)
     }
+
+    @Test
+    fun `replace emoji swaps emoji for line icons but keeps chosen line icons and unmatched emoji`() = runTest(dispatcher) {
+        val (vm, _) = build()
+        backgroundScope.observe(vm)
+        backgroundScope.launch { vm.messages.collect {} }
+        listOf("Продукты" to "🍎", "Такси" to "mi:directions_car", "Xyz" to "🦄").forEach { (name, icon) ->
+            vm.startCreate(CategoryKind.EXPENSE)
+            advanceUntilIdle()
+            vm.save(CategoryForm(name, CategoryKind.EXPENSE, null, 1, icon))
+            advanceUntilIdle()
+        }
+        vm.autoAssignIcons(replaceEmoji = true)
+        advanceUntilIdle()
+        val icons = vm.uiState.value.expense.associate { it.category.name to it.category.icon }
+        assertEquals("mi:local_grocery_store", icons["Продукты"])
+        assertEquals("mi:directions_car", icons["Такси"]) // выбранная вручную линейная — не трогаем
+        assertEquals("🦄", icons["Xyz"])
+    }
 }

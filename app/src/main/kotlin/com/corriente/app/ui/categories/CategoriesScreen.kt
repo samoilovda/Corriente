@@ -56,6 +56,11 @@ import com.corriente.data.category.suggestCategoryIcon
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.Checkbox
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.ui.text.style.TextOverflow
 import com.corriente.app.ui.common.messageRes
 import com.corriente.data.repository.DeleteBlocker
 import com.corriente.app.corrienteContainer
@@ -79,6 +84,7 @@ fun CategoriesScreen(
     var addMenuOpen by remember { mutableStateOf(false) }
     var moreMenuOpen by remember { mutableStateOf(false) }
     var ringDialogOpen by remember { mutableStateOf(false) }
+    var autoIconsDialogOpen by remember { mutableStateOf(false) }
     val ringPins by viewModel.ringPins.collectAsState()
 
     val expensesTitle = stringResource(R.string.categories_expenses)
@@ -107,7 +113,7 @@ fun CategoriesScreen(
                             )
                             DropdownMenuItem(
                                 text = { Text(stringResource(R.string.categories_auto_icons)) },
-                                onClick = { moreMenuOpen = false; viewModel.autoAssignIcons() },
+                                onClick = { moreMenuOpen = false; autoIconsDialogOpen = true },
                             )
                         }
                     }
@@ -165,6 +171,24 @@ fun CategoriesScreen(
         )
     }
 
+    if (autoIconsDialogOpen) {
+        AlertDialog(
+            onDismissRequest = { autoIconsDialogOpen = false },
+            title = { Text(stringResource(R.string.categories_auto_icons)) },
+            text = { Text(stringResource(R.string.categories_auto_icons_hint)) },
+            confirmButton = {
+                TextButton(onClick = { autoIconsDialogOpen = false; viewModel.autoAssignIcons(replaceEmoji = true) }) {
+                    Text(stringResource(R.string.categories_auto_icons_replace))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { autoIconsDialogOpen = false; viewModel.autoAssignIcons(replaceEmoji = false) }) {
+                    Text(stringResource(R.string.categories_auto_icons_empty_only))
+                }
+            },
+        )
+    }
+
     if (ringDialogOpen) {
         RingCategoriesDialog(
             candidates = state.expense.map { it.category },
@@ -218,6 +242,7 @@ private fun CategoryRow(category: Category, indent: Boolean, onClick: () -> Unit
     HorizontalDivider()
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun CategoryEditorDialog(
     editor: CategoryEditor,
@@ -262,7 +287,7 @@ private fun CategoryEditorDialog(
             Text(stringResource(if (editor.editingId == null) R.string.categories_new else R.string.categories_edit))
         },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
@@ -303,7 +328,9 @@ private fun CategoryEditorDialog(
                 }
                 if (!editor.hasChildren) {
                     Text(stringResource(R.string.categories_parent), style = MaterialTheme.typography.labelMedium)
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    // Названий родителей бывает много и они длинные — переносим чипы на новые строки, а не сжимаем
+                    // каждый в столбик по букве.
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         FilterChip(
                             selected = parentId == null,
                             onClick = { parentId = null },
@@ -313,7 +340,7 @@ private fun CategoryEditorDialog(
                             FilterChip(
                                 selected = parentId == option.id,
                                 onClick = { parentId = option.id },
-                                label = { Text(option.name) },
+                                label = { Text(option.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                             )
                         }
                     }

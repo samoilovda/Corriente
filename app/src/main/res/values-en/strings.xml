@@ -479,4 +479,7 @@
     <string name="icon_section_family">Family &amp; learning</string>
     <string name="icon_section_money">Money</string>
     <string name="icon_section_other">Other</string>
+    <string name="categories_auto_icons_hint">Pick line icons from category names. You can fill only categories without an icon, or replace emoji too so everything looks the same. Icons already chosen from the Icons list stay; if nothing matches a name, its emoji stays.</string>
+    <string name="categories_auto_icons_replace">Replace emoji too</string>
+    <string name="categories_auto_icons_empty_only">Only empty ones</string>
 </resources>

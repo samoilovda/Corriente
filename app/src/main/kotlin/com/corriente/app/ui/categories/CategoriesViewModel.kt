@@ -20,6 +20,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import com.corriente.data.category.OverviewCategoriesSettings
+import com.corriente.data.category.materialIconKey
 import com.corriente.data.category.suggestCategoryIcon
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -80,13 +81,16 @@ class CategoriesViewModel(
     }
 
     /**
-     * «Подобрать иконки»: категориям без иконки — линейная иконка по названию ([suggestCategoryIcon]). Свои иконки
-     * не трогаем. Сообщение — сколько подобрано.
+     * «Подобрать иконки»: линейная иконка по названию ([suggestCategoryIcon]) категориям без иконки; при
+     * [replaceEmoji] — и категориям с эмодзи (единый стиль в духе Monefy). Уже выбранные линейные иконки не трогаем,
+     * а если по названию ничего не подобралось — эмодзи остаётся. Сообщение — сколько подобрано.
      */
-    fun autoAssignIcons() {
+    fun autoAssignIcons(replaceEmoji: Boolean = false) {
         launchWrite(onError = { uiMessage(R.string.categories_error_save) }) {
             var assigned = 0
-            repository.observeActive().first().filter { it.icon.isNullOrBlank() }.forEach { category ->
+            repository.observeActive().first().filter {
+                it.icon.isNullOrBlank() || (replaceEmoji && materialIconKey(it.icon) == null)
+            }.forEach { category ->
                 suggestCategoryIcon(category.name)?.let { icon ->
                     repository.update(category.id, category.name, category.parentId, category.color, icon)
                     assigned++
