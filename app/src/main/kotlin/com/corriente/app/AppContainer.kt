@@ -7,6 +7,8 @@ import com.corriente.data.backup.AutoBackupSettings
 import com.corriente.data.category.OverviewCategoriesSettings
 import com.corriente.data.backup.BackupRepository
 import com.corriente.data.db.AppDatabase
+import com.corriente.data.db.seedCallback
+import com.corriente.data.db.ALL_MIGRATIONS
 import androidx.sqlite.db.framework.FrameworkSQLiteOpenHelperFactory
 import com.corriente.data.db.PreMigrationBackup
 import com.corriente.data.db.PreMigrationSnapshotFactory

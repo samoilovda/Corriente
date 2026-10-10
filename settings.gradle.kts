@@ -22,5 +22,7 @@ include(":core:money")
 // Android-модули (ARCHITECTURE.md §5.1, BUILD_PLAN.md §1.4). Требуют доступа к Google Maven
 // (dl.google.com) для Android Gradle Plugin и androidx.*.
 include(":core:data")
+// Те же исходники core/data, собранные для десктопа (JVM): docs/SYNC_DESIGN.md §8, этап D2.
+include(":core:data-jvm")
 include(":app")
 include(":widget")

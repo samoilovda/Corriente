@@ -13,6 +13,8 @@ ksp = "2.3.11"
 junit = "4.13.2"
 coroutines = "1.9.0"
 room = "2.8.4"
+# Встроенный SQLite для десктопа (:core:data-jvm) — та же линия, что androidx.sqlite у Room 2.8.4.
+sqlite = "2.6.2"
 serialization = "1.7.3"
 composeBom = "2026.08.00"
 activityCompose = "1.11.0"
@@ -44,6 +46,7 @@ kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serializa
 room-runtime = { module = "androidx.room:room-runtime", version.ref = "room" }
 room-ktx = { module = "androidx.room:room-ktx", version.ref = "room" }
 room-compiler = { module = "androidx.room:room-compiler", version.ref = "room" }
+sqlite-bundled = { module = "androidx.sqlite:sqlite-bundled", version.ref = "sqlite" }
 room-testing = { module = "androidx.room:room-testing", version.ref = "room" }
 androidx-test-junit = { module = "androidx.test.ext:junit", version.ref = "androidxTestJunit" }
 androidx-test-runner = { module = "androidx.test:runner", version.ref = "androidxTestRunner" }

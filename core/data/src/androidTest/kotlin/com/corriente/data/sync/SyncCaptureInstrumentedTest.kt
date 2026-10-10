@@ -3,6 +3,7 @@ package com.corriente.data.sync
 import androidx.room.Room
 import androidx.test.platform.app.InstrumentationRegistry
 import com.corriente.data.db.AppDatabase
+import com.corriente.data.db.seedCallback
 import com.corriente.data.db.entity.AccountKind
 import com.corriente.data.db.entity.AppSettingEntity
 import com.corriente.data.db.entity.CategoryKind
