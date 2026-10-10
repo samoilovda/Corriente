@@ -214,6 +214,22 @@ class SyncConvergenceInstrumentedTest {
         assertEquals(gym.id, (phone.txns.getById(used.id) as com.corriente.data.model.Txn.Expense).categoryId)
     }
 
+    // Чужие часы, ушедшие на века вперёд, не утаскивают за собой наши: следующая своя правка всё равно получает
+    // нормальную версию, а LWW по-прежнему работает.
+    @Test
+    fun farFutureClockOfAnotherDeviceDoesNotPoisonOurs() = runBlocking {
+        val phone = newDevice("phone")
+        val tablet = newDevice("tablet")
+        val cash = phone.accounts.create("Нал", rub, AccountKind.CASH, Money(Minor(0), rub), 0)
+        join(phone, tablet)
+        val tabletEngine = SyncEngine(tablet.db, FileSyncFolder(folderRoot)) { 9_000_000_000_000L } // ~2255 год
+        tablet.txns.addExpense(cash.id, Money(Minor(1), rub), null, LocalDate.of(2026, 10, 1))
+        tabletEngine.sync()
+        phone.engine.sync()
+        val hlc = phone.db.appSettingDao().get("sync.hlc")!!
+        assertTrue(hlc, Hlc.decode(hlc).wallMs < 9_000_000_000_000L)
+    }
+
     @Test
     fun randomOperationsOnThreeDevicesConverge() = runBlocking {
         for (seed in 1..6) {

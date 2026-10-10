@@ -67,6 +67,32 @@ class SyncEngine(
 
     suspend fun disable() = dao.setState(SyncStateEntity(enabled = false))
 
+    /** Карточки всех устройств из папки (включая это) — для экрана «Синхронизация». */
+    fun devices(): List<DeviceInfo> =
+        folder.list(SyncPaths.DEVICES).filter { it.endsWith(".json") && !it.startsWith(".") }.mapNotNull { name ->
+            folder.read("${SyncPaths.DEVICES}/$name")
+                ?.let { runCatching { syncJson.decodeFromString(DeviceInfo.serializer(), it.decodeToString()) }.getOrNull() }
+        }
+
+    /**
+     * Подключение устройства «с заменой данных» (§6): всё своё удаляется (кроме валют и настроек), дальше данные придут из
+     * папки. Перед вызовом — копия БД (`PreMigrationBackup`). Синхронизация в этот момент должна быть выключена, иначе
+     * удаления разошлись бы по устройствам.
+     */
+    suspend fun wipeLocalData() = db.withTransaction {
+        check(!isEnabled()) { "disable sync before wiping local data" }
+        listOf(
+            "DELETE FROM txn", "DELETE FROM budget", "DELETE FROM recurrence", "DELETE FROM import_alias",
+            "DELETE FROM category_redirect", "DELETE FROM category WHERE parent_id IS NOT NULL", "DELETE FROM category",
+            "DELETE FROM account", "DELETE FROM import_batch", "DELETE FROM sync_row_meta", "DELETE FROM sync_deferred",
+            "DELETE FROM sync_outbox",
+        ).forEach(sql::execSQL)
+    }
+
+    /** Есть ли на устройстве свои данные (счета/операции) — от этого зависит вопрос при подключении (§6). */
+    suspend fun hasLocalData(): Boolean =
+        sql.query("SELECT (SELECT COUNT(*) FROM account) + (SELECT COUNT(*) FROM txn)").use { it.moveToFirst() && it.getLong(0) > 0 }
+
     /** Один обмен: выгрузить своё, применить чужое. */
     suspend fun sync(): Result {
         check(isEnabled()) { "sync is not enabled" }
@@ -126,7 +152,8 @@ class SyncEngine(
         val newerSchema = mutableListOf<String>()
         val cursors = mutableMapOf<String, Long>()
         for (device in folder.list(SyncPaths.CHANGES).sorted()) {
-            if (device == me) continue
+            // Служебное чужих программ (`.stfolder` Syncthing, `.DS_Store` macOS) — не устройства.
+            if (device == me || device.startsWith(".")) continue
             val cursor = settings.get(cursorKey(device))?.toLongOrNull() ?: 0L
             var last = cursor
             val files = folder.list(SyncPaths.changesDir(device))
@@ -159,7 +186,12 @@ class SyncEngine(
             .mapValues { (_, versions) -> versions.maxBy { Hlc.decode(it.hlc) } }
             .values
         var clock = loadClock(me)
-        latest.forEach { clock = clock.receive(Hlc.decode(it.hlc), now()) }
+        latest.forEach { change ->
+            val remote = Hlc.decode(change.hlc)
+            // Устройство с часами, ушедшими далеко вперёд, не должно утащить за собой часы всех остальных:
+            // такая версия по-прежнему участвует в LWW, но свои часы по ней не двигаем.
+            if (remote.wallMs <= now() + MAX_CLOCK_LEAD_MS) clock = clock.receive(remote, now())
+        }
         saveClock(clock)
 
         val counters = Counters()
@@ -416,7 +448,7 @@ class SyncEngine(
     // ---------------------------------------------------------------- служебное
 
     private suspend fun writeDeviceInfo(me: String) {
-        val seen = folder.list(SyncPaths.CHANGES).filter { it != me }
+        val seen = folder.list(SyncPaths.CHANGES).filter { it != me && !it.startsWith(".") }
             .associateWith { settings.get(cursorKey(it))?.toLongOrNull() ?: 0L }
         val info = DeviceInfo(
             deviceId = me,
@@ -443,6 +475,8 @@ class SyncEngine(
         const val KEY_PRIMARY = "sync.primary"
         private const val KEY_HLC = "sync.hlc"
         private const val KEY_SEQ = "sync.seq"
+        /** Насколько чужие часы могут опережать наши, чтобы мы под них подстраивались (сутки). */
+        private const val MAX_CLOCK_LEAD_MS = 24L * 60 * 60 * 1000
         private fun cursorKey(device: String) = "sync.cursor.$device"
 
         /** Порядок применения вставок/правок (родители раньше детей); удаления — в обратном. */

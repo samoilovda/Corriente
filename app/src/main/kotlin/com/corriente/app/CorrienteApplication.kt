@@ -5,11 +5,14 @@ import com.corriente.app.applock.AppLockCoordinator
 import com.corriente.app.backup.AutoBackupScheduler
 import com.corriente.app.backup.ShareBackupCache
 import com.corriente.app.recurring.RecurrenceScheduler
+import com.corriente.app.sync.SyncScheduler
 import com.corriente.app.widget.WidgetUpdater
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
@@ -56,6 +59,16 @@ class CorrienteApplication : Application() {
         // T5.1: держим расписание автобэкапа в соответствии с настройками. F1.3: только по
         // изменению полей, влияющих на расписание — иначе запись статуса последнего запуска
         // (Room переизлучает весь app_setting) пересобирала бы воркер на каждом бэкапе.
+        // Синхронизация: расписание по включателю; после локальной записи — обмен через ~10 с (новая запись сдвигает его).
+        container.syncController.enabled
+            .distinctUntilChanged()
+            .onEach { enabled -> SyncScheduler.apply(this, enabled) }
+            .launchIn(appScope)
+        combine(container.syncController.enabled, container.syncController.outboxCount) { enabled, pending -> enabled && pending > 0 }
+            .filter { it }
+            .onEach { SyncScheduler.requestSoon(this) }
+            .launchIn(appScope)
+
         container.autoBackupSettings.config
             .map { it.enabled to it.treeUri }
             .distinctUntilChanged()

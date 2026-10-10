@@ -99,4 +99,19 @@ class SyncCaptureInstrumentedTest {
         assertTrue(captured.toString(), ("txn" to txn.id) in captured)
         assertTrue(captured.toString(), ("category" to from.id) in captured)
     }
+
+    // Room пишет UPDATE OR ABORT — оно перекрывает правило конфликта в триггере. Две правки одной строки до выгрузки
+    // не должны падать на ключе sync_outbox.
+    @Test
+    fun editingTheSameRowTwiceBeforeExportDoesNotFail() = runBlocking {
+        db.syncDao().setState(SyncStateEntity(enabled = true))
+        val account = AccountRepository(db.accountDao()).create("Нал", rub, AccountKind.CASH, Money(Minor(0), rub), 0, null)
+        val txns = TxnRepository(db.txnDao(), db.accountDao())
+        val txn = txns.addExpense(account.id, Money(Minor(100), rub), null, LocalDate.of(2026, 10, 1))
+        txns.updateEntry(txn.id, account.id, Money(Minor(200), rub), null, LocalDate.of(2026, 10, 1), "1")
+        txns.updateEntry(txn.id, account.id, Money(Minor(300), rub), null, LocalDate.of(2026, 10, 1), "2")
+        AccountRepository(db.accountDao()).update(account.id, "Нал2", 0, null, true)
+        AccountRepository(db.accountDao()).update(account.id, "Нал3", 0, null, true)
+        assertEquals(setOf("account" to account.id, "txn" to txn.id), outbox())
+    }
 }

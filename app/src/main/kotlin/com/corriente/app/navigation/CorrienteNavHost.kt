@@ -49,6 +49,7 @@ private const val IMPORT_HISTORY_ROUTE = "import_history"
 private const val WIDGET_SETTINGS_ROUTE = "widget_settings"
 private const val AUTOBACKUP_ROUTE = "autobackup"
 private const val APP_LOCK_ROUTE = "app_lock"
+private const val SYNC_ROUTE = "sync"
 private const val BUDGETS_ROUTE = "budgets"
 private const val RECURRING_ROUTE = "recurring"
 private const val FX_REPORT_ROUTE = "fx_report"
@@ -167,7 +168,11 @@ fun CorrienteNavHost(deepLinkIntent: Intent? = null, onDeepLinkConsumed: () -> U
                     onOpenBudgets = { navController.navigate(BUDGETS_ROUTE) },
                     onOpenRecurring = { navController.navigate(RECURRING_ROUTE) },
                     onOpenAppLock = { navController.navigate(APP_LOCK_ROUTE) },
+                    onOpenSync = { navController.navigate(SYNC_ROUTE) },
                 )
+            }
+            composable(SYNC_ROUTE) {
+                com.corriente.app.ui.sync.SyncScreen(onBack = { navController.popBackStack() })
             }
             composable(AUTOBACKUP_ROUTE) {
                 AutoBackupScreen(onBack = { navController.popBackStack() })

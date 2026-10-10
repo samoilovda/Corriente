@@ -65,6 +65,8 @@ class AppContainer(context: Context) {
     val recurrenceRepository: RecurrenceRepository by lazy { RecurrenceRepository(database.recurrenceDao(), database.txnDao()) }
     val recurrenceErrors: RecurrenceErrors by lazy { RecurrenceErrors(database.appSettingDao()) }
     val widgetConfigStore: WidgetConfigStore by lazy { WidgetConfigStore(appContext) }
+    /** Синхронизация между устройствами через общую папку (docs/SYNC_DESIGN.md). */
+    val syncController: com.corriente.app.sync.SyncController by lazy { com.corriente.app.sync.SyncController(appContext, database) }
 
     val accountBalanceUseCase: AccountBalanceUseCase by lazy {
         AccountBalanceUseCase(accountRepository, txnRepository)

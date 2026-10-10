@@ -73,6 +73,16 @@ interface SyncDao {
     @Query("SELECT * FROM sync_state WHERE id = 1")
     suspend fun state(): SyncStateEntity?
 
+    @Query("SELECT * FROM sync_state WHERE id = 1")
+    fun observeState(): kotlinx.coroutines.flow.Flow<SyncStateEntity?>
+
+    /** Сколько локальных изменений ждёт выгрузки — по нему планировщик ставит обмен после записи. */
+    @Query("SELECT COUNT(*) FROM sync_outbox")
+    fun observeOutboxCount(): kotlinx.coroutines.flow.Flow<Int>
+
+    @Query("SELECT COUNT(*) FROM sync_deferred")
+    fun observeDeferredCount(): kotlinx.coroutines.flow.Flow<Int>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun setState(state: SyncStateEntity)
 

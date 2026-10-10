@@ -8,6 +8,10 @@ import com.corriente.data.backup.BackupRepository
  * импорт, слияние, откат батча, повторяющиеся платежи, виджет — кладёт `(таблица, ключ)` в `sync_outbox`.
  * Триггеры срабатывают только при `sync_state.enabled = 1 AND applying = 0`.
  *
+ * В теле триггера нет `OR REPLACE`: правило конфликта внешнего запроса (Room пишет `UPDATE OR ABORT`, `INSERT OR ABORT`)
+ * перекрывает правило внутри триггера, и повторная правка строки до выгрузки падала бы на ключе `sync_outbox`.
+ * Поэтому вставка — только если записи ещё нет.
+ *
  * Список таблиц меняется только вместе с миграцией схемы: триггеры создаются миграцией (и при создании файла БД),
  * а `IF NOT EXISTS` не пересоздаёт существующий триггер с другим телом.
  */
@@ -47,7 +51,8 @@ object SyncTriggers {
             CREATE TRIGGER IF NOT EXISTS `sync_${t.name}_${op.lowercase()}` $timing ON `${t.name}`
             WHEN $ACTIVE AND (${t.extraWhen(row)})
             BEGIN
-            INSERT OR REPLACE INTO sync_outbox(table_name, pk) VALUES ('${t.name}', ${t.pkExpr(row)});
+            INSERT INTO sync_outbox(table_name, pk) SELECT '${t.name}', ${t.pkExpr(row)}
+            WHERE NOT EXISTS (SELECT 1 FROM sync_outbox WHERE table_name = '${t.name}' AND pk = ${t.pkExpr(row)});
             END
             """.trimIndent()
         }

@@ -52,6 +52,7 @@ fun SettingsScreen(
     onOpenBudgets: () -> Unit,
     onOpenRecurring: () -> Unit,
     onOpenAppLock: () -> Unit,
+    onOpenSync: () -> Unit = {},
     backupViewModel: BackupViewModel = viewModel(
         factory = BackupViewModel.factory(
             corrienteContainer().backupRepository,
@@ -67,6 +68,7 @@ fun SettingsScreen(
     val busy by backupViewModel.busy.collectAsState()
     var pendingImportUri by remember { mutableStateOf<android.net.Uri?>(null) }
     var languageDialogOpen by remember { mutableStateOf(false) }
+    val syncStatus by corrienteContainer().syncController.status.collectAsState(initial = com.corriente.app.sync.SyncStatus())
 
     val exportLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/json"),
@@ -96,15 +98,21 @@ fun SettingsScreen(
                 supportingContent = { Text(stringResource(R.string.widget_settings_hint)) },
                 modifier = Modifier.clickable(onClick = onOpenWidgetSettings),
             )
+            // Синхронизация: импорт и его откат — только на основном устройстве (docs/SYNC_DESIGN.md §10).
+            val importAllowed = syncStatus.importAllowed
             ListItem(
                 headlineContent = { Text(stringResource(R.string.import_monefy)) },
-                supportingContent = { Text(stringResource(R.string.import_monefy_hint)) },
-                modifier = Modifier.clickable(onClick = onOpenImport),
+                supportingContent = {
+                    Text(stringResource(if (importAllowed) R.string.import_monefy_hint else R.string.sync_import_primary_only))
+                },
+                modifier = Modifier.clickable(enabled = importAllowed, onClick = onOpenImport),
             )
             ListItem(
                 headlineContent = { Text(stringResource(R.string.import_history_title)) },
-                supportingContent = { Text(stringResource(R.string.import_history_hint)) },
-                modifier = Modifier.clickable(onClick = onOpenImportHistory),
+                supportingContent = {
+                    Text(stringResource(if (importAllowed) R.string.import_history_hint else R.string.sync_import_primary_only))
+                },
+                modifier = Modifier.clickable(enabled = importAllowed, onClick = onOpenImportHistory),
             )
             ListItem(
                 headlineContent = { Text(stringResource(R.string.budgets_title)) },
@@ -165,6 +173,18 @@ fun SettingsScreen(
                 supportingContent = { Text(stringResource(R.string.autobackup_hint)) },
                 modifier = Modifier.clickable(onClick = onOpenAutoBackup),
             )
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.sync_title)) },
+                supportingContent = {
+                    val error = syncStatus.lastError
+                    when {
+                        !syncStatus.enabled -> Text(stringResource(R.string.sync_hint_off))
+                        error != null -> Text(com.corriente.app.ui.sync.syncErrorText(error), color = androidx.compose.material3.MaterialTheme.colorScheme.error)
+                        else -> Text(com.corriente.app.ui.sync.syncStatusLine(syncStatus))
+                    }
+                },
+                modifier = Modifier.clickable(onClick = onOpenSync),
+            )
         }
     }
 
@@ -172,7 +192,10 @@ fun SettingsScreen(
         AlertDialog(
             onDismissRequest = { pendingImportUri = null },
             title = { Text(stringResource(R.string.backup_import_confirm_title)) },
-            text = { Text(stringResource(R.string.backup_import_confirm_text)) },
+            text = {
+                val warning = if (syncStatus.enabled) "\n\n" + stringResource(R.string.sync_restore_warning) else ""
+                Text(stringResource(R.string.backup_import_confirm_text) + warning)
+            },
             confirmButton = {
                 TextButton(onClick = {
                     pendingImportUri = null

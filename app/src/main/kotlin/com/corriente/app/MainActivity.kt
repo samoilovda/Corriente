@@ -2,6 +2,9 @@ package com.corriente.app
 
 import android.content.Intent
 import android.os.Bundle
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
@@ -32,6 +35,15 @@ class MainActivity : FragmentActivity() {
      * (Activity не `singleTask`, но лаунчер может переиспользовать существующий таск).
      */
     private var pendingDeepLinkIntent by mutableStateOf<Intent?>(null)
+
+    /** Синхронизация: при каждом возвращении в приложение — обмен сразу, чтобы увидеть внесённое на других устройствах. */
+    override fun onStart() {
+        super.onStart()
+        val app = application as CorrienteApplication
+        lifecycleScope.launch {
+            if (app.container.syncController.enabled.first()) com.corriente.app.sync.SyncScheduler.requestSoon(app, delaySeconds = 0)
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge() // F2.4: Android 15+ включает edge-to-edge принудительно — берём под контроль

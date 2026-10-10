@@ -75,6 +75,8 @@ class TxnEntryFlowInstrumentedTest {
 
         // Назад в списке операций — строка с категорией и суммой должна быть в списке. Сверху теперь шапка с
         // кольцом, строка может оказаться ниже экрана (LazyColumn её не рисует) — сначала прокручиваем к ней.
+        // На медленном эмуляторе возврат с экрана ввода может ещё анимироваться — ждём, пока список появится.
+        composeRule.waitUntil(timeoutMillis = 10_000) { composeRule.onAllNodes(hasScrollAction()).fetchSemanticsNodes().size == 1 }
         composeRule.onNode(hasScrollAction()).performScrollToNode(hasText("Еда-тест"))
         composeRule.onNodeWithText("Еда-тест").assertExists()
         // MoneyFormatter (I-25): знак «-», точка десятичная, независимо от локали устройства.

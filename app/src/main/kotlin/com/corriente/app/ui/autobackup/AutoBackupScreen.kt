@@ -78,6 +78,7 @@ fun AutoBackupScreen(
     val verifyResult by viewModel.verifyResult.collectAsState()
     var pendingRestore by remember { mutableStateOf<SafBackupFile?>(null) }
     val copies by viewModel.copies.collectAsState()
+    val syncEnabled by corrienteContainer().syncController.enabled.collectAsState(initial = false)
     val copyError by viewModel.copyError.collectAsState()
     var pendingCopy by remember { mutableStateOf<PreMigrationBackup.Copy?>(null) }
 
@@ -231,7 +232,10 @@ fun AutoBackupScreen(
         AlertDialog(
             onDismissRequest = { pendingRestore = null },
             title = { Text(stringResource(R.string.backup_import_confirm_title)) },
-            text = { Text(stringResource(R.string.backup_import_confirm_text)) },
+            text = {
+                val warning = if (syncEnabled) "\n\n" + stringResource(R.string.sync_restore_warning) else ""
+                Text(stringResource(R.string.backup_import_confirm_text) + warning)
+            },
             confirmButton = {
                 TextButton(onClick = {
                     pendingRestore = null
@@ -372,6 +376,7 @@ private fun premigrationStampText(stamp: String): String {
 private fun premigrationReasonText(reason: String): String = when {
     reason == "pre-restore" -> stringResource(R.string.premigration_reason_restore)
     reason == "pre-restore-copy" -> stringResource(R.string.premigration_reason_restore_copy)
+    reason == com.corriente.app.sync.SyncController.REASON_BEFORE_JOIN -> stringResource(R.string.premigration_reason_sync_join)
     reason.startsWith("v") && reason.drop(1).toIntOrNull() != null ->
         stringResource(R.string.premigration_reason_update, reason.drop(1).toInt())
     else -> reason
