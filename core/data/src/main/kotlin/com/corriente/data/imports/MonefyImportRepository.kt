@@ -8,6 +8,8 @@ import com.corriente.data.db.entity.CategoryEntity
 import com.corriente.data.db.entity.CategoryKind
 import com.corriente.data.db.entity.CategoryOrigin
 import com.corriente.data.db.entity.CurrencyEntity
+import com.corriente.data.db.entity.ImportAliasEntity
+import com.corriente.data.db.entity.ImportAliasKind
 import com.corriente.data.db.entity.ImportBatchEntity
 import com.corriente.data.db.entity.TxnEntity
 import com.corriente.data.db.entity.TxnKind
@@ -62,7 +64,34 @@ class MonefyImportRepository(private val db: AppDatabase) {
     suspend fun existingAccountCurrencies(): List<Pair<String, com.corriente.money.CurrencyCode>> =
         db.accountDao().observeAll().first().map { it.name to com.corriente.money.CurrencyCode(it.currencyCode) }
 
-    suspend fun import(plan: MonefyImportPlan, fileName: String, reportJson: String = "{}"): ImportResult {
+    /** Категория приложения как цель алиаса при импорте. */
+    data class CategoryChoice(val id: String, val name: String, val kind: CategoryKind)
+
+    /** Неархивные категории приложения — варианты «слить в существующую» на экране dry-run. */
+    suspend fun categoryChoices(): List<CategoryChoice> =
+        db.categoryDao().observeAll().first().filter { !it.isArchived }.map { CategoryChoice(it.id, it.name, it.kind) }
+
+    /**
+     * Сохранённые алиасы категорий Monefy (имя в файле → id категории), у которых цель ещё существует и не в архиве.
+     */
+    suspend fun savedCategoryAliases(): Map<String, String> {
+        val alive = categoryChoices().map { it.id }.toSet()
+        return db.importAliasDao().getForApp(SOURCE, ImportAliasKind.CATEGORY)
+            .filter { it.targetId in alive }.associate { it.sourceValue to it.targetId }
+    }
+
+    /**
+     * @param categoryAliases решения пользователя «категория из файла → существующая категория» (имя в файле → id).
+     *   Записываются в `import_alias` и действуют при повторных импортах; для категорий плана, которых в
+     *   [categoryAliases] нет, ранее сохранённый алиас снимается. Алиас на категорию другого вида (расход/доход)
+     *   для строки не применяется — строка идёт по обычному правилу «по имени и виду».
+     */
+    suspend fun import(
+        plan: MonefyImportPlan,
+        fileName: String,
+        reportJson: String = "{}",
+        categoryAliases: Map<String, String> = emptyMap(),
+    ): ImportResult {
         val batchId = UUID.randomUUID().toString()
         var inserted = 0
         var skipped = 0
@@ -125,14 +154,22 @@ class MonefyImportRepository(private val db: AppDatabase) {
             val currencyByAccountId = db.accountDao().observeAll().first().associate { it.id to it.currencyCode }
 
             // категории: alias → существующая (name, kind) → создать origin=IMPORT
-            val aliasByValue = db.importAliasDao()
-                .getForApp(SOURCE, com.corriente.data.db.entity.ImportAliasKind.CATEGORY)
-                .associate { it.sourceValue to it.targetId }
             val existingCategories = db.categoryDao().observeAll().first()
+            val categoryById = existingCategories.associateBy { it.id }
+            plan.categories.forEach { name ->
+                val target = categoryAliases[name]?.takeIf { it in categoryById }
+                if (target != null) {
+                    db.importAliasDao().upsert(ImportAliasEntity(SOURCE, ImportAliasKind.CATEGORY, name, target))
+                } else {
+                    db.importAliasDao().delete(SOURCE, ImportAliasKind.CATEGORY, name)
+                }
+            }
+            val aliasByValue = db.importAliasDao().getForApp(SOURCE, ImportAliasKind.CATEGORY)
+                .associate { it.sourceValue to it.targetId }
             val categoryId = HashMap<Pair<String, CategoryKind>, String>()
             suspend fun resolveCategory(name: String, kind: CategoryKind): String {
                 categoryId[name to kind]?.let { return it }
-                aliasByValue[name]?.let { categoryId[name to kind] = it; return it }
+                aliasByValue[name]?.takeIf { categoryById[it]?.kind == kind }?.let { categoryId[name to kind] = it; return it }
                 existingCategories.firstOrNull { it.name == name && it.kind == kind }?.let {
                     categoryId[name to kind] = it.id; return it.id
                 }

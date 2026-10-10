@@ -3,6 +3,12 @@ package com.corriente.app.ui.imports
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Box
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.ui.Alignment
+import com.corriente.data.db.entity.CategoryKind
+import com.corriente.data.imports.MonefyImportRepository
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -109,7 +115,7 @@ fun ImportScreen(
                     Text(stringResource(R.string.import_working))
                 }
 
-                is ImportUiState.Ready -> ReadyBody(s, viewModel::chooseDecision, viewModel::confirm)
+                is ImportUiState.Ready -> ReadyBody(s, viewModel::chooseDecision, viewModel::chooseCategoryTarget, viewModel::confirm)
 
                 is ImportUiState.Done -> {
                     Text(
@@ -135,6 +141,7 @@ fun ImportScreen(
 private fun ReadyBody(
     ready: ImportUiState.Ready,
     onDecision: (ReviewRef, ReviewDecision?) -> Unit,
+    onCategoryTarget: (String, String?) -> Unit,
     onConfirm: () -> Unit,
 ) {
     val summary = ready.summary
@@ -155,6 +162,19 @@ private fun ReadyBody(
             style = MaterialTheme.typography.titleSmall,
         )
         ready.reviews.forEach { ReviewCardView(it, onDecision) }
+    }
+
+    if (ready.categoryRows.isNotEmpty()) {
+        HorizontalDivider()
+        Text(stringResource(R.string.import_categories_map_title), style = MaterialTheme.typography.titleSmall)
+        Text(
+            stringResource(R.string.import_categories_map_hint),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        ready.categoryRows.forEach { row ->
+            CategoryMapRowView(row, ready.categoryChoices, onCategoryTarget)
+        }
     }
 
     if (summary.errors.isNotEmpty()) {
@@ -371,3 +391,33 @@ private fun reviewCardMessage(card: ReviewCard): String = when (card.reason) {
 
 private fun currencyFor(code: String?, minorUnits: Int): Currency =
     Currency(CurrencyCode(code ?: "XXX"), minorUnits = minorUnits, displayScale = minorUnits, symbol = code ?: "")
+
+@Composable
+private fun CategoryMapRowView(
+    row: CategoryMapRow,
+    choices: List<MonefyImportRepository.CategoryChoice>,
+    onTarget: (String, String?) -> Unit,
+) {
+    var open by remember { mutableStateOf(false) }
+    val newLabel = stringResource(R.string.import_categories_map_new)
+    val target = choices.firstOrNull { it.id == row.targetId }
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Text(row.sourceName, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+        Box {
+            OutlinedButton(onClick = { open = true }) { Text("→ ${target?.name ?: newLabel}") }
+            DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+                DropdownMenuItem(text = { Text(newLabel) }, onClick = { open = false; onTarget(row.sourceName, null) })
+                choices.forEach { c ->
+                    val kind = stringResource(
+                        if (c.kind == CategoryKind.EXPENSE) R.string.import_categories_map_kind_expense
+                        else R.string.import_categories_map_kind_income,
+                    )
+                    DropdownMenuItem(
+                        text = { Text("${c.name} · $kind") },
+                        onClick = { open = false; onTarget(row.sourceName, c.id) },
+                    )
+                }
+            }
+        }
+    }
+}

@@ -81,6 +81,15 @@
     <string name="autobackup_size_kb">%1$.1f KB</string>
     <string name="autobackup_size_bytes">%1$d B</string>
     <string name="autobackup_error_folder_access_lost">Lost access to the folder — auto backup turned off</string>
+    <string name="premigration_title">Copies before updates and restores</string>
+    <string name="premigration_hint">The app keeps the three most recent automatic copies of the database. You can return to any of them.</string>
+    <string name="premigration_restore">Restore</string>
+    <string name="premigration_reason_update">Before an update (schema v%1$d)</string>
+    <string name="premigration_reason_restore">Before restoring from a backup</string>
+    <string name="premigration_reason_restore_copy">Before returning to a copy</string>
+    <string name="premigration_confirm_title">Return to this copy?</string>
+    <string name="premigration_confirm_text">Current data will be replaced with the copy\'s data. It is saved as a separate copy first. The app will restart.</string>
+    <string name="premigration_missing">The copy was not found — it may have been rotated out.</string>
     <string name="autobackup_error_failed">Could not create a backup</string>
     <string name="safbackup_error_create_file">Could not create a file in the chosen folder</string>
     <string name="safbackup_error_open_for_write">Could not open the file for writing</string>
@@ -143,6 +152,11 @@
     <string name="import_review_blocked">Import is blocked until an option is chosen</string>
     <string name="import_errors_title">Rows that failed to parse: %1$d</string>
     <string name="import_confirm">Import</string>
+    <string name="import_categories_map_title">Category mapping</string>
+    <string name="import_categories_map_hint">File categories that don\'t exist in the app yet. You can merge one into an existing category — the choice is remembered for future imports.</string>
+    <string name="import_categories_map_new">create new</string>
+    <string name="import_categories_map_kind_expense">expense</string>
+    <string name="import_categories_map_kind_income">income</string>
     <string name="import_confirm_hint">Nothing is written to the database until you tap this. Importing the same file again adds nothing.</string>
     <string name="import_done">Transactions added: %1$d, skipped (already present): %2$d.</string>
     <string name="import_failed">Failed: %1$s</string>

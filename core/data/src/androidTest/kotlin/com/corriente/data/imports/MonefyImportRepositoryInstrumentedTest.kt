@@ -216,4 +216,24 @@ class MonefyImportRepositoryInstrumentedTest {
         assertEquals("RUB", accounts.getValue("Cash").currencyCode)
         assertEquals("USD", accounts.getValue("Cash (USD)").currencyCode)
     }
+
+    // Алиас категории: строки файла уходят в выбранную категорию, алиас запоминается и снимается, если не выбран.
+    @Test
+    fun categoryAliasMergesIntoExistingCategoryAndIsRemembered() = runBlocking {
+        val source = plan.plainTxns.first { it.kind == MonefyTxnKind.EXPENSE }.category
+        val kind = com.corriente.data.db.entity.CategoryKind.EXPENSE
+        db.categoryDao().insert(
+            com.corriente.data.db.entity.CategoryEntity(id = "mine", name = "Моя", kind = kind, color = 0),
+        )
+
+        repo.import(plan, "monefy_sample.csv", categoryAliases = mapOf(source to "mine"))
+        val used = db.txnDao().observeAll().first().map { it.categoryId }
+        assertTrue("mine" in used)
+        assertTrue(db.categoryDao().observeAll().first().none { it.name == source && it.origin == CategoryOrigin.IMPORT })
+        assertEquals(mapOf(source to "mine"), repo.savedCategoryAliases())
+
+        // следующий импорт без выбора алиас снимает
+        repo.import(plan, "monefy_sample2.csv")
+        assertTrue(repo.savedCategoryAliases().isEmpty())
+    }
 }

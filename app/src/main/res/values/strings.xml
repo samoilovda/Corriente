@@ -81,6 +81,15 @@
     <string name="autobackup_size_kb">%1$.1f КБ</string>
     <string name="autobackup_size_bytes">%1$d Б</string>
     <string name="autobackup_error_folder_access_lost">Нет доступа к папке — автобэкап выключен</string>
+    <string name="premigration_title">Копии перед обновлением и восстановлением</string>
+    <string name="premigration_hint">Приложение хранит три последние копии базы, сделанные автоматически. Вернуться можно к любой из них.</string>
+    <string name="premigration_restore">Восстановить</string>
+    <string name="premigration_reason_update">Перед обновлением (схема v%1$d)</string>
+    <string name="premigration_reason_restore">Перед восстановлением из бэкапа</string>
+    <string name="premigration_reason_restore_copy">Перед возвратом к копии</string>
+    <string name="premigration_confirm_title">Вернуться к этой копии?</string>
+    <string name="premigration_confirm_text">Текущие данные будут заменены данными из копии. Перед этим они сами сохранятся отдельной копией. Приложение перезапустится.</string>
+    <string name="premigration_missing">Копия не найдена — возможно, её уже удалили при ротации.</string>
     <string name="autobackup_error_failed">Не удалось сделать бэкап</string>
     <string name="safbackup_error_create_file">Не удалось создать файл в выбранной папке</string>
     <string name="safbackup_error_open_for_write">Не удалось открыть файл на запись</string>
@@ -143,6 +152,11 @@
     <string name="import_review_blocked">Импорт заблокирован, пока не выбран вариант</string>
     <string name="import_errors_title">Не удалось разобрать строк: %1$d</string>
     <string name="import_confirm">Импортировать</string>
+    <string name="import_categories_map_title">Сопоставление категорий</string>
+    <string name="import_categories_map_hint">Категории из файла, которых нет в приложении. Можно слить в существующую — выбор запомнится для следующих импортов.</string>
+    <string name="import_categories_map_new">создать новую</string>
+    <string name="import_categories_map_kind_expense">расход</string>
+    <string name="import_categories_map_kind_income">доход</string>
     <string name="import_confirm_hint">Запись в базу произойдёт только после нажатия. Повторный импорт того же файла ничего не добавит.</string>
     <string name="import_done">Добавлено операций: %1$d, пропущено (уже есть): %2$d.</string>
     <string name="import_failed">Не удалось: %1$s</string>

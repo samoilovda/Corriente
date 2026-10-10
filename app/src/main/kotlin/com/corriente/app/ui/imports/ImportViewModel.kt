@@ -69,6 +69,9 @@ data class ReviewCard(
     val toMinorUnits: Int,
 )
 
+/** Строка «категория из файла → существующая категория»; [targetId] == null — создать новую. */
+data class CategoryMapRow(val sourceName: String, val targetId: String?)
+
 /**
  * Причина отказа импорта — структурная (R6.3): [Localized] строит текст экран через
  * `stringResource`, [Raw] — уже готовый текст исключения нижнего уровня (как правило,
@@ -86,7 +89,13 @@ private fun localizedFailure(resId: Int, vararg args: Any) = ImportFailureReason
 sealed interface ImportUiState {
     data object Idle : ImportUiState
     data object Working : ImportUiState
-    data class Ready(val summary: ImportSummary, val reviews: List<ReviewCard>) : ImportUiState
+    data class Ready(
+        val summary: ImportSummary,
+        val reviews: List<ReviewCard>,
+        /** Категории файла, которых нет в приложении под тем же именем, + текущая цель слияния. */
+        val categoryRows: List<CategoryMapRow> = emptyList(),
+        val categoryChoices: List<MonefyImportRepository.CategoryChoice> = emptyList(),
+    ) : ImportUiState
     data class Done(val inserted: Int, val skipped: Int) : ImportUiState
     data class Failed(val reason: ImportFailureReason) : ImportUiState
 }
@@ -104,6 +113,8 @@ class ImportViewModel(private val importer: MonefyImportRepository) : ViewModel(
     private var plan: MonefyImportPlan? = null
     private var fileName: String = "monefy.csv"
     private val decisions = mutableMapOf<ReviewRef, ReviewDecision>()
+    private val categoryAliases = mutableMapOf<String, String>()
+    private var categoryChoices: List<MonefyImportRepository.CategoryChoice> = emptyList()
 
     fun preview(input: InputStream, fileName: String) = previewFrom(fileName) { input }
 
@@ -122,6 +133,9 @@ class ImportViewModel(private val importer: MonefyImportRepository) : ViewModel(
                 )
                 this@ImportViewModel.fileName = fileName
                 decisions.clear()
+                categoryChoices = importer.categoryChoices()
+                categoryAliases.clear()
+                categoryAliases.putAll(importer.savedCategoryAliases())
                 readyState()
             }.getOrElse { e ->
                 ImportUiState.Failed(
@@ -141,6 +155,12 @@ class ImportViewModel(private val importer: MonefyImportRepository) : ViewModel(
         _state.value = readyState()
     }
 
+    /** Слить категорию файла в существующую ([targetId]) или вернуть «создать новую» (`null`). */
+    fun chooseCategoryTarget(sourceName: String, targetId: String?) {
+        if (targetId == null) categoryAliases.remove(sourceName) else categoryAliases[sourceName] = targetId
+        _state.value = readyState()
+    }
+
     fun confirm() {
         val p = plan ?: return
         _state.value = ImportUiState.Working
@@ -157,7 +177,7 @@ class ImportViewModel(private val importer: MonefyImportRepository) : ViewModel(
                     reviews = summary.reviews.size,
                     errors = summary.errors.size,
                 )
-                val result = importer.import(finalPlan, fileName, report.encode())
+                val result = importer.import(finalPlan, fileName, report.encode(), categoryAliases.toMap())
                 ImportUiState.Done(result.inserted, result.skipped)
             }.getOrElse { e ->
                 ImportUiState.Failed(
@@ -176,6 +196,7 @@ class ImportViewModel(private val importer: MonefyImportRepository) : ViewModel(
     fun reset() {
         plan = null
         decisions.clear()
+        categoryAliases.clear()
         _state.value = ImportUiState.Idle
     }
 
@@ -184,7 +205,17 @@ class ImportViewModel(private val importer: MonefyImportRepository) : ViewModel(
         return ImportUiState.Ready(
             summary = p.applyReviewDecisions(decisions).toImportSummary(),
             reviews = reviewCards(p, decisions),
+            categoryRows = categoryRows(p),
+            categoryChoices = categoryChoices,
         )
+    }
+
+    /** Только категории, чьего имени в приложении нет (иначе импорт и так возьмёт существующую), и уже слитые. */
+    private fun categoryRows(p: MonefyImportPlan): List<CategoryMapRow> {
+        val existingNames = categoryChoices.map { it.name }.toSet()
+        return p.categories
+            .filter { it !in existingNames || it in categoryAliases }
+            .map { CategoryMapRow(it, categoryAliases[it]) }
     }
 
     companion object {

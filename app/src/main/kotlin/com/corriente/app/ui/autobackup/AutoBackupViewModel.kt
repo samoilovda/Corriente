@@ -24,6 +24,7 @@ import com.corriente.data.backup.BackupProblem
 import com.corriente.data.backup.BackupRepository
 import com.corriente.data.backup.BackupSummary
 import com.corriente.data.db.AppDatabase
+import com.corriente.data.db.PreMigrationBackup
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -74,6 +75,47 @@ class AutoBackupViewModel(
         uiState.map { it.folderLabel to it.lastRunAt }.distinctUntilChanged()
             .onEach { refreshFiles() }
             .launchIn(viewModelScope)
+    }
+
+    private val _copies = MutableStateFlow<List<PreMigrationBackup.Copy>>(emptyList())
+
+    /** A2.15: копии БД «до миграции/восстановления» из `databases/pre-migration/`. */
+    val copies: StateFlow<List<PreMigrationBackup.Copy>> = _copies
+
+    private val _copyError = MutableStateFlow(false)
+    val copyError: StateFlow<Boolean> = _copyError
+
+    init {
+        refreshCopies()
+    }
+
+    fun refreshCopies() {
+        viewModelScope.launch {
+            _copies.value = withContext(Dispatchers.IO) { PreMigrationBackup.listCopies(app, AppDatabase.DB_NAME) }
+        }
+    }
+
+    fun consumeCopyError() {
+        _copyError.value = false
+    }
+
+    /**
+     * Откладывает подмену БД выбранной копией и перезапускает приложение: при старте [PreMigrationBackup.applyPendingRestore]
+     * подменяет файл до открытия БД (текущая БД перед этим сохраняется отдельной копией), а Room при открытии
+     * доводит старую схему до текущей обычными миграциями.
+     */
+    fun restoreCopy(copy: PreMigrationBackup.Copy) {
+        viewModelScope.launch {
+            val staged = withContext(Dispatchers.IO) { PreMigrationBackup.stageRestore(app, AppDatabase.DB_NAME, copy.name) }
+            if (!staged) {
+                _copyError.value = true
+                refreshCopies()
+                return@launch
+            }
+            val launch = app.packageManager.getLaunchIntentForPackage(app.packageName)?.component
+            if (launch != null) app.startActivity(Intent.makeRestartActivityTask(launch))
+            Runtime.getRuntime().exit(0)
+        }
     }
 
     private val _folderError = MutableStateFlow(false)

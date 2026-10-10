@@ -39,6 +39,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.corriente.app.R
+import com.corriente.data.db.PreMigrationBackup
 import com.corriente.app.backup.AutoBackupWorker
 import com.corriente.app.backup.SafBackupFile
 import com.corriente.app.corrienteContainer
@@ -76,6 +77,9 @@ fun AutoBackupScreen(
     val verifying by viewModel.verifying.collectAsState()
     val verifyResult by viewModel.verifyResult.collectAsState()
     var pendingRestore by remember { mutableStateOf<SafBackupFile?>(null) }
+    val copies by viewModel.copies.collectAsState()
+    val copyError by viewModel.copyError.collectAsState()
+    var pendingCopy by remember { mutableStateOf<PreMigrationBackup.Copy?>(null) }
 
     val folderPicker = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocumentTree(),
@@ -195,6 +199,31 @@ fun AutoBackupScreen(
                     }
                 }
             }
+
+            if (copies.isNotEmpty()) {
+                HorizontalDivider()
+                Text(
+                    stringResource(R.string.premigration_title),
+                    style = MaterialTheme.typography.labelLarge,
+                    modifier = Modifier.padding(16.dp),
+                )
+                Text(
+                    stringResource(R.string.premigration_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                )
+                copies.forEach { copy ->
+                    ListItem(
+                        headlineContent = { Text(premigrationStampText(copy.stamp)) },
+                        supportingContent = { Text(premigrationReasonText(copy.reason)) },
+                        trailingContent = {
+                            TextButton(onClick = { pendingCopy = copy }) { Text(stringResource(R.string.premigration_restore)) }
+                        },
+                    )
+                    HorizontalDivider()
+                }
+            }
         }
     }
 
@@ -212,6 +241,32 @@ fun AutoBackupScreen(
             dismissButton = {
                 TextButton(onClick = { pendingRestore = null }) { Text(stringResource(R.string.cancel)) }
             },
+        )
+    }
+
+
+    pendingCopy?.let { copy ->
+        AlertDialog(
+            onDismissRequest = { pendingCopy = null },
+            title = { Text(stringResource(R.string.premigration_confirm_title)) },
+            text = { Text(stringResource(R.string.premigration_confirm_text)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    pendingCopy = null
+                    viewModel.restoreCopy(copy)
+                }) { Text(stringResource(R.string.premigration_restore)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingCopy = null }) { Text(stringResource(R.string.cancel)) }
+            },
+        )
+    }
+
+    if (copyError) {
+        AlertDialog(
+            onDismissRequest = viewModel::consumeCopyError,
+            text = { Text(stringResource(R.string.premigration_missing)) },
+            confirmButton = { TextButton(onClick = viewModel::consumeCopyError) { Text(stringResource(R.string.ok)) } },
         )
     }
 
@@ -304,4 +359,20 @@ private fun lastRunText(state: AutoBackupUiState): String {
         ""
     }
     return stringResource(R.string.autobackup_last_run, stamp) + outcome
+}
+
+/** Штамп `yyyyMMdd-HHmmss` из имени копии → «дд.мм.гггг чч:мм» (если формат неожиданный — как есть). */
+private fun premigrationStampText(stamp: String): String {
+    val m = Regex("""(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})\d{2}""").matchEntire(stamp) ?: return stamp
+    val (y, mo, d, h, mi) = m.destructured
+    return "$d.$mo.$y $h:$mi"
+}
+
+@Composable
+private fun premigrationReasonText(reason: String): String = when {
+    reason == "pre-restore" -> stringResource(R.string.premigration_reason_restore)
+    reason == "pre-restore-copy" -> stringResource(R.string.premigration_reason_restore_copy)
+    reason.startsWith("v") && reason.drop(1).toIntOrNull() != null ->
+        stringResource(R.string.premigration_reason_update, reason.drop(1).toInt())
+    else -> reason
 }

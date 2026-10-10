@@ -39,8 +39,11 @@ object PreMigrationBackup {
      *
      * @return копия основного файла, либо null если файла БД нет.
      */
-    fun copyDatabaseFile(context: Context, dbName: String, reason: String, now: Date = Date()): File? {
-        val dbFile = context.getDatabasePath(dbName)
+    fun copyDatabaseFile(context: Context, dbName: String, reason: String, now: Date = Date()): File? =
+        copyDatabaseFile(context.getDatabasePath(dbName), reason, now)
+
+    internal fun copyDatabaseFile(dbFile: File, reason: String, now: Date = Date()): File? {
+        val dbName = dbFile.name
         if (!dbFile.exists()) return null
         checkpointWal(dbFile)
 
@@ -64,6 +67,76 @@ object PreMigrationBackup {
             File(dir, "$name-shm").delete()
         }
         return mainCopy
+    }
+
+    /** Копия из `databases/pre-migration/`, пригодная для восстановления (A2.15). */
+    data class Copy(val name: String, val reason: String, val stamp: String, val sizeBytes: Long)
+
+    private const val PENDING_MARKER = "restore-pending"
+
+    /** Копии БД (основные файлы), новые первыми. */
+    fun listCopies(context: Context, dbName: String): List<Copy> =
+        listCopies(context.getDatabasePath(dbName))
+
+    internal fun listCopies(dbFile: File): List<Copy> {
+        val dir = File(dbFile.parentFile, "pre-migration")
+        val prefix = dbFile.name + "."
+        return dir.listFiles().orEmpty()
+            .filter { it.isFile && it.name.startsWith(prefix) && !it.name.endsWith("-wal") && !it.name.endsWith("-shm") }
+            .mapNotNull { f ->
+                val rest = f.name.removePrefix(prefix)
+                val dot = rest.lastIndexOf('.')
+                if (dot <= 0) null else Copy(f.name, rest.substring(0, dot), rest.substring(dot + 1), f.length())
+            }
+            .sortedByDescending { it.stamp }
+    }
+
+    /**
+     * Откладывает восстановление копии [copyName]: БД открыта, файл подменять нельзя, поэтому пишется метка, а
+     * подмену делает [applyPendingRestore] при следующем запуске процесса до открытия БД.
+     * @return false, если такой копии нет.
+     */
+    fun stageRestore(context: Context, dbName: String, copyName: String): Boolean =
+        stageRestore(context.getDatabasePath(dbName), copyName)
+
+    internal fun stageRestore(dbFile: File, copyName: String): Boolean {
+        val dir = File(dbFile.parentFile, "pre-migration")
+        if (listCopies(dbFile).none { it.name == copyName }) return false
+        File(dir, PENDING_MARKER).writeText(copyName)
+        return true
+    }
+
+    /**
+     * Подмена БД выбранной копией, если [stageRestore] оставил метку. Текущая БД перед этим сохраняется как копия
+     * `pre-restore-copy`, поэтому и это восстановление обратимо. Вызывать до первого открытия БД.
+     * @return true, если подмена выполнена.
+     */
+    fun applyPendingRestore(context: Context, dbName: String): Boolean =
+        applyPendingRestore(context.getDatabasePath(dbName))
+
+    internal fun applyPendingRestore(dbFile: File): Boolean {
+        val dir = File(dbFile.parentFile, "pre-migration")
+        val marker = File(dir, PENDING_MARKER)
+        if (!marker.exists()) return false
+        val name = marker.readText().trim()
+        val source = File(dir, name)
+        if (name.isEmpty() || name.contains('/') || !source.exists()) {
+            marker.delete()
+            return false
+        }
+        // Выбранную копию забираем во временный файл до снимка текущей БД: снимок подрезает старые копии.
+        val staged = File(dbFile.path + ".restoring")
+        source.copyTo(staged, overwrite = true)
+        val stagedWal = File(source.path + "-wal").takeIf { it.exists() }
+            ?.let { it.copyTo(File(dbFile.path + ".restoring-wal"), overwrite = true) }
+        copyDatabaseFile(dbFile, "pre-restore-copy")
+        File(dbFile.path + "-wal").delete()
+        File(dbFile.path + "-shm").delete()
+        staged.copyTo(dbFile, overwrite = true)
+        staged.delete()
+        stagedWal?.let { it.copyTo(File(dbFile.path + "-wal"), overwrite = true); it.delete() }
+        marker.delete()
+        return true
     }
 
     private fun checkpointWal(file: File) {

@@ -34,6 +34,8 @@ class AppContainer(context: Context) {
     private val appContext = context.applicationContext
 
     val database: AppDatabase = run {
+        // A2.15: восстановление копии «до миграции» отложено до перезапуска — файл БД подменяем до её открытия.
+        PreMigrationBackup.applyPendingRestore(appContext, AppDatabase.DB_NAME)
         // I-20: копия файла БД до того, как Room применит миграцию. A2.15: не в Application.onCreate на главном
         // потоке, а перед первым открытием файла — на потоке первого запроса Room.
         Room.databaseBuilder(appContext, AppDatabase::class.java, AppDatabase.DB_NAME)
