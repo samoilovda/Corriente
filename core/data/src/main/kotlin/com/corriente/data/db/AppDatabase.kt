@@ -43,6 +43,10 @@ import com.corriente.data.seed.ISO_CURRENCIES
         TxnFtsEntity::class,
         BudgetEntity::class,
         RecurrenceEntity::class,
+        com.corriente.data.sync.SyncStateEntity::class,
+        com.corriente.data.sync.SyncOutboxEntity::class,
+        com.corriente.data.sync.SyncRowMetaEntity::class,
+        com.corriente.data.sync.CategoryRedirectEntity::class,
     ],
     version = AppDatabase.SCHEMA_VERSION,
     exportSchema = true,
@@ -57,12 +61,13 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun appSettingDao(): AppSettingDao
     abstract fun budgetDao(): BudgetDao
     abstract fun recurrenceDao(): RecurrenceDao
+    abstract fun syncDao(): com.corriente.data.sync.SyncDao
 
     companion object {
         const val DB_NAME = "corriente.db"
 
         /** Единственный источник версии: аннотация [Database] и `BackupRepository` берут её отсюда. */
-        const val SCHEMA_VERSION = 7
+        const val SCHEMA_VERSION = 8
 
         /**
          * v1 → v2 (F1.5): `category.import_batch_id` — чтобы откат импорта удалял только свои
@@ -234,10 +239,41 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * v7 → v8 (синхронизация, docs/SYNC_DESIGN.md S1): служебные таблицы `sync_state`, `sync_outbox`, `sync_row_meta`,
+         * `category_redirect` и триггеры захвата изменений ([com.corriente.data.sync.SyncTriggers]). Данные не меняются;
+         * пока синхронизация не включена (строки в `sync_state` нет), триггеры ничего не пишут.
+         */
+        val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                SYNC_TABLES_SQL.forEach(db::execSQL)
+                com.corriente.data.sync.SyncTriggers.create(db)
+            }
+        }
+
+        /** DDL служебных таблиц схемы 8 — ровно то, что генерирует Room (см. `schemas/.../8.json`). */
+        private val SYNC_TABLES_SQL = listOf(
+            "CREATE TABLE IF NOT EXISTS `sync_state` (`id` INTEGER NOT NULL, `enabled` INTEGER NOT NULL, `applying` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+            "CREATE TABLE IF NOT EXISTS `sync_outbox` (`table_name` TEXT NOT NULL, `pk` TEXT NOT NULL, PRIMARY KEY(`table_name`, `pk`))",
+            "CREATE TABLE IF NOT EXISTS `sync_row_meta` (`table_name` TEXT NOT NULL, `pk` TEXT NOT NULL, `hlc` TEXT NOT NULL, `deleted` INTEGER NOT NULL, PRIMARY KEY(`table_name`, `pk`))",
+            "CREATE TABLE IF NOT EXISTS `category_redirect` (`from_id` TEXT NOT NULL, `into_id` TEXT NOT NULL, PRIMARY KEY(`from_id`))",
+        )
+
+        /**
+         * Триггеры захвата изменений для БД, созданных не через [seedCallback] (тесты синхронизации на БД в памяти).
+         * В приложении их ставят [seedCallback] (новый файл) и [MIGRATION_7_8] (обновление).
+         */
+        val syncTriggersCallback: Callback = object : Callback() {
+            override fun onCreate(db: SupportSQLiteDatabase) {
+                super.onCreate(db)
+                com.corriente.data.sync.SyncTriggers.create(db)
+            }
+        }
+
         private val FTS_TRIGGER_SUFFIXES = listOf("BEFORE_UPDATE", "BEFORE_DELETE", "AFTER_UPDATE", "AFTER_INSERT")
 
         val ALL_MIGRATIONS: Array<Migration> = arrayOf(
-            MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7,
+            MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8,
         )
 
         /**
@@ -298,6 +334,8 @@ abstract class AppDatabase : RoomDatabase() {
                 // Типовые категории «из коробки» — тот же набор, что кладёт миграция v5→v6
                 // для уже установленных копий (своя транзакция внутри).
                 seedDefaultCategoriesIfEmpty(db, categoryName)
+                // Синхронизация (схема 8): триггеры захвата — как их создаёт MIGRATION_7_8 у обновлённых копий.
+                com.corriente.data.sync.SyncTriggers.create(db)
             }
         }
     }

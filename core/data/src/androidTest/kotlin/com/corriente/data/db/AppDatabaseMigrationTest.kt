@@ -288,6 +288,48 @@ class AppDatabaseMigrationTest {
         db.close()
     }
 
+    // S1 синхронизации: служебные таблицы + триггеры; пока sync_state пуст, триггеры ничего не пишут.
+    @Test
+    fun migration7to8AddsSyncTablesAndSilentTriggers() {
+        helper.createDatabase(testDbName, 7).apply {
+            execSQL("INSERT INTO currency(code, minor_units, display_scale, symbol, is_active, display_order) VALUES ('RUB', 2, 2, '₽', 1, 0)")
+            execSQL(
+                """
+                INSERT INTO account(id, name, currency_code, kind, opening_balance_minor, color, display_order, is_archived, include_in_total)
+                VALUES ('a1', 'Нал', 'RUB', 'CASH', 0, 0, 0, 0, 1)
+                """.trimIndent(),
+            )
+            close()
+        }
+
+        val db = helper.runMigrationsAndValidate(testDbName, 8, true, AppDatabase.MIGRATION_7_8)
+
+        db.query("SELECT COUNT(*) FROM sqlite_master WHERE type = 'trigger' AND substr(name, 1, 5) = 'sync_'").use { c ->
+            c.moveToFirst()
+            assertEquals(com.corriente.data.sync.SyncTriggers.TABLES.size * 3, c.getInt(0))
+        }
+        val insertTxn = { id: String ->
+            db.execSQL(
+                """
+                INSERT INTO txn(id, kind, date, created_at, updated_at, account_id, amount_minor, currency_code)
+                VALUES ('$id', 'EXPENSE', '2026-01-02', 0, 0, 'a1', 100, 'RUB')
+                """.trimIndent(),
+            )
+        }
+        insertTxn("t1")
+        db.query("SELECT COUNT(*) FROM sync_outbox").use { c -> c.moveToFirst(); assertEquals(0, c.getInt(0)) }
+
+        db.execSQL("INSERT INTO sync_state(id, enabled, applying) VALUES (1, 1, 0)")
+        insertTxn("t2")
+        db.query("SELECT table_name, pk FROM sync_outbox").use { c ->
+            assertEquals(true, c.moveToFirst())
+            assertEquals("txn", c.getString(0))
+            assertEquals("t2", c.getString(1))
+            assertEquals(false, c.moveToNext())
+        }
+        db.close()
+    }
+
     // A1.11: вся цепочка 1 → текущая, затем открытие настоящим Room.databaseBuilder — только он при
     // открытии сверяет схему со скомпилированной моделью сущностей (MigrationTestHelper сверяет с
     // JSON-файлами, которые для v3–v5 написаны вручную).
@@ -311,6 +353,8 @@ class AppDatabaseMigrationTest {
             db.appSettingDao().getAll()
             db.budgetDao().getAll()
             db.recurrenceDao().getAll()
+            db.syncDao().state()
+            db.syncDao().outbox()
         } finally {
             db.close()
         }

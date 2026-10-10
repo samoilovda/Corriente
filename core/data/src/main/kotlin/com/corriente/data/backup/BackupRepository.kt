@@ -163,7 +163,7 @@ class BackupRepository(private val db: AppDatabase) : BackupIo {
          */
         // `sync.` — личность устройства в синхронизации (id, HLC, папка): бэкап, восстановленный на другом устройстве,
         // не должен превращать его в клон этого (docs/SYNC_DESIGN.md §4, «Настройки»).
-        private val DEVICE_BOUND_PREFIXES = listOf("auto_backup.", "app_lock.", "recurrence.last_error.", "sync.")
+        val DEVICE_BOUND_PREFIXES: List<String> = listOf("auto_backup.", "app_lock.", "recurrence.last_error.", "sync.")
 
         fun isDeviceBoundSetting(key: String): Boolean = DEVICE_BOUND_PREFIXES.any { key.startsWith(it) }
 
