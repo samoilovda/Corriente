@@ -54,7 +54,9 @@ fi
 # Один телефон может быть виден дважды (по IP и через mDNS) — берём одно устройство, иначе adb/Gradle ругаются.
 # Своё можно задать заранее: ANDROID_SERIAL=... scripts/deploy.sh
 if [ -z "${ANDROID_SERIAL:-}" ]; then
-  export ANDROID_SERIAL="$("$ADB" devices | awk 'NR>1 && $2=="device" {print $1}' | head -1)"
+  # реальный телефон важнее запущенного эмулятора
+  export ANDROID_SERIAL="$("$ADB" devices | awk 'NR>1 && $2=="device" {print $1}' | sort -t- -k1,1 | grep -v '^emulator-' | head -1)"
+  [ -n "$ANDROID_SERIAL" ] || export ANDROID_SERIAL="$("$ADB" devices | awk 'NR>1 && $2=="device" {print $1}' | head -1)"
 fi
 echo "Устройство: $ANDROID_SERIAL"
 
