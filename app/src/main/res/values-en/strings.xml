@@ -447,4 +447,14 @@
     <string name="seed_cat_inc_refund">Refund</string>
     <string name="seed_cat_inc_sale">Sale</string>
     <string name="seed_cat_inc_other_inc">Other</string>
+    <string name="overview_balance">Balance</string>
+    <string name="overview_prev_month">Previous month</string>
+    <string name="overview_next_month">Next month</string>
+    <string name="txn_entry_add_to_category">Add: %1$s</string>
+    <string name="txn_entry_other_category">Other</string>
+    <string-array name="month_names">
+        <item>January</item><item>February</item><item>March</item><item>April</item>
+        <item>May</item><item>June</item><item>July</item><item>August</item>
+        <item>September</item><item>October</item><item>November</item><item>December</item>
+    </string-array>
 </resources>

@@ -89,10 +89,13 @@ fun TxnEntryScreen(
     onCreateAccount: () -> Unit = {},
     editingTxnId: String? = null,
     initialKind: EntryKind = EntryKind.EXPENSE,
+    initialCategoryId: String? = null,
+    initialAccountId: String? = null,
     viewModel: TxnEntryViewModel = viewModel(
         factory = with(corrienteContainer()) {
             TxnEntryViewModel.factory(
                 txnRepository, accountRepository, categoryRepository, currencyRepository, editingTxnId, initialKind,
+                initialCategoryId, initialAccountId,
             )
         },
     ),
@@ -242,13 +245,34 @@ fun TxnEntryScreen(
                 )
                 Spacer(Modifier.height(8.dp))
                 val selectedCategoryName = state.categories.firstOrNull { it.id == state.selectedCategoryId }?.name
-                OutlinedButton(
-                    onClick = { categorySheetOpen = true },
-                    enabled = !state.saving && pendingUndo == null,
-                    shape = RoundedCornerShape(6.dp),
-                    modifier = Modifier.fillMaxWidth().height(56.dp),
-                ) {
-                    Text((selectedCategoryName ?: stringResource(R.string.txn_entry_choose_category)).uppercase())
+                if (initialCategoryId != null && !viewModel.isEditing && selectedCategoryName != null) {
+                    // Пришли тапом по категории с главного экрана (как в Monefy): кнопка сразу добавляет операцию
+                    // в эту категорию; сменить категорию — кнопкой рядом.
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Button(
+                            onClick = { viewModel.save() },
+                            enabled = state.canSave && !state.saving && pendingUndo == null,
+                            shape = RoundedCornerShape(6.dp),
+                            modifier = Modifier.weight(1f).height(56.dp),
+                        ) {
+                            Text(stringResource(R.string.txn_entry_add_to_category, selectedCategoryName).uppercase())
+                        }
+                        OutlinedButton(
+                            onClick = { categorySheetOpen = true },
+                            enabled = !state.saving && pendingUndo == null,
+                            shape = RoundedCornerShape(6.dp),
+                            modifier = Modifier.height(56.dp),
+                        ) { Text(stringResource(R.string.txn_entry_other_category)) }
+                    }
+                } else {
+                    OutlinedButton(
+                        onClick = { categorySheetOpen = true },
+                        enabled = !state.saving && pendingUndo == null,
+                        shape = RoundedCornerShape(6.dp),
+                        modifier = Modifier.fillMaxWidth().height(56.dp),
+                    ) {
+                        Text((selectedCategoryName ?: stringResource(R.string.txn_entry_choose_category)).uppercase())
+                    }
                 }
                 if (viewModel.isEditing) {
                     Button(

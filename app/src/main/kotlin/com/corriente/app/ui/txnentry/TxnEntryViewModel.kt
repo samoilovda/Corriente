@@ -145,6 +145,9 @@ class TxnEntryViewModel(
     private val editingTxnId: String? = null,
     initialKind: EntryKind = EntryKind.EXPENSE,
     private val today: () -> LocalDate = LocalDate::now,
+    /** Тап по категории на главном экране: ввод сразу с этой категорией (и счётом, если на главном выбран счёт). */
+    private val initialCategoryId: String? = null,
+    private val initialAccountId: String? = null,
     /**
      * R5.4: форма живёт здесь, а не только в [form] — `SavedStateHandle` переживает убийство
      * процесса («Не сохранять действия» в параметрах разработчика), обычный `MutableStateFlow`
@@ -250,6 +253,15 @@ class TxnEntryViewModel(
             // производном uiState) фиксируем в самой форме — иначе счёт по умолчанию не
             // попадёт в SavedStateHandle и потеряется вместе с процессом. При редактировании
             // счёт уже задан из операции.
+            if (editingTxnId == null && savedStateHandle.get<String>(SavedKeys.KIND) == null) {
+                val presetAccount = initialAccountId?.let { id -> accounts.observeActive().first().firstOrNull { it.id == id } }
+                form.update {
+                    it.copy(
+                        selectedCategoryId = initialCategoryId ?: it.selectedCategoryId,
+                        selectedAccountId = presetAccount?.id ?: it.selectedAccountId,
+                    )
+                }
+            }
             if (editingTxnId == null && form.value.selectedAccountId == null) {
                 accounts.observeActive().first().firstOrNull()?.let { default ->
                     form.update { if (it.selectedAccountId == null) it.copy(selectedAccountId = default.id) else it }
@@ -547,12 +559,18 @@ class TxnEntryViewModel(
             currencies: CurrencyRepository,
             editingTxnId: String? = null,
             initialKind: EntryKind = EntryKind.EXPENSE,
+            initialCategoryId: String? = null,
+            initialAccountId: String? = null,
         ) = viewModelFactory {
             initializer {
                 // R5.4: createSavedStateHandle() — расширение на CreationExtras, доступное здесь
                 // потому что NavBackStackEntry/ComponentActivity, из которых viewModel(...) берёт
                 // extras, сами являются SavedStateRegistryOwner (navigation-compose 2.9.0).
-                TxnEntryViewModel(txns, accounts, categories, currencies, editingTxnId, initialKind, savedStateHandle = createSavedStateHandle())
+                TxnEntryViewModel(
+                    txns, accounts, categories, currencies, editingTxnId, initialKind,
+                    initialCategoryId = initialCategoryId, initialAccountId = initialAccountId,
+                    savedStateHandle = createSavedStateHandle(),
+                )
             }
         }
     }

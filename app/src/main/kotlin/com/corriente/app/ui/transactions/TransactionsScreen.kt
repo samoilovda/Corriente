@@ -11,7 +11,14 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.text.style.TextAlign
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -66,6 +73,8 @@ fun TransactionsScreen(
     onAddTransfer: () -> Unit,
     onEditTransaction: (String) -> Unit,
     onEditTransfer: (String) -> Unit,
+    /** Тап по иконке категории в шапке: ввод расхода в эту категорию (и выбранный в шапке счёт, если он есть). */
+    onAddExpenseInCategory: (categoryId: String, accountId: String?) -> Unit = { _, _ -> onAddExpense() },
     viewModel: TransactionsViewModel = viewModel(
         factory = with(corrienteContainer()) {
             TransactionsViewModel.factory(
@@ -74,8 +83,21 @@ fun TransactionsScreen(
             )
         },
     ),
+    overviewViewModel: MonthOverviewViewModel = viewModel(
+        factory = with(corrienteContainer()) {
+            MonthOverviewViewModel.factory(
+                txnRepository, accountRepository, categoryRepository, currencyRepository, accountBalanceUseCase,
+            )
+        },
+    ),
 ) {
     val state by viewModel.uiState.collectAsState()
+    val overview by overviewViewModel.uiState.collectAsState()
+    var searchOpen by remember { mutableStateOf(false) }
+    val listState = rememberLazyListState()
+    val scope = rememberCoroutineScope()
+    // Счёт в шапке и фильтр списка по счёту — одно и то же (как в Monefy: выбранный счёт видно и в кольце, и в списке).
+    LaunchedEffect(state.filter.accountId) { overviewViewModel.setAccount(state.filter.accountId) }
     val message by viewModel.messages.collectAsState()
     val snackbarState = rememberMessageSnackbarState(message, viewModel::consumeMessage)
     var showFilters by remember { mutableStateOf(false) }
@@ -96,6 +118,12 @@ fun TransactionsScreen(
             TopAppBar(
                 title = { Text(stringResource(R.string.nav_transactions)) },
                 actions = {
+                    IconButton(onClick = {
+                        if (searchOpen) viewModel.setQuery("")
+                        searchOpen = !searchOpen
+                    }) {
+                        Icon(Icons.Filled.Search, contentDescription = stringResource(R.string.txn_search_hint))
+                    }
                     IconButton(onClick = { showFilters = true }) {
                         BadgedBox(badge = { if (state.filter.isActive) Badge() }) {
                             Icon(
@@ -129,55 +157,69 @@ fun TransactionsScreen(
         },
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
-            OutlinedTextField(
-                value = state.filter.query,
-                onValueChange = viewModel::setQuery,
-                singleLine = true,
-                label = { Text(stringResource(R.string.txn_search_hint)) },
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
-            )
-            FilterBar(
-                accountLabel = state.accounts.firstOrNull { it.id == state.filter.accountId }?.name
-                    ?: stringResource(R.string.txn_list_all_accounts),
-                accountOptions = state.accounts.map { it.id to it.name },
-                onAccount = viewModel::setAccountFilter,
-                currencyLabel = state.filter.currencyCode ?: stringResource(R.string.txn_list_all_currencies),
-                currencyOptions = state.currencyCodes,
-                onCurrency = viewModel::setCurrencyFilter,
-            )
-            HorizontalDivider()
+            if (searchOpen || state.filter.query.isNotBlank()) {
+                OutlinedTextField(
+                    value = state.filter.query,
+                    onValueChange = viewModel::setQuery,
+                    singleLine = true,
+                    label = { Text(stringResource(R.string.txn_search_hint)) },
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
+                )
+            }
 
-            if (state.sections.isEmpty()) {
-                Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.Center) {
-                    Text(
-                        stringResource(if (state.noMatch) R.string.txn_list_no_match else R.string.txn_list_empty),
-                        Modifier.padding(top = 48.dp),
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                }
-            } else {
-                LazyColumn(Modifier.fillMaxSize()) {
-                    state.sections.forEach { section ->
-                        item(key = "h-${section.date}") { DayHeader(section) }
-                        items(section.rows, key = { it.id }) { row ->
-                            TxnRowItem(
-                                row,
-                                onClick = {
-                                    when {
-                                        row.isTransfer -> onEditTransfer(row.id)
-                                        row.editable -> onEditTransaction(row.id)
-                                    }
-                                },
-                            )
-                            HorizontalDivider()
-                        }
+            // Шапка с кольцом — первым элементом списка: уезжает вверх при прокрутке, кнопки «−»/«+» остаются.
+            // Пока идёт поиск, она не нужна — показываем только найденное.
+            val header = overview.overview?.takeIf { state.filter.query.isBlank() }
+            LazyColumn(
+                Modifier.fillMaxSize(),
+                state = listState,
+                contentPadding = PaddingValues(bottom = 96.dp),
+            ) {
+                if (header != null) {
+                    item(key = "overview") {
+                        MonthOverviewHeader(
+                            overview = header,
+                            onShiftMonth = overviewViewModel::shiftMonth,
+                            onSelectAccount = viewModel::setAccountFilter,
+                            onSelectAllAccounts = { code ->
+                                viewModel.setAccountFilter(null)
+                                overviewViewModel.setAllAccounts(code)
+                            },
+                            onCategoryClick = { id -> onAddExpenseInCategory(id, header.accountId) },
+                            onBalanceClick = { scope.launch { listState.animateScrollToItem(1) } },
+                        )
                     }
-                    if (state.canLoadEarlier) {
-                        item(key = "load-earlier") {
-                            Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.Center) {
-                                TextButton(onClick = viewModel::loadEarlier) {
-                                    Text(stringResource(R.string.txn_list_load_earlier))
+                }
+                if (state.sections.isEmpty()) {
+                    item(key = "empty") {
+                        Text(
+                            stringResource(if (state.noMatch) R.string.txn_list_no_match else R.string.txn_list_empty),
+                            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 32.dp),
+                            style = MaterialTheme.typography.bodyMedium,
+                            textAlign = TextAlign.Center,
+                        )
+                    }
+                }
+                state.sections.forEach { section ->
+                    item(key = "h-${section.date}") { DayHeader(section) }
+                    items(section.rows, key = { it.id }) { row ->
+                        TxnRowItem(
+                            row,
+                            onClick = {
+                                when {
+                                    row.isTransfer -> onEditTransfer(row.id)
+                                    row.editable -> onEditTransaction(row.id)
                                 }
+                            },
+                        )
+                        HorizontalDivider()
+                    }
+                }
+                if (state.canLoadEarlier) {
+                    item(key = "load-earlier") {
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
+                            TextButton(onClick = viewModel::loadEarlier) {
+                                Text(stringResource(R.string.txn_list_load_earlier))
                             }
                         }
                     }
@@ -189,6 +231,8 @@ fun TransactionsScreen(
     if (showFilters) {
         FilterSheet(
             state = state,
+            onAccount = viewModel::setAccountFilter,
+            onCurrency = viewModel::setCurrencyFilter,
             onCategory = viewModel::setCategoryFilter,
             onPeriod = viewModel::setPeriod,
             onAmountRange = viewModel::setAmountRange,
@@ -202,6 +246,8 @@ fun TransactionsScreen(
 @Composable
 private fun FilterSheet(
     state: TransactionsUiState,
+    onAccount: (String?) -> Unit,
+    onCurrency: (String?) -> Unit,
     onCategory: (String?) -> Unit,
     onPeriod: (java.time.LocalDate?, java.time.LocalDate?) -> Unit,
     onAmountRange: (Long?, Long?) -> Unit,
@@ -215,6 +261,16 @@ private fun FilterSheet(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Text(stringResource(R.string.txn_filters), style = MaterialTheme.typography.titleMedium)
+
+            FilterBar(
+                accountLabel = state.accounts.firstOrNull { it.id == state.filter.accountId }?.name
+                    ?: stringResource(R.string.txn_list_all_accounts),
+                accountOptions = state.accounts.map { it.id to it.name },
+                onAccount = onAccount,
+                currencyLabel = state.filter.currencyCode ?: stringResource(R.string.txn_list_all_currencies),
+                currencyOptions = state.currencyCodes,
+                onCurrency = onCurrency,
+            )
 
             FilterDropdown(
                 label = state.categories.firstOrNull { it.id == state.filter.categoryId }?.name

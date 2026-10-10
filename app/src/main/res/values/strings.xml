@@ -457,4 +457,14 @@
     <string name="seed_cat_inc_refund">Возврат средств</string>
     <string name="seed_cat_inc_sale">Продажа</string>
     <string name="seed_cat_inc_other_inc">Прочее</string>
+    <string name="overview_balance">Баланс</string>
+    <string name="overview_prev_month">Предыдущий месяц</string>
+    <string name="overview_next_month">Следующий месяц</string>
+    <string name="txn_entry_add_to_category">Добавить: %1$s</string>
+    <string name="txn_entry_other_category">Другая</string>
+    <string-array name="month_names">
+        <item>Январь</item><item>Февраль</item><item>Март</item><item>Апрель</item>
+        <item>Май</item><item>Июнь</item><item>Июль</item><item>Август</item>
+        <item>Сентябрь</item><item>Октябрь</item><item>Ноябрь</item><item>Декабрь</item>
+    </string-array>
 </resources>

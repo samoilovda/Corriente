@@ -128,7 +128,8 @@ class AutoBackupViewModel(
             val treeUri = settings.current().treeUri?.let(Uri::parse)
             currentTreeUri = treeUri
             if (treeUri == null) {
-                _folderError.value = false
+                // Ошибку не сбрасываем: папки нет, «недоступной» ей быть нечему, а флаг мог только что выставить
+                // неудавшийся setFolder (A3.13) — первое обновление списка при открытии экрана гасило его гонкой.
                 _backupFiles.value = emptyList()
                 return@launch
             }

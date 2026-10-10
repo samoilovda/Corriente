@@ -74,6 +74,8 @@ class TxnEntryViewModelTest {
         editingTxnId: String? = null,
         initialKind: EntryKind = EntryKind.EXPENSE,
         savedStateHandle: androidx.lifecycle.SavedStateHandle = androidx.lifecycle.SavedStateHandle(),
+        initialCategoryId: String? = null,
+        initialAccountId: String? = null,
     ): TxnEntryViewModel = TxnEntryViewModel(
         txns = TxnRepository(fakes.txnDao, fakes.accountDao),
         accounts = AccountRepository(fakes.accountDao),
@@ -82,6 +84,8 @@ class TxnEntryViewModelTest {
         editingTxnId = editingTxnId,
         initialKind = initialKind,
         today = { today },
+        initialCategoryId = initialCategoryId,
+        initialAccountId = initialAccountId,
         savedStateHandle = savedStateHandle,
     )
 
@@ -104,6 +108,24 @@ class TxnEntryViewModelTest {
         advanceUntilIdle()
         assertEquals(EntryKind.INCOME, model.uiState.value.kind)
         assertEquals(listOf("Зарплата"), model.uiState.value.categories.map { it.name })
+    }
+
+    // Тап по иконке категории на главном: форма открывается с этой категорией и выбранным в шапке счётом.
+    @Test
+    fun `preset category and account from the overview are applied to a new entry`() = runTest(dispatcher) {
+        val fakes = Fakes().apply { seed() }
+        val model = vm(fakes, initialCategoryId = "cat-food", initialAccountId = "acc-clp")
+        backgroundScope.observe(model)
+        advanceUntilIdle()
+        assertEquals("cat-food", model.uiState.value.selectedCategoryId)
+        assertEquals("acc-clp", model.uiState.value.selectedAccountId)
+        assertEquals("CLP", model.uiState.value.currency?.code?.code)
+
+        // неизвестный счёт (удалён/в архиве) — обычный счёт по умолчанию
+        val other = vm(Fakes().apply { seed() }, initialCategoryId = "cat-food", initialAccountId = "gone")
+        backgroundScope.observe(other)
+        advanceUntilIdle()
+        assertEquals("acc-rub", other.uiState.value.selectedAccountId)
     }
 
     @Test

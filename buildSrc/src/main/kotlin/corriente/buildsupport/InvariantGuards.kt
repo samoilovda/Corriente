@@ -28,6 +28,9 @@ object InvariantGuards {
         "app/src/main/kotlin/com/corriente/app/ui/report/ReportScreen.kt",
         // A3.7: график курсов обмена — координаты Canvas из `rateMicros` (курс, не деньги); найдено новым правилом.
         "app/src/main/kotlin/com/corriente/app/ui/fxreport/FxReportScreen.kt",
+        // Шапка «Операций»: дуги кольца и позиции иконок по окружности — только координаты Canvas/offset;
+        // доли и проценты считаются в `MonthOverview.kt` целыми числами.
+        "app/src/main/kotlin/com/corriente/app/ui/transactions/MonthOverviewHeader.kt",
     )
 
     private data class Rule(val regex: Regex, val reason: String)

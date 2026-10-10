@@ -1,6 +1,9 @@
 package com.corriente.app.ui.txnentry
 
+import androidx.compose.ui.test.hasScrollAction
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -70,7 +73,9 @@ class TxnEntryFlowInstrumentedTest {
         composeRule.onNodeWithText("Еда-тест").performClick()
         composeRule.waitForIdle()
 
-        // Назад в списке операций — строка с категорией и суммой должна быть видна.
+        // Назад в списке операций — строка с категорией и суммой должна быть в списке. Сверху теперь шапка с
+        // кольцом, строка может оказаться ниже экрана (LazyColumn её не рисует) — сначала прокручиваем к ней.
+        composeRule.onNode(hasScrollAction()).performScrollToNode(hasText("Еда-тест"))
         composeRule.onNodeWithText("Еда-тест").assertExists()
         // MoneyFormatter (I-25): знак «-», точка десятичная, независимо от локали устройства.
         // Сумма встречается и в строке операции, и в подытоге дня (единственный расход за день) —
