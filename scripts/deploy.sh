@@ -51,6 +51,13 @@ MSG
   exit 1
 fi
 
+# Один телефон может быть виден дважды (по IP и через mDNS) — берём одно устройство, иначе adb/Gradle ругаются.
+# Своё можно задать заранее: ANDROID_SERIAL=... scripts/deploy.sh
+if [ -z "${ANDROID_SERIAL:-}" ]; then
+  export ANDROID_SERIAL="$("$ADB" devices | awk 'NR>1 && $2=="device" {print $1}' | head -1)"
+fi
+echo "Устройство: $ANDROID_SERIAL"
+
 ./gradlew :app:installDebug
 "$ADB" shell am start -n "$PKG/.MainActivity" >/dev/null
 echo "Установлено и запущено."
