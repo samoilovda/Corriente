@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.corriente.app.ui.report.largestRemainderShares
+import com.corriente.data.category.OverviewCategoriesSettings
 import com.corriente.data.db.entity.CategoryKind
 import com.corriente.data.model.Account
 import com.corriente.data.model.Category
@@ -26,13 +27,14 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import java.time.LocalDate
 import java.time.YearMonth
 
 /** Сколько иконок категорий помещается вокруг маленького кольца. */
-internal const val OVERVIEW_MAX_ICONS = 12
+internal const val OVERVIEW_MAX_ICONS = OverviewCategoriesSettings.MAX
 
 /** Иконка категории вокруг кольца. [percent] == null — в этом месяце по ней ничего не потрачено. */
 data class OverviewIcon(
@@ -84,6 +86,8 @@ internal fun buildMonthOverview(
     balances: List<AccountBalance>,
     selectedAccountId: String?,
     selectedCurrency: String?,
+    /** Выбранные пользователем категории вокруг кольца; пусто — автоматически. */
+    pinned: List<String> = emptyList(),
 ): MonthOverview? {
     val active = accounts.filterNot { it.isArchived }
     val account = selectedAccountId?.let { id -> active.firstOrNull { it.id == id } }
@@ -122,8 +126,13 @@ internal fun buildMonthOverview(
     // Уже потраченное — в первую очередь, остальное добирается по порядку категорий; на экране — порядок категорий.
     val candidates = categories.filter { it.kind == CategoryKind.EXPENSE && it.parentId == null && !it.isArchived }
         .sortedWith(compareBy({ it.displayOrder }, { it.name }))
-    val chosen = (candidates.filter { it.id in percentById } + candidates.filterNot { it.id in percentById })
-        .take(OVERVIEW_MAX_ICONS).map { it.id }.toSet()
+    val pinnedAlive = pinned.filter { id -> candidates.any { it.id == id } }
+    val chosen = if (pinnedAlive.isNotEmpty()) {
+        pinnedAlive.take(OVERVIEW_MAX_ICONS).toSet()
+    } else {
+        (candidates.filter { it.id in percentById } + candidates.filterNot { it.id in percentById })
+            .take(OVERVIEW_MAX_ICONS).map { it.id }.toSet()
+    }
     val icons = candidates.filter { it.id in chosen }.map {
         OverviewIcon(it.id, it.name, it.icon, it.color, percentById[it.id])
     }
@@ -163,6 +172,7 @@ class MonthOverviewViewModel(
     categories: CategoryRepository,
     currencies: CurrencyRepository,
     balances: AccountBalanceUseCase,
+    overviewSettings: OverviewCategoriesSettings? = null,
     today: () -> LocalDate = LocalDate::now,
 ) : ViewModel() {
 
@@ -178,10 +188,10 @@ class MonthOverviewViewModel(
         accounts.observeAll(),
         categories.observeAllForLookup(),
         combine(currencies.observeAll(), balances.observeBalances()) { c, b -> c to b },
-        combine(accountId, currency) { a, c -> a to c },
-    ) { (m, list), allAccounts, allCategories, (allCurrencies, allBalances), (selAccount, selCurrency) ->
+        combine(accountId, currency, overviewSettings?.pinned ?: flowOf(emptyList())) { a, c, p -> Triple(a, c, p) },
+    ) { (m, list), allAccounts, allCategories, (allCurrencies, allBalances), (selAccount, selCurrency, pins) ->
         MonthOverviewUiState(
-            buildMonthOverview(m, list, allAccounts, allCategories, allCurrencies, allBalances, selAccount, selCurrency),
+            buildMonthOverview(m, list, allAccounts, allCategories, allCurrencies, allBalances, selAccount, selCurrency, pins),
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), MonthOverviewUiState())
 
@@ -204,8 +214,9 @@ class MonthOverviewViewModel(
             categories: CategoryRepository,
             currencies: CurrencyRepository,
             balances: AccountBalanceUseCase,
+            overviewSettings: OverviewCategoriesSettings? = null,
         ) = viewModelFactory {
-            initializer { MonthOverviewViewModel(txns, accounts, categories, currencies, balances) }
+            initializer { MonthOverviewViewModel(txns, accounts, categories, currencies, balances, overviewSettings) }
         }
     }
 }

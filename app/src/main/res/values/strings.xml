@@ -224,7 +224,7 @@
     <string name="categories_new">Новая категория</string>
     <string name="categories_edit">Категория</string>
     <string name="categories_name">Название</string>
-    <string name="categories_icon">Иконка (эмодзи, необязательно)</string>
+    <string name="categories_icon">Иконка</string>
     <string name="categories_color">Цвет</string>
     <string name="categories_parent">Родительская категория</string>
     <string name="categories_no_parent">Без родителя</string>
@@ -467,4 +467,26 @@
         <item>Май</item><item>Июнь</item><item>Июль</item><item>Август</item>
         <item>Сентябрь</item><item>Октябрь</item><item>Ноябрь</item><item>Декабрь</item>
     </string-array>
+    <string name="more_actions">Ещё</string>
+    <string name="categories_auto_icons">Подобрать иконки</string>
+    <string name="categories_icons_assigned">Подобрано иконок: %1$d</string>
+    <string name="categories_ring_title">Категории на главном</string>
+    <string name="categories_ring_hint">Отмечено %1$d из %2$d. Если ничего не отмечать — подбираются автоматически: сначала те, где были траты.</string>
+    <string name="categories_ring_auto">Автоматически</string>
+    <string name="icon_tab_icons">Иконки</string>
+    <string name="icon_tab_emoji">Эмодзи</string>
+    <string name="icon_custom_emoji">Свой эмодзи</string>
+    <string name="icon_use">Выбрать</string>
+    <string name="icon_none">Без иконки</string>
+    <string name="icon_choose">Выбрать</string>
+    <string name="icon_suggest">Подобрать</string>
+    <string name="icon_section_food">Еда</string>
+    <string name="icon_section_transport">Транспорт и поездки</string>
+    <string name="icon_section_home">Дом</string>
+    <string name="icon_section_tech">Связь и техника</string>
+    <string name="icon_section_health">Здоровье и уход</string>
+    <string name="icon_section_leisure">Покупки и досуг</string>
+    <string name="icon_section_family">Семья и учёба</string>
+    <string name="icon_section_money">Деньги</string>
+    <string name="icon_section_other">Прочее</string>
 </resources>

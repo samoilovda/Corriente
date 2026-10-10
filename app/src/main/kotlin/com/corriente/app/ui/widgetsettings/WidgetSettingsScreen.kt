@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.material3.MaterialTheme
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.corriente.app.R
+import com.corriente.app.ui.common.CategoryGlyph
 import com.corriente.app.corrienteContainer
 import com.corriente.app.ui.common.rememberMessageSnackbarState
 
@@ -119,7 +120,7 @@ fun WidgetSettingsScreen(
                 ListItem(
                     headlineContent = { Text(row.name) },
                     leadingContent = if (!row.icon.isNullOrBlank()) {
-                        { Text(row.icon) }
+                        { CategoryGlyph(row.icon, row.name, MaterialTheme.colorScheme.primary, size = 20.dp) }
                     } else {
                         null
                     },

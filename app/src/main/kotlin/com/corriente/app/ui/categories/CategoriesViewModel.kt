@@ -17,6 +17,10 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOf
+import com.corriente.data.category.OverviewCategoriesSettings
+import com.corriente.data.category.suggestCategoryIcon
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -61,7 +65,36 @@ internal fun buildBranches(active: List<Category>, kind: CategoryKind): List<Cat
         .map { top -> CategoryNode(top, childrenByParent[top.id].orEmpty()) }
 }
 
-class CategoriesViewModel(private val repository: CategoryRepository) : WritingViewModel() {
+class CategoriesViewModel(
+    private val repository: CategoryRepository,
+    private val overviewSettings: OverviewCategoriesSettings? = null,
+) : WritingViewModel() {
+
+    /** Категории вокруг кольца на главном; пусто — автоматический выбор. */
+    val ringPins: StateFlow<List<String>> = (overviewSettings?.pinned ?: flowOf(emptyList()))
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    fun setRingPins(ids: List<String>) {
+        val settings = overviewSettings ?: return
+        launchWrite(onError = { uiMessage(R.string.categories_error_save) }) { settings.set(ids) }
+    }
+
+    /**
+     * «Подобрать иконки»: категориям без иконки — линейная иконка по названию ([suggestCategoryIcon]). Свои иконки
+     * не трогаем. Сообщение — сколько подобрано.
+     */
+    fun autoAssignIcons() {
+        launchWrite(onError = { uiMessage(R.string.categories_error_save) }) {
+            var assigned = 0
+            repository.observeActive().first().filter { it.icon.isNullOrBlank() }.forEach { category ->
+                suggestCategoryIcon(category.name)?.let { icon ->
+                    repository.update(category.id, category.name, category.parentId, category.color, icon)
+                    assigned++
+                }
+            }
+            postMessage(uiMessage(R.string.categories_icons_assigned, assigned))
+        }
+    }
 
     val uiState: StateFlow<CategoriesUiState> =
         combine(repository.observeActive(), repository.observeArchived()) { active, archived ->
@@ -186,8 +219,8 @@ class CategoriesViewModel(private val repository: CategoryRepository) : WritingV
     }
 
     companion object {
-        fun factory(repository: CategoryRepository) = viewModelFactory {
-            initializer { CategoriesViewModel(repository) }
+        fun factory(repository: CategoryRepository, overviewSettings: OverviewCategoriesSettings? = null) = viewModelFactory {
+            initializer { CategoriesViewModel(repository, overviewSettings) }
         }
     }
 }

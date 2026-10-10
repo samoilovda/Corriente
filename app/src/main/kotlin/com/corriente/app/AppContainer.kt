@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.Room
 import com.corriente.data.applock.AppLockSettings
 import com.corriente.data.backup.AutoBackupSettings
+import com.corriente.data.category.OverviewCategoriesSettings
 import com.corriente.data.backup.BackupRepository
 import com.corriente.data.db.AppDatabase
 import androidx.sqlite.db.framework.FrameworkSQLiteOpenHelperFactory
@@ -57,6 +58,8 @@ class AppContainer(context: Context) {
     val autoBackupSettings: AutoBackupSettings by lazy { AutoBackupSettings(database.appSettingDao()) }
     /** R5.2: настройка блокировки приложения (не шифрование — см. AppLockScreen.kt). */
     val appLockSettings: AppLockSettings by lazy { AppLockSettings(database.appSettingDao()) }
+    /** Какие категории стоят вокруг кольца на главном. */
+    val overviewCategoriesSettings: OverviewCategoriesSettings by lazy { OverviewCategoriesSettings(database.appSettingDao()) }
     val monefyImportRepository: MonefyImportRepository by lazy { MonefyImportRepository(database) }
     val budgetRepository: BudgetRepository by lazy { BudgetRepository(database.budgetDao()) }
     val recurrenceRepository: RecurrenceRepository by lazy { RecurrenceRepository(database.recurrenceDao(), database.txnDao()) }

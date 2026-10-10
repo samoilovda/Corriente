@@ -205,4 +205,25 @@ class CategoriesViewModelTest {
         assertTrue(vm.uiState.value.expense.isEmpty())
         assertNull(vm.editor.value)
     }
+
+    // «Подобрать иконки»: только категориям без иконки, своя иконка остаётся.
+    @Test
+    fun `auto icons fill only categories without an icon`() = runTest(dispatcher) {
+        val (vm, _) = build()
+        backgroundScope.observe(vm)
+        backgroundScope.launch { vm.messages.collect {} }
+        listOf("Такси" to null, "Продукты" to "🍎", "Xyz" to null).forEach { (name, icon) ->
+            vm.startCreate(CategoryKind.EXPENSE)
+            advanceUntilIdle()
+            vm.save(CategoryForm(name, CategoryKind.EXPENSE, null, 1, icon))
+            advanceUntilIdle()
+        }
+        vm.autoAssignIcons()
+        advanceUntilIdle()
+        val icons = vm.uiState.value.expense.associate { it.category.name to it.category.icon }
+        assertEquals("mi:local_taxi", icons["Такси"])
+        assertEquals("🍎", icons["Продукты"])
+        assertNull(icons["Xyz"])
+        assertEquals(listOf<Any>(1), vm.messages.value?.args)
+    }
 }

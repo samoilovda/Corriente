@@ -98,4 +98,14 @@ class MonthOverviewTest {
         assertTrue(o.icons.any { it.categoryId == "c19" })
         assertEquals("c19", o.icons.last().categoryId) // на экране — порядок категорий
     }
+
+    @Test
+    fun pinnedCategoriesReplaceAutomaticChoiceAndSkipUnknownIds() {
+        val o = buildMonthOverview(
+            month, listOf(exp("cash", 5_00, "food")), accounts, categories, currencies, emptyList(), null, null,
+            pinned = listOf("taxi", "gone", "snacks"), // подкатегория и несуществующий id не попадают
+        )!!
+        assertEquals(listOf("taxi"), o.icons.map { it.categoryId })
+        assertEquals(listOf(5_00L), o.slices.map { it.valueMinor }) // кольцо по-прежнему по всем тратам
+    }
 }

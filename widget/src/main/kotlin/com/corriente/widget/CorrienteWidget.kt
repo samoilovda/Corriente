@@ -141,7 +141,9 @@ private fun LargeBody(snapshot: WidgetSnapshot, context: Context) {
             Row(modifier = GlanceModifier.fillMaxWidth()) {
                 row.forEach { category ->
                     Text(
-                        text = category.icon?.takeIf { it.isNotBlank() } ?: category.name.take(3),
+                        // Линейная иконка (`mi:…`) в Glance-тексте не рисуется — для неё, как и без иконки, буквы названия.
+                        text = category.icon?.takeIf { it.isNotBlank() && com.corriente.data.category.materialIconKey(it) == null }
+                            ?: category.name.take(3),
                         style = captionStyle(),
                         modifier = GlanceModifier
                             .defaultWeight()

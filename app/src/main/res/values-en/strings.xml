@@ -224,7 +224,7 @@
     <string name="categories_new">New category</string>
     <string name="categories_edit">Category</string>
     <string name="categories_name">Name</string>
-    <string name="categories_icon">Icon (emoji, optional)</string>
+    <string name="categories_icon">Icon</string>
     <string name="categories_color">Color</string>
     <string name="categories_parent">Parent category</string>
     <string name="categories_no_parent">No parent</string>
@@ -457,4 +457,26 @@
         <item>May</item><item>June</item><item>July</item><item>August</item>
         <item>September</item><item>October</item><item>November</item><item>December</item>
     </string-array>
+    <string name="more_actions">More</string>
+    <string name="categories_auto_icons">Suggest icons</string>
+    <string name="categories_icons_assigned">Icons assigned: %1$d</string>
+    <string name="categories_ring_title">Categories on the main screen</string>
+    <string name="categories_ring_hint">%1$d of %2$d selected. With nothing selected they are picked automatically, categories with spending first.</string>
+    <string name="categories_ring_auto">Automatic</string>
+    <string name="icon_tab_icons">Icons</string>
+    <string name="icon_tab_emoji">Emoji</string>
+    <string name="icon_custom_emoji">Your own emoji</string>
+    <string name="icon_use">Use</string>
+    <string name="icon_none">No icon</string>
+    <string name="icon_choose">Choose</string>
+    <string name="icon_suggest">Suggest</string>
+    <string name="icon_section_food">Food</string>
+    <string name="icon_section_transport">Transport &amp; travel</string>
+    <string name="icon_section_home">Home</string>
+    <string name="icon_section_tech">Phone &amp; tech</string>
+    <string name="icon_section_health">Health &amp; care</string>
+    <string name="icon_section_leisure">Shopping &amp; leisure</string>
+    <string name="icon_section_family">Family &amp; learning</string>
+    <string name="icon_section_money">Money</string>
+    <string name="icon_section_other">Other</string>
 </resources>

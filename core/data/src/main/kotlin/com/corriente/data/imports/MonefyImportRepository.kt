@@ -177,6 +177,8 @@ class MonefyImportRepository(private val db: AppDatabase) {
                 db.categoryDao().insert(
                     CategoryEntity(
                         id = id, name = name, kind = kind, color = 0,
+                        // В CSV Monefy иконок нет — подбираем по названию («Такси» → такси), иначе на главном одни буквы.
+                        icon = com.corriente.data.category.suggestCategoryIcon(name),
                         origin = CategoryOrigin.IMPORT, importBatchId = batchId,
                     ),
                 )

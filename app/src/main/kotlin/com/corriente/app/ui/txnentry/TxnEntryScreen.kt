@@ -75,6 +75,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.corriente.app.R
+import com.corriente.app.ui.common.CategoryGlyph
 import com.corriente.app.corrienteContainer
 import com.corriente.app.ui.common.rememberMessageSnackbarState
 import com.corriente.data.model.Category
@@ -384,16 +385,12 @@ private fun CategoryCell(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
+        val tint = if (color != 0) Color(color) else MaterialTheme.colorScheme.onSurfaceVariant
         Box(
-            Modifier
-                .size(20.dp)
-                .background(
-                    if (color != 0) Color(color) else MaterialTheme.colorScheme.surfaceVariant,
-                    CircleShape,
-                ),
+            Modifier.size(32.dp).background(tint.copy(alpha = 0.18f), CircleShape),
             contentAlignment = Alignment.Center,
         ) {
-            if (icon != null) Text(icon, style = MaterialTheme.typography.bodySmall)
+            if (icon != null) CategoryGlyph(icon, text, tint, size = 18.dp)
         }
         Text(
             text,

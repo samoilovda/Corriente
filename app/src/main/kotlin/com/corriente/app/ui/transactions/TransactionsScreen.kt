@@ -62,6 +62,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.corriente.app.R
+import com.corriente.app.ui.common.CategoryGlyph
 import com.corriente.app.ui.report.ResourceReportTexts
 import com.corriente.app.corrienteContainer
 
@@ -87,6 +88,7 @@ fun TransactionsScreen(
         factory = with(corrienteContainer()) {
             MonthOverviewViewModel.factory(
                 txnRepository, accountRepository, categoryRepository, currencyRepository, accountBalanceUseCase,
+                overviewCategoriesSettings,
             )
         },
     ),
@@ -408,7 +410,11 @@ private fun TxnRowItem(row: TxnRow, onClick: () -> Unit) {
                         .background(dotColor, androidx.compose.foundation.shape.CircleShape),
                     contentAlignment = Alignment.Center,
                 ) {
-                    row.icon?.takeIf { it.isNotBlank() }?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
+                    if (!row.icon.isNullOrBlank()) {
+                        // Фон — цвет категории, поэтому линейная иконка белая; эмодзи рисуется как есть.
+                        val tint = if (row.color != 0) androidx.compose.ui.graphics.Color.White else MaterialTheme.colorScheme.onSurfaceVariant
+                        CategoryGlyph(row.icon, row.title, tint, size = 16.dp)
+                    }
                 }
                 // R3.0: маркер счёта — маленькая точка поверх иконки категории, чтобы по цвету
                 // было видно, с какого счёта операция, не занимая отдельного столбца в строке.

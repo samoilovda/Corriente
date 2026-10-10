@@ -50,6 +50,12 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.corriente.app.R
+import com.corriente.app.ui.common.CategoryGlyph
+import com.corriente.data.category.OverviewCategoriesSettings
+import com.corriente.data.category.suggestCategoryIcon
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material3.Checkbox
 import com.corriente.app.ui.common.messageRes
 import com.corriente.data.repository.DeleteBlocker
 import com.corriente.app.corrienteContainer
@@ -62,7 +68,7 @@ import com.corriente.data.model.Category
 fun CategoriesScreen(
     onBack: () -> Unit,
     viewModel: CategoriesViewModel = viewModel(
-        factory = CategoriesViewModel.factory(corrienteContainer().categoryRepository),
+        factory = with(corrienteContainer()) { CategoriesViewModel.factory(categoryRepository, overviewCategoriesSettings) },
     ),
 ) {
     val state by viewModel.uiState.collectAsState()
@@ -71,6 +77,9 @@ fun CategoriesScreen(
     val message by viewModel.messages.collectAsState()
     val snackbarState = rememberMessageSnackbarState(message, viewModel::consumeMessage)
     var addMenuOpen by remember { mutableStateOf(false) }
+    var moreMenuOpen by remember { mutableStateOf(false) }
+    var ringDialogOpen by remember { mutableStateOf(false) }
+    val ringPins by viewModel.ringPins.collectAsState()
 
     val expensesTitle = stringResource(R.string.categories_expenses)
     val incomesTitle = stringResource(R.string.categories_incomes)
@@ -84,6 +93,23 @@ fun CategoriesScreen(
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
+                    }
+                },
+                actions = {
+                    Box {
+                        IconButton(onClick = { moreMenuOpen = true }) {
+                            Icon(Icons.Filled.MoreVert, contentDescription = stringResource(R.string.more_actions))
+                        }
+                        DropdownMenu(expanded = moreMenuOpen, onDismissRequest = { moreMenuOpen = false }) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.categories_ring_title)) },
+                                onClick = { moreMenuOpen = false; ringDialogOpen = true },
+                            )
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.categories_auto_icons)) },
+                                onClick = { moreMenuOpen = false; viewModel.autoAssignIcons() },
+                            )
+                        }
                     }
                 },
             )
@@ -139,6 +165,15 @@ fun CategoriesScreen(
         )
     }
 
+    if (ringDialogOpen) {
+        RingCategoriesDialog(
+            candidates = state.expense.map { it.category },
+            pinned = ringPins,
+            onDismiss = { ringDialogOpen = false },
+            onSave = { ids -> viewModel.setRingPins(ids); ringDialogOpen = false },
+        )
+    }
+
     merge?.let { request ->
         MergeDialog(request = request, onDismiss = viewModel::cancelMerge, onConfirm = viewModel::confirmMerge)
     }
@@ -174,9 +209,11 @@ private fun CategoryRow(category: Category, indent: Boolean, onClick: () -> Unit
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Box(Modifier.size(16.dp).background(Color(category.color), CircleShape))
+        Box(
+            Modifier.size(32.dp).background(Color(category.color).copy(alpha = 0.18f), CircleShape),
+            contentAlignment = Alignment.Center,
+        ) { CategoryGlyph(category.icon, category.name, Color(category.color), size = 18.dp) }
         Text(category.name, Modifier.weight(1f))
-        category.icon?.takeIf { it.isNotBlank() }?.let { Text(it) }
     }
     HorizontalDivider()
 }
@@ -196,6 +233,17 @@ private fun CategoryEditorDialog(
     var color by rememberSaveable(editor) { mutableIntStateOf(editor.color) }
     var icon by rememberSaveable(editor) { mutableStateOf(editor.icon) }
     var confirmDelete by rememberSaveable(editor) { mutableStateOf(false) }
+    var pickerOpen by rememberSaveable(editor) { mutableStateOf(false) }
+
+    if (pickerOpen) {
+        IconPickerSheet(
+            current = icon,
+            color = color,
+            name = name,
+            onPick = { icon = it; pickerOpen = false },
+            onDismiss = { pickerOpen = false },
+        )
+    }
 
     if (confirmDelete) {
         AlertDialog(
@@ -221,12 +269,22 @@ private fun CategoryEditorDialog(
                     label = { Text(stringResource(R.string.categories_name)) },
                     singleLine = true,
                 )
-                OutlinedTextField(
-                    value = icon,
-                    onValueChange = { icon = it },
-                    label = { Text(stringResource(R.string.categories_icon)) },
-                    singleLine = true,
-                )
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(stringResource(R.string.categories_icon), style = MaterialTheme.typography.labelMedium)
+                    Box(
+                        Modifier
+                            .size(44.dp)
+                            .background(Color(color).copy(alpha = 0.18f), CircleShape)
+                            .clickable { pickerOpen = true },
+                        contentAlignment = Alignment.Center,
+                    ) { CategoryGlyph(icon.ifBlank { null }, name.ifBlank { "?" }, Color(color), size = 24.dp) }
+                    TextButton(onClick = { pickerOpen = true }) { Text(stringResource(R.string.icon_choose)) }
+                    if (icon.isBlank() && name.isNotBlank()) {
+                        suggestCategoryIcon(name)?.let { suggested ->
+                            TextButton(onClick = { icon = suggested }) { Text(stringResource(R.string.icon_suggest)) }
+                        }
+                    }
+                }
                 Text(stringResource(R.string.categories_color), style = MaterialTheme.typography.labelMedium)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     CategoryPalette.forEach { swatch ->
@@ -328,3 +386,58 @@ private fun parentOptionsFor(editor: CategoryEditor, state: CategoriesUiState): 
 
 private fun mergeSourceOf(id: String, state: CategoriesUiState): Category? =
     (state.expense + state.income).flatMap { listOf(it.category) + it.children }.firstOrNull { it.id == id }
+
+/**
+ * «Категории на главном»: какие категории расходов стоят вокруг кольца (до [OverviewCategoriesSettings.MAX]).
+ * Ничего не отмечено — автоматически: сначала те, где были траты.
+ */
+@Composable
+private fun RingCategoriesDialog(
+    candidates: List<Category>,
+    pinned: List<String>,
+    onDismiss: () -> Unit,
+    onSave: (List<String>) -> Unit,
+) {
+    val max = OverviewCategoriesSettings.MAX
+    var selected by remember(pinned) { mutableStateOf(pinned.filter { id -> candidates.any { it.id == id } }) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.categories_ring_title)) },
+        text = {
+            Column {
+                Text(
+                    stringResource(R.string.categories_ring_hint, selected.size, max),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                LazyColumn(Modifier.heightIn(max = 420.dp)) {
+                    items(candidates, key = { it.id }) { category ->
+                        val checked = category.id in selected
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .clickable(enabled = checked || selected.size < max) {
+                                    selected = if (checked) selected - category.id else selected + category.id
+                                }
+                                .padding(vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            Checkbox(
+                                checked = checked,
+                                onCheckedChange = null,
+                                enabled = checked || selected.size < max,
+                            )
+                            CategoryGlyph(category.icon, category.name, Color(category.color), size = 18.dp)
+                            Text(category.name)
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = { onSave(selected) }) { Text(stringResource(R.string.save)) } },
+        dismissButton = {
+            TextButton(onClick = { onSave(emptyList()) }) { Text(stringResource(R.string.categories_ring_auto)) }
+        },
+    )
+}

@@ -44,6 +44,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.corriente.app.R
+import com.corriente.app.ui.common.CategoryGlyph
 import kotlin.math.cos
 import kotlin.math.sin
 
@@ -185,11 +186,7 @@ private fun CategoryIcon(icon: OverviewIcon, fallback: Color, onClick: () -> Uni
             Modifier.size(ICON_SIZE).background(color.copy(alpha = 0.22f), CircleShape),
             contentAlignment = Alignment.Center,
         ) {
-            Text(
-                icon.icon?.takeIf { it.isNotBlank() } ?: icon.name.take(1).uppercase(),
-                style = MaterialTheme.typography.titleMedium,
-                color = color,
-            )
+            CategoryGlyph(icon.icon, icon.name, color, size = 20.dp)
         }
         Text(
             icon.percent?.let { "$it%" } ?: " ",
