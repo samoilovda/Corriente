@@ -161,9 +161,14 @@ class BackupRepository(private val db: AppDatabase) : BackupIo {
          * итог последнего запуска путали бы плашку R1.5), `app_lock.*` (восстановление бэкапа с устройства без замка
          * молча снимало бы замок), `recurrence.last_error.*` (диагностика воркера этого устройства).
          */
-        private val DEVICE_BOUND_PREFIXES = listOf("auto_backup.", "app_lock.", "recurrence.last_error.")
+        // `sync.` — личность устройства в синхронизации (id, HLC, папка): бэкап, восстановленный на другом устройстве,
+        // не должен превращать его в клон этого (docs/SYNC_DESIGN.md §4, «Настройки»).
+        private val DEVICE_BOUND_PREFIXES = listOf("auto_backup.", "app_lock.", "recurrence.last_error.", "sync.")
 
         fun isDeviceBoundSetting(key: String): Boolean = DEVICE_BOUND_PREFIXES.any { key.startsWith(it) }
+
+        /** Какие ключи `app_setting` синхронизируются между устройствами — все, кроме привязанных к устройству. */
+        fun isSyncedSetting(key: String): Boolean = !isDeviceBoundSetting(key)
 
         /** Из привязанных к устройству при восстановлении сохраняются текущие значения — кроме диагностики правил. */
         private fun isKeptOnRestore(key: String): Boolean =

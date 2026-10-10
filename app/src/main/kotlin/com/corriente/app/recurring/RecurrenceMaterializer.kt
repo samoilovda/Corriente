@@ -5,6 +5,7 @@ import com.corriente.data.recurrence.MAX_CATCH_UP_DATES
 import com.corriente.data.recurrence.RecurrenceErrors
 import com.corriente.data.recurrence.advance
 import com.corriente.data.recurrence.dueDates
+import com.corriente.data.recurrence.recurrenceTxnId
 import com.corriente.data.repository.RecurrenceRepository
 import com.corriente.data.repository.TxnRepository
 import kotlin.coroutines.cancellation.CancellationException
@@ -58,9 +59,16 @@ object RecurrenceMaterializer {
                     var lastTxnId = rule.lastCreatedTxnId
                     dates.forEach { date ->
                         val note = if (rule.note.isNullOrBlank()) autoNoteMarker else "$autoNoteMarker — ${rule.note}"
+                        // I-27: id детерминирован — операция на эту дату уже есть (пришла с другого устройства или
+                        // создана прошлым прерванным запуском) — не создаём вторую.
+                        val id = recurrenceTxnId(rule.id, date)
+                        if (txns.getById(id) != null) {
+                            lastTxnId = id
+                            return@forEach
+                        }
                         val txn = when (rule.kind) {
-                            TxnKind.EXPENSE -> txns.addExpense(rule.accountId, rule.amount, rule.categoryId, date, note)
-                            TxnKind.INCOME -> txns.addIncome(rule.accountId, rule.amount, rule.categoryId, date, note)
+                            TxnKind.EXPENSE -> txns.addExpense(rule.accountId, rule.amount, rule.categoryId, date, note, id = id)
+                            TxnKind.INCOME -> txns.addIncome(rule.accountId, rule.amount, rule.categoryId, date, note, id = id)
                             TxnKind.TRANSFER -> return@forEach // не поддерживается, гарантировано RecurrenceRepository
                         }
                         lastTxnId = txn.id

@@ -75,10 +75,18 @@ class TxnRepository(
     fun search(query: String): Flow<List<Txn>> =
         txnDao.search(buildFtsPrefixQuery(query), buildLikePattern(query)).map { list -> list.map { it.toDomain() } }
 
-    suspend fun addExpense(accountId: String, amount: Money, categoryId: String?, date: LocalDate, note: String? = null): Txn {
+    suspend fun addExpense(
+        accountId: String,
+        amount: Money,
+        categoryId: String?,
+        date: LocalDate,
+        note: String? = null,
+        /** I-27: вызывающий может задать детерминированный id (повторяющиеся платежи); по умолчанию — случайный. */
+        id: String = UUID.randomUUID().toString(),
+    ): Txn {
         val now = System.currentTimeMillis()
         val txn = Txn.Expense(
-            id = UUID.randomUUID().toString(),
+            id = id,
             date = date,
             createdAt = now,
             updatedAt = now,
@@ -93,10 +101,18 @@ class TxnRepository(
         return txn
     }
 
-    suspend fun addIncome(accountId: String, amount: Money, categoryId: String?, date: LocalDate, note: String? = null): Txn {
+    suspend fun addIncome(
+        accountId: String,
+        amount: Money,
+        categoryId: String?,
+        date: LocalDate,
+        note: String? = null,
+        /** I-27: вызывающий может задать детерминированный id (повторяющиеся платежи); по умолчанию — случайный. */
+        id: String = UUID.randomUUID().toString(),
+    ): Txn {
         val now = System.currentTimeMillis()
         val txn = Txn.Income(
-            id = UUID.randomUUID().toString(),
+            id = id,
             date = date,
             createdAt = now,
             updatedAt = now,

@@ -260,8 +260,11 @@ class BackupRoundTripTest {
     // A2.16
     @Test
     fun `device-bound settings are recognised by prefix`() {
-        listOf("auto_backup.tree_uri", "auto_backup.enabled", "app_lock.mode", "app_lock.last_unlock_at", "recurrence.last_error.x")
+        listOf("auto_backup.tree_uri", "auto_backup.enabled", "app_lock.mode", "app_lock.last_unlock_at", "recurrence.last_error.x", "sync.device_id")
             .forEach { assert(BackupRepository.isDeviceBoundSetting(it)) { it } }
-        listOf("theme", "auto_backupx", "widget.pinned").forEach { assert(!BackupRepository.isDeviceBoundSetting(it)) { it } }
+        listOf("theme", "auto_backupx", "widget.pinned", "overview.categories").forEach {
+            assert(!BackupRepository.isDeviceBoundSetting(it)) { it }
+            assert(BackupRepository.isSyncedSetting(it)) { it } // общие настройки — синхронизируются
+        }
     }
 }

@@ -68,3 +68,11 @@ fun dueDates(rule: RecurrenceRule, nextRunOn: LocalDate, today: LocalDate, limit
 
 /** A3.8: сколько дат правила материализуется за один запуск воркера (~два месяца ежедневного правила). */
 const val MAX_CATCH_UP_DATES = 62
+
+/**
+ * I-27: id операции, созданной правилом [ruleId] на дату [date], — одинаковый на всех устройствах (UUID v3 от
+ * пары «правило + дата»). Если правило сработает и на телефоне, и на планшете до обмена, синхронизация сольёт
+ * две записи в одну, а не создаст дубль; повторный запуск на одном устройстве тоже не создаст вторую.
+ */
+fun recurrenceTxnId(ruleId: String, date: java.time.LocalDate): String =
+    java.util.UUID.nameUUIDFromBytes("corriente:recurrence:$ruleId:$date".toByteArray(Charsets.UTF_8)).toString()

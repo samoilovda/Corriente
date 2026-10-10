@@ -258,4 +258,28 @@ class RecurrenceMaterializerInstrumentedTest {
         assertEquals(com.corriente.data.recurrence.RecurrenceErrors.CODE_ARCHIVED_ACCOUNT, results[rule.id])
         assertEquals(LocalDate.of(2026, 9, 1), recurrences.getById(rule.id)!!.nextRunOn)
     }
+
+    // I-27: id операции правила детерминирован. Если nextRunOn «откатился» (на другом устройстве правило ещё не
+    // сдвинуто, а операции уже пришли синхронизацией) — повторный запуск не создаёт дублей.
+    @Test
+    fun deterministicIdsPreventDuplicatesWhenTheRuleRunsAgain() = runBlocking {
+        val rule = recurrences.create(
+            kind = TxnKind.EXPENSE, accountId = "cash", categoryId = null,
+            amount = Money(Minor(5_000_00), rub), note = null,
+            rule = RecurrenceRule.DayOfMonth(1), startsOn = LocalDate.of(2026, 8, 1),
+        )
+        RecurrenceMaterializer.materializeDue(LocalDate.of(2026, 9, 2), recurrences, txns, "[авто]")
+        val first = txns.observeAll().first().map { it.id }.toSet()
+        assertEquals(
+            setOf(LocalDate.of(2026, 8, 1), LocalDate.of(2026, 9, 1))
+                .map { com.corriente.data.recurrence.recurrenceTxnId(rule.id, it) }.toSet(),
+            first,
+        )
+
+        recurrences.recordRun(rule.id, LocalDate.of(2026, 8, 1), null) // как будто правило ещё не сдвигалось
+        RecurrenceMaterializer.materializeDue(LocalDate.of(2026, 9, 2), recurrences, txns, "[авто]")
+
+        assertEquals(first, txns.observeAll().first().map { it.id }.toSet())
+        assertEquals(LocalDate.of(2026, 10, 1), recurrences.getAll().single().nextRunOn)
+    }
 }
