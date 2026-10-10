@@ -248,7 +248,7 @@ abstract class AppDatabase : RoomDatabase() {
         val MIGRATION_7_8 = object : Migration(7, 8) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 SYNC_TABLES_SQL.forEach(db::execSQL)
-                com.corriente.data.sync.SyncTriggers.create(db)
+                com.corriente.data.sync.SyncTriggers.create(db::execSQL)
             }
         }
 
@@ -268,7 +268,7 @@ abstract class AppDatabase : RoomDatabase() {
         val syncTriggersCallback: Callback = object : Callback() {
             override fun onCreate(db: SupportSQLiteDatabase) {
                 super.onCreate(db)
-                com.corriente.data.sync.SyncTriggers.create(db)
+                com.corriente.data.sync.SyncTriggers.create(db::execSQL)
             }
         }
 
@@ -337,7 +337,7 @@ abstract class AppDatabase : RoomDatabase() {
                 // для уже установленных копий (своя транзакция внутри).
                 seedDefaultCategoriesIfEmpty(db, categoryName)
                 // Синхронизация (схема 8): триггеры захвата — как их создаёт MIGRATION_7_8 у обновлённых копий.
-                com.corriente.data.sync.SyncTriggers.create(db)
+                com.corriente.data.sync.SyncTriggers.create(db::execSQL)
             }
         }
     }

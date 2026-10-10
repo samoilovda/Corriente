@@ -1,9 +1,6 @@
 package com.corriente.data.sync
 
-import android.content.ContentValues
-import android.database.Cursor
-import android.database.sqlite.SQLiteDatabase
-import androidx.room.withTransaction
+import com.corriente.data.db.writeTransaction
 import com.corriente.data.backup.BackupProblem
 import com.corriente.data.backup.BackupRepository
 import com.corriente.data.db.AppDatabase
@@ -44,7 +41,7 @@ class SyncEngine(
 
     private val dao = db.syncDao()
     private val settings = db.appSettingDao()
-    private val sql get() = db.openHelper.writableDatabase
+    private val sql = SqlRunner(db)
 
     suspend fun isEnabled(): Boolean = dao.state()?.enabled == true
 
@@ -57,7 +54,7 @@ class SyncEngine(
      * иначе данные, появившиеся до включения, никогда не попали бы в журнал (§6). [primary] — основное устройство (импорт
      * Monefy разрешён только на нём, §10).
      */
-    suspend fun enable(name: String, primary: Boolean, baseline: Boolean) = db.withTransaction {
+    suspend fun enable(name: String, primary: Boolean, baseline: Boolean) = db.writeTransaction {
         if (settings.get(KEY_DEVICE_ID) == null) set(KEY_DEVICE_ID, UUID.randomUUID().toString())
         set(KEY_DEVICE_NAME, name)
         set(KEY_PRIMARY, primary.toString())
@@ -79,25 +76,25 @@ class SyncEngine(
      * папки. Перед вызовом — копия БД (`PreMigrationBackup`). Синхронизация в этот момент должна быть выключена, иначе
      * удаления разошлись бы по устройствам.
      */
-    suspend fun wipeLocalData() = db.withTransaction {
+    suspend fun wipeLocalData() = db.writeTransaction {
         check(!isEnabled()) { "disable sync before wiping local data" }
         listOf(
             "DELETE FROM txn", "DELETE FROM budget", "DELETE FROM recurrence", "DELETE FROM import_alias",
             "DELETE FROM category_redirect", "DELETE FROM category WHERE parent_id IS NOT NULL", "DELETE FROM category",
             "DELETE FROM account", "DELETE FROM import_batch", "DELETE FROM sync_row_meta", "DELETE FROM sync_deferred",
             "DELETE FROM sync_outbox",
-        ).forEach(sql::execSQL)
+        ).forEach { sql.exec(it) }
     }
 
     /** Есть ли на устройстве свои данные (счета/операции) — от этого зависит вопрос при подключении (§6). */
     suspend fun hasLocalData(): Boolean =
-        sql.query("SELECT (SELECT COUNT(*) FROM account) + (SELECT COUNT(*) FROM txn)").use { it.moveToFirst() && it.getLong(0) > 0 }
+        sql.query("SELECT (SELECT COUNT(*) FROM account) + (SELECT COUNT(*) FROM txn)") { it.getLong(0) }.single() > 0
 
     /** Один обмен: выгрузить своё, применить чужое. */
     suspend fun sync(): Result {
         check(isEnabled()) { "sync is not enabled" }
-        val exported = db.withTransaction { export() }
-        return db.withTransaction {
+        val exported = db.writeTransaction { export() }
+        return db.writeTransaction {
             // Правка, сделанная между двумя транзакциями, должна получить версию до сравнения с чужими.
             val again = export()
             import().copy(exported = exported + again)
@@ -129,9 +126,9 @@ class SyncEngine(
     }
 
     /** Все строки синхронизируемых таблиц — в outbox (базовый снимок устройства, с которого начинается синхронизация). */
-    private fun enqueueAll() {
+    private suspend fun enqueueAll() {
         SyncTriggers.TABLES.forEach { t ->
-            sql.execSQL(
+            sql.exec(
                 "INSERT OR REPLACE INTO sync_outbox(table_name, pk) SELECT '${t.name}', ${t.pkExpr(t.name)} " +
                     "FROM `${t.name}` WHERE ${t.extraWhen(t.name)}",
             )
@@ -196,7 +193,7 @@ class SyncEngine(
 
         val counters = Counters()
         dao.setState(SyncStateEntity(enabled = true, applying = true))
-        sql.execSQL("PRAGMA defer_foreign_keys = ON")
+        sql.exec("PRAGMA defer_foreign_keys = ON")
         val redirects = dao.categoryRedirects().associate { it.fromId to it.intoId }.toMutableMap()
 
         latest.filter { !it.deleted }
@@ -290,7 +287,7 @@ class SyncEngine(
             counters.refused++
             return
         }
-        sql.delete(change.table, "${pkWhere(change.table)} = ?", arrayOf(change.pk))
+        sql.exec("DELETE FROM `${change.table}` WHERE ${pkWhere(change.table)} = ?", change.pk)
         dao.setMeta(SyncRowMetaEntity(change.table, change.pk, change.hlc, deleted = true))
         counters.applied++
     }
@@ -303,8 +300,8 @@ class SyncEngine(
     private suspend fun resolveCategoryNameClash(change: RowChange, row: JsonObject, redirects: MutableMap<String, String>): Boolean {
         val other = sql.query(
             "SELECT id FROM category WHERE name = ? AND kind = ? AND id <> ?",
-            arrayOf(row.str("name"), row.str("kind"), change.pk),
-        ).use { c -> if (c.moveToFirst()) c.getString(0) else null } ?: return false
+            row.str("name"), row.str("kind"), change.pk,
+        ) { it.getText(0) }.firstOrNull() ?: return false
 
         val winner = minOf(other, change.pk)
         val loser = maxOf(other, change.pk)
@@ -312,7 +309,7 @@ class SyncEngine(
             // Чужая категория побеждает: свою переводим на неё и удаляем — это рассылается как обычные правки.
             asLocalChange {
                 repointCategory(other, change.pk)
-                sql.delete("category", "id = ?", arrayOf(other))
+                sql.exec("DELETE FROM category WHERE id = ?", other)
             }
             writeRow("category", change.pk, row)
             dao.setMeta(SyncRowMetaEntity("category", change.pk, change.hlc, deleted = false))
@@ -322,25 +319,24 @@ class SyncEngine(
         }
         // OR IGNORE: перенаправление от слияния (сводится LWW) важнее выведенного из совпадения имён.
         asLocalChange {
-            sql.execSQL("INSERT OR IGNORE INTO category_redirect(from_id, into_id) VALUES (?, ?)", arrayOf(loser, winner))
+            sql.exec("INSERT OR IGNORE INTO category_redirect(from_id, into_id) VALUES (?, ?)", loser, winner)
         }
         redirects.putIfAbsent(loser, winner)
         return true
     }
 
-    private fun repointCategory(from: String, into: String) {
-        val args = arrayOf(into, from)
-        sql.execSQL("UPDATE txn SET category_id = ? WHERE category_id = ?", args)
-        sql.execSQL("UPDATE budget SET category_id = ? WHERE category_id = ?", args)
-        sql.execSQL("UPDATE recurrence SET category_id = ? WHERE category_id = ?", args)
-        sql.execSQL("UPDATE category SET parent_id = ? WHERE parent_id = ?", args)
+    private suspend fun repointCategory(from: String, into: String) {
+        sql.exec("UPDATE txn SET category_id = ? WHERE category_id = ?", into, from)
+        sql.exec("UPDATE budget SET category_id = ? WHERE category_id = ?", into, from)
+        sql.exec("UPDATE recurrence SET category_id = ? WHERE category_id = ?", into, from)
+        sql.exec("UPDATE category SET parent_id = ? WHERE parent_id = ?", into, from)
     }
 
-    private fun deleteCategoryIfUnused(id: String) {
-        if (readRow("category", id) != null && !isReferenced("category", id)) sql.delete("category", "id = ?", arrayOf(id))
+    private suspend fun deleteCategoryIfUnused(id: String) {
+        if (readRow("category", id) != null && !isReferenced("category", id)) sql.exec("DELETE FROM category WHERE id = ?", id)
     }
 
-    private fun rewriteRedirects(table: String, row: JsonObject, redirects: Map<String, String>): JsonObject {
+    private suspend fun rewriteRedirects(table: String, row: JsonObject, redirects: Map<String, String>): JsonObject {
         val column = when (table) {
             "txn", "budget", "recurrence" -> "category_id"
             "category" -> "parent_id"
@@ -374,29 +370,28 @@ class SyncEngine(
      * Самая дальняя по цепочке категория, которая здесь существует (в цикле — с меньшим id); ни одной — конец цепочки
      * (тогда строка отложится до прихода категории).
      */
-    private fun resolveExisting(id: String, redirects: Map<String, String>): String {
+    private suspend fun resolveExisting(id: String, redirects: Map<String, String>): String {
         val (nodes, ends) = chain(id, redirects)
         ends.firstOrNull { readRow("category", it) != null }?.let { return it }
         return nodes.lastOrNull { readRow("category", it) != null } ?: ends.first()
     }
 
-    private fun hasMissingRefs(table: String, row: JsonObject): Boolean =
+    private suspend fun hasMissingRefs(table: String, row: JsonObject): Boolean =
         REFS[table].orEmpty().any { (column, target) ->
             val value = row.str(column) ?: return@any false
             val (targetTable, targetColumn) = target
-            sql.query("SELECT 1 FROM `$targetTable` WHERE `$targetColumn` = ? LIMIT 1", arrayOf(value)).use { !it.moveToFirst() }
+            !sql.exists("SELECT 1 FROM `$targetTable` WHERE `$targetColumn` = ? LIMIT 1", value)
         }
 
-    private fun isReferenced(table: String, pk: String): Boolean =
+    private suspend fun isReferenced(table: String, pk: String): Boolean =
         REFERENCED_BY[table].orEmpty().any { (refTable, column) ->
-            sql.query("SELECT 1 FROM `$refTable` WHERE `$column` = ? LIMIT 1", arrayOf(pk)).use { it.moveToFirst() }
+            sql.exists("SELECT 1 FROM `$refTable` WHERE `$column` = ? LIMIT 1", pk)
         }
 
-    private fun changesCurrencyOfUsedAccount(id: String, row: JsonObject): Boolean {
-        val local = sql.query("SELECT currency_code FROM account WHERE id = ?", arrayOf(id))
-            .use { if (it.moveToFirst()) it.getString(0) else null } ?: return false
+    private suspend fun changesCurrencyOfUsedAccount(id: String, row: JsonObject): Boolean {
+        val local = sql.query("SELECT currency_code FROM account WHERE id = ?", id) { it.getText(0) }.firstOrNull() ?: return false
         if (local == row.str("currency_code")) return false
-        return sql.query("SELECT 1 FROM txn WHERE account_id = ? OR to_account_id = ? LIMIT 1", arrayOf(id, id)).use { it.moveToFirst() }
+        return sql.exists("SELECT 1 FROM txn WHERE account_id = ? OR to_account_id = ? LIMIT 1", id, id)
     }
 
     /**
@@ -413,36 +408,45 @@ class SyncEngine(
         }
     }
 
-    private fun rebroadcast(table: String, pk: String) =
-        sql.execSQL("INSERT OR REPLACE INTO sync_outbox(table_name, pk) VALUES (?, ?)", arrayOf(table, pk))
+    private suspend fun rebroadcast(table: String, pk: String) =
+        sql.exec("INSERT OR REPLACE INTO sync_outbox(table_name, pk) VALUES (?, ?)", table, pk)
 
     // ---------------------------------------------------------------- строки целиком
 
     private fun pkWhere(table: String): String = SyncTriggers.TABLES.first { it.name == table }.pkExpr("`$table`")
 
-    private fun readRow(table: String, pk: String): JsonObject? =
-        sql.query("SELECT * FROM `$table` WHERE ${pkWhere(table)} = ?", arrayOf(pk)).use { c ->
-            if (!c.moveToFirst()) null else JsonObject((0 until c.columnCount).associate { c.getColumnName(it) to c.value(it) })
-        }
+    private suspend fun readRow(table: String, pk: String): JsonObject? =
+        sql.query("SELECT * FROM `$table` WHERE ${pkWhere(table)} = ?", pk) { st ->
+            JsonObject((0 until st.getColumnCount()).associate { i ->
+                st.getColumnName(i) to when (st.getColumnType(i)) {
+                    SqlRunner.TYPE_NULL -> JsonNull
+                    SqlRunner.TYPE_INTEGER -> JsonPrimitive(st.getLong(i))
+                    // в схеме REAL нет; на всякий случай — текстом, без потери точности
+                    else -> JsonPrimitive(st.getText(i))
+                }
+            })
+        }.firstOrNull()
 
-    private fun Cursor.value(i: Int) = when (getType(i)) {
-        Cursor.FIELD_TYPE_NULL -> JsonNull
-        Cursor.FIELD_TYPE_INTEGER -> JsonPrimitive(getLong(i))
-        Cursor.FIELD_TYPE_FLOAT -> JsonPrimitive(getString(i)) // в схеме REAL нет; на всякий случай — текстом, без потери
-        else -> JsonPrimitive(getString(i))
-    }
-
-    private fun writeRow(table: String, pk: String, row: JsonObject) {
-        val values = ContentValues()
-        row.forEach { (column, value) ->
-            when {
-                value is JsonNull -> values.putNull(column)
-                value is JsonPrimitive && value.isString -> values.put(column, value.content)
-                value is JsonPrimitive -> value.longOrNull?.let { values.put(column, it) } ?: values.put(column, value.content)
+    /** Строка целиком: UPDATE по ключу, а если такой строки нет — INSERT (UPSERT в SQLite Android 8 нет). */
+    private suspend fun writeRow(table: String, pk: String, row: JsonObject) {
+        val columns = row.keys.toList()
+        val values: Array<Any?> = columns.map { column ->
+            when (val value = row.getValue(column)) {
+                is JsonNull -> null
+                is JsonPrimitive -> if (value.isString) value.content else value.longOrNull ?: value.content
+                else -> value.toString()
             }
+        }.toTypedArray()
+        sql.exec(
+            "UPDATE `$table` SET ${columns.joinToString { "`$it` = ?" }} WHERE ${pkWhere(table)} = ?",
+            *values, pk,
+        )
+        if (sql.changes() == 0L) {
+            sql.exec(
+                "INSERT INTO `$table` (${columns.joinToString { "`$it`" }}) VALUES (${columns.joinToString { "?" }})",
+                *values,
+            )
         }
-        val updated = sql.update(table, SQLiteDatabase.CONFLICT_ABORT, values, "${pkWhere(table)} = ?", arrayOf(pk))
-        if (updated == 0) sql.insert(table, SQLiteDatabase.CONFLICT_ABORT, values)
     }
 
     // ---------------------------------------------------------------- служебное

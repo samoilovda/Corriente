@@ -1,6 +1,6 @@
 package com.corriente.data.backup
 
-import androidx.room.withTransaction
+import com.corriente.data.db.writeTransaction
 import com.corriente.data.db.AppDatabase
 import com.corriente.data.db.entity.AccountEntity
 import com.corriente.data.db.entity.AccountKind
@@ -55,7 +55,7 @@ class BackupRepository(private val db: AppDatabase) : BackupIo {
      * транзакции читателя (согласованный снимок): воркер повторяющихся или импорт, дописывающий счёт и
      * операции посреди экспорта, иначе дал бы файл с операцией без её счёта, который `validate` отвергнет.
      */
-    suspend fun buildPayload(): BackupPayload = db.withTransaction { readPayload() }
+    suspend fun buildPayload(): BackupPayload = db.writeTransaction { readPayload() }
 
     private suspend fun readPayload(): BackupPayload = BackupPayload(
         schemaVersion = SCHEMA_VERSION,
@@ -113,7 +113,7 @@ class BackupRepository(private val db: AppDatabase) : BackupIo {
         if (problems.isNotEmpty()) throw BackupInvalidException(problems)
         // Копия текущей БД на случай, если восстановление всё же не задастся (F1.4).
         beforeReplace()
-        db.withTransaction {
+        db.writeTransaction {
             // A2.16: настройки этого устройства (папка автобэкапа, замок…) переживают восстановление; из файла
             // (в т.ч. от старой версии, где они экспортировались) такие ключи не берутся.
             val keptDeviceSettings = db.appSettingDao().getAll().filter { isKeptOnRestore(it.key) }

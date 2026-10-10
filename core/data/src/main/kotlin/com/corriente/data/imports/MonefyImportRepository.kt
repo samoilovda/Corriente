@@ -1,6 +1,6 @@
 package com.corriente.data.imports
 
-import androidx.room.withTransaction
+import com.corriente.data.db.writeTransaction
 import com.corriente.data.db.AppDatabase
 import com.corriente.data.db.entity.AccountEntity
 import com.corriente.data.db.entity.AccountKind
@@ -110,7 +110,7 @@ class MonefyImportRepository(private val db: AppDatabase) {
                 throw AccountCurrencyConflictException(conflict.name, CurrencyCode(have), conflict.currency)
             }
 
-        db.withTransaction {
+        db.writeTransaction {
             db.importBatchDao().insert(
                 ImportBatchEntity(
                     id = batchId, sourceApp = SOURCE, fileName = fileName,
@@ -259,7 +259,7 @@ class MonefyImportRepository(private val db: AppDatabase) {
      * трогаются (F1.5). Всё, чем пользователь уже воспользовался (бюджет/правило на категорию, своя
      * операция в созданном счёте), остаётся — [RollbackResult] сообщает, сколько (A1.7/A1.9).
      */
-    suspend fun rollback(batchId: String): RollbackResult = db.withTransaction {
+    suspend fun rollback(batchId: String): RollbackResult = db.writeTransaction {
         val batch = db.importBatchDao().getAll().firstOrNull { it.id == batchId }
         db.txnDao().deleteByImportBatch(batchId)
         db.importBatchDao().deleteOrphanedImportCategoriesForBatch(batchId)

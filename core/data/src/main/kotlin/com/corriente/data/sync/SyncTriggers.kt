@@ -1,6 +1,5 @@
 package com.corriente.data.sync
 
-import androidx.sqlite.db.SupportSQLiteDatabase
 import com.corriente.data.backup.BackupRepository
 
 /**
@@ -58,5 +57,6 @@ object SyncTriggers {
         }
     }
 
-    fun create(db: SupportSQLiteDatabase) = createStatements().forEach(db::execSQL)
+    /** [exec] — выполнить SQL: `SupportSQLiteDatabase::execSQL` в миграциях Android, соединение драйвера на десктопе. */
+    fun create(exec: (String) -> Unit) = createStatements().forEach(exec)
 }
