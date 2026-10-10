@@ -71,6 +71,13 @@ class FakeCategoryDao : CategoryDao() {
         txnCategory.keys.filter { txnCategory[it] == fromId }.forEach { txnCategory[it] = intoId }
     }
 
+    /** Перенаправления после слияния (синхронизация, docs/SYNC_DESIGN.md §4) — в фейке только запоминаются. */
+    val redirects = mutableMapOf<String, String>()
+
+    override suspend fun recordRedirect(fromId: String, intoId: String) {
+        redirects[fromId] = intoId
+    }
+
     override suspend fun deleteAll() {
         rows.value = emptyList()
         txnCategory.clear()

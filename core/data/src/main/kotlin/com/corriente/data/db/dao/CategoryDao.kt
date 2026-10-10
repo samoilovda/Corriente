@@ -84,7 +84,13 @@ abstract class CategoryDao {
         reassignRecurrences(fromId, intoId)
         val from = getById(fromId) ?: return
         delete(from)
+        // Синхронизация (docs/SYNC_DESIGN.md §4): операции, внесённые в [fromId] на других устройствах до того, как они
+        // узнали о слиянии, переедут в [intoId], а не воскресят удалённую категорию.
+        recordRedirect(fromId, intoId)
     }
+
+    @Query("INSERT OR REPLACE INTO category_redirect(from_id, into_id) VALUES (:fromId, :intoId)")
+    protected abstract suspend fun recordRedirect(fromId: String, intoId: String)
 
     @Query("DELETE FROM category")
     abstract suspend fun deleteAll()

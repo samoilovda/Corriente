@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 8,
-    "identityHash": "020e8bbf2f4e98b57b855de340cec1ec",
+    "identityHash": "b67972b423a491e7bf18ec7129ed5cac",
     "entities": [
       {
         "tableName": "currency",
@@ -963,11 +963,48 @@
             "from_id"
           ]
         }
+      },
+      {
+        "tableName": "sync_deferred",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`table_name` TEXT NOT NULL, `pk` TEXT NOT NULL, `hlc` TEXT NOT NULL, `payload` TEXT NOT NULL, PRIMARY KEY(`table_name`, `pk`))",
+        "fields": [
+          {
+            "fieldPath": "tableName",
+            "columnName": "table_name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "pk",
+            "columnName": "pk",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "hlc",
+            "columnName": "hlc",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "payload",
+            "columnName": "payload",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "table_name",
+            "pk"
+          ]
+        }
       }
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '020e8bbf2f4e98b57b855de340cec1ec')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'b67972b423a491e7bf18ec7129ed5cac')"
     ]
   }
 }

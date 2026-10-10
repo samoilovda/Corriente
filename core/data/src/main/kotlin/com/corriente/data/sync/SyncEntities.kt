@@ -56,6 +56,18 @@ data class CategoryRedirectEntity(
     @ColumnInfo(name = "into_id") val intoId: String,
 )
 
+/**
+ * Чужое изменение, которое пока нельзя применить: строка ссылается на счёт/категорию/валюту, которых ещё нет на этом
+ * устройстве (придут следующим обменом). [payload] — JSON изменения ([RowChange]). Пробуется снова при каждом обмене.
+ */
+@Entity(tableName = "sync_deferred", primaryKeys = ["table_name", "pk"])
+data class SyncDeferredEntity(
+    @ColumnInfo(name = "table_name") val tableName: String,
+    val pk: String,
+    val hlc: String,
+    val payload: String,
+)
+
 @Dao
 interface SyncDao {
     @Query("SELECT * FROM sync_state WHERE id = 1")
@@ -78,4 +90,13 @@ interface SyncDao {
 
     @Query("SELECT * FROM category_redirect")
     suspend fun categoryRedirects(): List<CategoryRedirectEntity>
+
+    @Query("SELECT * FROM sync_deferred")
+    suspend fun deferred(): List<SyncDeferredEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun setDeferred(item: SyncDeferredEntity)
+
+    @Query("DELETE FROM sync_deferred WHERE table_name = :tableName AND pk = :pk")
+    suspend fun removeDeferred(tableName: String, pk: String)
 }

@@ -47,6 +47,7 @@ import com.corriente.data.seed.ISO_CURRENCIES
         com.corriente.data.sync.SyncOutboxEntity::class,
         com.corriente.data.sync.SyncRowMetaEntity::class,
         com.corriente.data.sync.CategoryRedirectEntity::class,
+        com.corriente.data.sync.SyncDeferredEntity::class,
     ],
     version = AppDatabase.SCHEMA_VERSION,
     exportSchema = true,
@@ -241,7 +242,7 @@ abstract class AppDatabase : RoomDatabase() {
 
         /**
          * v7 → v8 (синхронизация, docs/SYNC_DESIGN.md S1): служебные таблицы `sync_state`, `sync_outbox`, `sync_row_meta`,
-         * `category_redirect` и триггеры захвата изменений ([com.corriente.data.sync.SyncTriggers]). Данные не меняются;
+         * `category_redirect`, `sync_deferred` и триггеры захвата изменений ([com.corriente.data.sync.SyncTriggers]). Данные не меняются;
          * пока синхронизация не включена (строки в `sync_state` нет), триггеры ничего не пишут.
          */
         val MIGRATION_7_8 = object : Migration(7, 8) {
@@ -257,6 +258,7 @@ abstract class AppDatabase : RoomDatabase() {
             "CREATE TABLE IF NOT EXISTS `sync_outbox` (`table_name` TEXT NOT NULL, `pk` TEXT NOT NULL, PRIMARY KEY(`table_name`, `pk`))",
             "CREATE TABLE IF NOT EXISTS `sync_row_meta` (`table_name` TEXT NOT NULL, `pk` TEXT NOT NULL, `hlc` TEXT NOT NULL, `deleted` INTEGER NOT NULL, PRIMARY KEY(`table_name`, `pk`))",
             "CREATE TABLE IF NOT EXISTS `category_redirect` (`from_id` TEXT NOT NULL, `into_id` TEXT NOT NULL, PRIMARY KEY(`from_id`))",
+            "CREATE TABLE IF NOT EXISTS `sync_deferred` (`table_name` TEXT NOT NULL, `pk` TEXT NOT NULL, `hlc` TEXT NOT NULL, `payload` TEXT NOT NULL, PRIMARY KEY(`table_name`, `pk`))",
         )
 
         /**
