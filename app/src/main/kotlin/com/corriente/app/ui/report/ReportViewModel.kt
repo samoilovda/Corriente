@@ -15,6 +15,7 @@ import com.corriente.data.usecase.budgetProgress
 import com.corriente.data.usecase.categoryReport
 import com.corriente.data.usecase.monthlySeries
 import com.corriente.data.usecase.periodOverPeriodChange
+import com.corriente.data.usecase.largestRemainderShares
 import com.corriente.money.Currency
 import com.corriente.money.CurrencyCode
 import com.corriente.money.MoneyFormatter
@@ -124,22 +125,6 @@ internal fun withShares(
     }
 }
 
-/**
- * Проценты от суммы [grand] по методу наибольших остатков: floor каждой доли плюс раздача
- * остатка (100 − сумма floor'ов) тем позициям, у которых дробная часть больше.
- * I-3: умножение через `Math.multiplyExact`.
- */
-internal fun largestRemainderShares(values: List<Long>, grand: Long): List<Int> {
-    if (grand <= 0L || values.isEmpty()) return List(values.size) { 0 }
-    val scaled = values.map { Math.multiplyExact(it, 100L) }
-    val floors = scaled.map { (it / grand).toInt() }.toIntArray()
-    val leftover = (100 - floors.sum()).coerceIn(0, values.size)
-    scaled.indices
-        .sortedByDescending { scaled[it] % grand }
-        .take(leftover)
-        .forEach { floors[it] += 1 }
-    return floors.toList()
-}
 
 class ReportViewModel(
     private val txns: TxnRepository,

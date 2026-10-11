@@ -1,5 +1,7 @@
 package com.corriente.app.ui.report
 
+import com.corriente.data.usecase.largestRemainderShares
+
 import com.corriente.app.ui.accounts.FakeAccountDao
 import com.corriente.app.ui.budgets.FakeBudgetDao
 import com.corriente.app.ui.categories.FakeCategoryDao

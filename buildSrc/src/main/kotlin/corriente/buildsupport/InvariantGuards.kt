@@ -31,6 +31,8 @@ object InvariantGuards {
         // Шапка «Операций»: дуги кольца и позиции иконок по окружности — только координаты Canvas/offset;
         // доли и проценты считаются в `MonthOverview.kt` целыми числами.
         "app/src/main/kotlin/com/corriente/app/ui/transactions/MonthOverviewHeader.kt",
+        // То же кольцо в окне для компьютера.
+        "desktop/src/main/kotlin/com/corriente/desktop/RingCanvas.kt",
     )
 
     private data class Rule(val regex: Regex, val reason: String)

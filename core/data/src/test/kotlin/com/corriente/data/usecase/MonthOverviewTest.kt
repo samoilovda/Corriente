@@ -1,4 +1,4 @@
-package com.corriente.app.ui.transactions
+package com.corriente.data.usecase
 
 import com.corriente.data.db.entity.AccountKind
 import com.corriente.data.db.entity.CategoryKind

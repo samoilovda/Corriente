@@ -53,3 +53,7 @@ dependencies {
 
     testImplementation(libs.junit)
 }
+
+tasks.test {
+    jvmArgs("--enable-native-access=ALL-UNNAMED")
+}

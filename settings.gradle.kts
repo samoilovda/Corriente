@@ -24,5 +24,7 @@ include(":core:money")
 include(":core:data")
 // Те же исходники core/data, собранные для десктопа (JVM): docs/SYNC_DESIGN.md §8, этап D2.
 include(":core:data-jvm")
+// Окно для MacBook / ThinkPad (Compose Desktop) поверх :core:data-jvm.
+include(":desktop")
 include(":app")
 include(":widget")

@@ -338,3 +338,20 @@ Corriente синхронизирует данные между своими Andr
 между устройствами — задержка Syncthing (секунды в одной сети). На всех устройствах должна стоять одна версия
 приложения: если схема базы на одном новее, остальные покажут «обновите приложение» и подождут.
 
+### Corriente для компьютера (macOS / Windows / Linux)
+
+Окно на Compose Desktop (`:desktop`) поверх того же слоя данных, что на телефоне (`:core:data-jvm` компилирует
+исходники `core/data`). Данные — в папке пользователя (macOS: `~/Library/Application Support/Corriente`), обмен с
+телефоном — через ту же папку Syncthing («Синхронизация» → выбрать папку → «Подключиться к синхронизации»). Импорт
+Monefy, автобэкап, замок и виджет — только на телефоне.
+
+```
+./gradlew :desktop:run            # запустить из исходников
+./gradlew :desktop:packageDmg     # macOS: desktop/build/compose/binaries/main/dmg/Corriente-<версия>.dmg
+./gradlew :desktop:packageMsi     # Windows (на Windows-машине)
+./gradlew :desktop:packageDeb     # Linux (на Linux-машине)
+```
+
+Установщик собирается на той системе, для которой он (так устроен jpackage); Java встраивается в пакет.
+Для проверки на чужих данных: `CORRIENTE_DATA_DIR=/путь ./gradlew :desktop:run`.
+
