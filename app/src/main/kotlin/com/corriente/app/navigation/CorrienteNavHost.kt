@@ -11,8 +11,15 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.material3.LocalTextStyle
+import androidx.compose.ui.unit.isSpecified
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavType
@@ -106,7 +113,9 @@ fun CorrienteNavHost(deepLinkIntent: Intent? = null, onDeepLinkConsumed: () -> U
                                 }
                             },
                             icon = { Icon(destination.icon, contentDescription = null) },
-                            label = { Text(stringResource(destination.labelRes)) },
+                            // T2: подпись в одну строку — иначе на узком экране с крупным шрифтом «Transactions»
+                            // переносится по слогам. Если не помещается — уменьшаем шрифт (до 8sp), затем многоточие.
+                            label = { NavLabel(stringResource(destination.labelRes)) },
                         )
                     }
                 }
@@ -261,4 +270,27 @@ fun CorrienteNavHost(deepLinkIntent: Intent? = null, onDeepLinkConsumed: () -> U
             }
         }
     }
+}
+
+/**
+ * T2: подпись вкладки нижней навигации — одна строка без переноса по слогам. Если на узком экране с крупным
+ * шрифтом не помещается, шрифт уменьшается ступенями (×0.9, но не меньше 8sp), и только потом — многоточие.
+ */
+@Composable
+private fun NavLabel(text: String) {
+    val baseSize = LocalTextStyle.current.fontSize
+    var size by remember(text, baseSize) { mutableStateOf(baseSize) }
+    Text(
+        text = text,
+        fontSize = size,
+        maxLines = 1,
+        softWrap = false,
+        overflow = TextOverflow.Ellipsis,
+        onTextLayout = { layout ->
+            if (layout.hasVisualOverflow && size.isSpecified && size > 8.sp) {
+                val next = size * 9 / 10
+                size = if (next > 8.sp) next else 8.sp
+            }
+        },
+    )
 }

@@ -3,8 +3,10 @@ package com.corriente.app.navigation
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.lifecycle.Lifecycle
 import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -41,6 +43,14 @@ class ShortcutRecreateInstrumentedTest {
             composeRule.waitForIdle()
             composeRule.onNodeWithText(context.getString(R.string.report_open_fx)).assertExists()
 
+            // T1: на медленном эмуляторе Activity могла ещё не стать RESUMED (идёт переход) — recreate() тогда
+            // падал с «Requested a re-creation of Activity but didn't happen». Ждём устойчивого состояния.
+            composeRule.waitUntil(timeoutMillis = 10_000) {
+                composeRule.onAllNodesWithText(context.getString(R.string.report_open_fx))
+                    .fetchSemanticsNodes().isNotEmpty()
+            }
+            scenario.moveToState(Lifecycle.State.RESUMED)
+            composeRule.waitForIdle()
             scenario.recreate()
             composeRule.waitForIdle()
 
