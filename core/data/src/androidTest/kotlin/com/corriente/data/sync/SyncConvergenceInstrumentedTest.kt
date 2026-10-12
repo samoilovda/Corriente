@@ -8,6 +8,7 @@ import com.corriente.data.db.seedCallback
 import com.corriente.data.db.entity.AccountKind
 import com.corriente.data.db.entity.CategoryKind
 import com.corriente.data.repository.AccountRepository
+import com.corriente.data.repository.BudgetRepository
 import com.corriente.data.repository.CategoryRepository
 import com.corriente.data.repository.DeleteResult
 import com.corriente.data.repository.TxnRepository
@@ -36,6 +37,7 @@ class SyncConvergenceInstrumentedTest {
         val accounts = AccountRepository(db.accountDao())
         val categories = CategoryRepository(db.categoryDao())
         val txns = TxnRepository(db.txnDao(), db.accountDao())
+        val budgets = BudgetRepository(db.budgetDao())
     }
 
     private lateinit var folderRoot: File
@@ -117,7 +119,16 @@ class SyncConvergenceInstrumentedTest {
                     } + " outbox=" + q.query("SELECT COUNT(*) FROM sync_outbox").use { c -> c.moveToFirst(); c.getInt(0) } +
                         " refs=" + q.query("SELECT COUNT(*) FROM txn WHERE category_id='seed-exp-transport'").use { c -> c.moveToFirst(); c.getInt(0) }
                 }
-                throw AssertionError("${d.name} differs:\n${diff.joinToString("\n")}\n$meta")
+                // Диагностика: версии и надгробия строк, по которым устройства разошлись.
+                val ids = Regex("id=([0-9a-f-]{36})").findAll(diff.joinToString()).map { it.groupValues[1] }.toSet()
+                val rowMeta = ids.joinToString("\n") { id ->
+                    devices.joinToString("; ", prefix = "meta[$id]: ") { dev ->
+                        dev.db.openHelper.writableDatabase.query("SELECT table_name, hlc, deleted FROM sync_row_meta WHERE pk='$id'").use { c ->
+                            "${dev.name}=" + buildList { while (c.moveToNext()) add("${c.getString(0)} ${c.getString(1)} del=${c.getInt(2)}") }
+                        }
+                    }
+                }
+                throw AssertionError("${d.name} differs:\n${diff.joinToString("\n")}\n$meta\n$rowMeta")
             }
         }
         devices.forEach { d ->
@@ -186,6 +197,42 @@ class SyncConvergenceInstrumentedTest {
         assertEquals(winner, (phone.txns.getById(tb.id) as com.corriente.data.model.Txn.Expense).categoryId)
     }
 
+    // T3 (SYNC_DESIGN §4): бюджет одной категории и валюты, созданный на двух устройствах, — один, побеждает меньший id.
+    @Test
+    fun sameBudgetCreatedOnTwoDevicesBecomesOne() = runBlocking {
+        val phone = newDevice("phone")
+        val tablet = newDevice("tablet")
+        phone.accounts.create("Нал", rub, AccountKind.CASH, Money(Minor(0), rub), 0)
+        join(phone, tablet)
+
+        val a = phone.budgets.create("seed-exp-groceries", Money(Minor(10_000), rub), LocalDate.of(2026, 10, 1))
+        val b = tablet.budgets.create("seed-exp-groceries", Money(Minor(20_000), rub), LocalDate.of(2026, 10, 1))
+        assertConverged()
+
+        val winner = minOf(a.id, b.id)
+        assertEquals(listOf(winner), phone.budgets.observeAll().first().map { it.id })
+        assertEquals(listOf(winner), tablet.budgets.observeAll().first().map { it.id })
+    }
+
+    @Test
+    fun sameBudgetOnEverythingCreatedOnTwoDevicesBecomesOne() = runBlocking {
+        val phone = newDevice("phone")
+        val tablet = newDevice("tablet")
+        phone.accounts.create("Нал", rub, AccountKind.CASH, Money(Minor(0), rub), 0)
+        join(phone, tablet)
+
+        val a = phone.budgets.create(null, Money(Minor(10_000), rub), LocalDate.of(2026, 10, 1))
+        val b = tablet.budgets.create(null, Money(Minor(20_000), rub), LocalDate.of(2026, 10, 1))
+        // бюджет в другой валюте — другой ключ, остаётся
+        val usdBudget = tablet.budgets.create(null, Money(Minor(5_000), usd), LocalDate.of(2026, 10, 1))
+        assertConverged()
+
+        val winner = minOf(a.id, b.id)
+        val expected = listOf(winner, usdBudget.id).sorted()
+        assertEquals(expected, phone.budgets.observeAll().first().map { it.id }.sorted())
+        assertEquals(expected, tablet.budgets.observeAll().first().map { it.id }.sorted())
+    }
+
     @Test
     fun mergeOnOneDeviceWhileTheOtherAddsToTheMergedCategory() = runBlocking {
         val phone = newDevice("phone")
@@ -233,7 +280,9 @@ class SyncConvergenceInstrumentedTest {
 
     @Test
     fun randomOperationsOnThreeDevicesConverge() = runBlocking {
-        for (seed in 1..6) {
+        val args = InstrumentationRegistry.getArguments()
+        val seeds = args.getString("syncSeeds")?.toIntOrNull() ?: 6
+        for (seed in 1..seeds) {
             devices.forEach { it.db.close() }
             devices.clear()
             folderRoot.deleteRecursively(); folderRoot.mkdirs()
@@ -251,14 +300,16 @@ class SyncConvergenceInstrumentedTest {
         join(a, b, c)
 
         val names = listOf("Такси", "Кофе", "Аптека", "Кино")
-        repeat(150) { step ->
+        val steps = InstrumentationRegistry.getArguments().getString("syncSteps")?.toIntOrNull() ?: 150
+        repeat(steps) { step ->
             clock += rnd.nextLong(1, 50)
             val d = devices[rnd.nextInt(devices.size)]
             val accounts = d.accounts.observeActive().first()
             val categories = d.categories.observeActive().first().filter { it.kind == CategoryKind.EXPENSE }
             val txns = d.txns.observeAll().first().filterIsInstance<com.corriente.data.model.Txn.Expense>()
+            val budgets = d.budgets.observeAll().first()
             runCatching {
-                when (rnd.nextInt(10)) {
+                when (rnd.nextInt(13)) {
                     0, 1, 2 -> if (accounts.isNotEmpty()) {
                         val acc = accounts.random(rnd)
                         d.txns.addExpense(acc.id, Money(Minor(rnd.nextLong(1, 10_000)), acc.currency), categories.randomOrNull(rnd)?.id, LocalDate.of(2026, 10, 1 + rnd.nextInt(28)), "s$step")
@@ -276,6 +327,16 @@ class SyncConvergenceInstrumentedTest {
                     }
                     7 -> categories.randomOrNull(rnd)?.let { d.categories.deleteIfUnused(it.id) }
                     8 -> accounts.randomOrNull(rnd)?.let { d.accounts.update(it.id, "${it.name.take(8)}$step", it.color, it.icon, it.includeInTotal) }
+                    // T3: бюджеты — создание (в т.ч. «на всё», дубли ключа между устройствами), правка суммы, удаление
+                    10 -> {
+                        val currency = if (rnd.nextBoolean()) rub else usd
+                        val category = if (rnd.nextInt(4) == 0) null else categories.randomOrNull(rnd)?.id
+                        d.budgets.create(category, Money(Minor(rnd.nextLong(1, 100_000)), currency), LocalDate.of(2026, 10, 1))
+                    }
+                    11 -> budgets.randomOrNull(rnd)?.let { bgt ->
+                        d.budgets.update(bgt.id, bgt.categoryId, Money(Minor(rnd.nextLong(1, 100_000)), bgt.amount.currency), bgt.startsOn)
+                    }
+                    12 -> budgets.randomOrNull(rnd)?.let { d.budgets.delete(it.id) }
                     else -> d.engine.sync()
                 }
             }.exceptionOrNull()?.let { e ->

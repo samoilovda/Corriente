@@ -203,6 +203,11 @@ class SyncEngine(
             .sortedByDescending { TABLE_ORDER.indexOf(it.table) }
             .forEach { applyDelete(it, counters) }
 
+        // Перенаправление могло прийти раньше, чем конечная категория, — доделываем слияние, когда цепочка уже целиком здесь.
+        sweepRedirectedCategories(redirects)
+        // T3: перенаправление категории могло свести два уже существующих бюджета в один ключ — доводим до одного.
+        dedupeBudgets()
+
         dao.setState(SyncStateEntity(enabled = true, applying = false))
 
         val problems = BackupRepository.validate(BackupRepository(db).buildPayload())
@@ -247,6 +252,11 @@ class SyncEngine(
             return
         }
         if (change.table == "category" && resolveCategoryNameClash(change, row, redirects)) {
+            dao.removeDeferred(change.table, change.pk)
+            counters.applied++
+            return
+        }
+        if (change.table == "budget" && resolveBudgetClash(change, row)) {
             dao.removeDeferred(change.table, change.pk)
             counters.applied++
             return
@@ -323,6 +333,71 @@ class SyncEngine(
         }
         redirects.putIfAbsent(loser, winner)
         return true
+    }
+
+    /**
+     * Два разных бюджета с одним ключом `(категория, валюта, период)` (категория может быть `NULL` — «на всё»)
+     * считаются одним: побеждает меньший id, как с категориями. На бюджеты никто не ссылается — перенаправления не нужны.
+     * Ключ сравнивается по уже перенаправленной категории [row] (бюджет мог прийти на слитую категорию).
+     * @return true — изменение обработано здесь.
+     */
+    private suspend fun resolveBudgetClash(change: RowChange, row: JsonObject): Boolean {
+        val other = sql.query(
+            "SELECT id FROM budget WHERE category_id IS ? AND currency_code = ? AND period = ? AND id <> ? ORDER BY id",
+            row.str("category_id"), row.str("currency_code"), row.str("period"), change.pk,
+        ) { it.getText(0) }.firstOrNull() ?: return false
+
+        if (change.pk < other) {
+            // Чужой бюджет побеждает: свой удаляем как обычную локальную правку (расходится по устройствам).
+            asLocalChange { sql.exec("DELETE FROM budget WHERE id = ?", other) }
+            writeRow("budget", change.pk, row)
+            dao.setMeta(SyncRowMetaEntity("budget", change.pk, change.hlc, deleted = false))
+        } else {
+            // Свой побеждает: чужой не вставляем, ставим надгробие — его удаление у автора придёт следующим обменом.
+            // Если это правка уже существующей у нас строки, ключ которой стал занят, — её тоже убираем (как локальную
+            // правку: удаление расходится), иначе строка осталась бы здесь в старом виде, а у других — исчезла.
+            if (readRow("budget", change.pk) != null) asLocalChange { sql.exec("DELETE FROM budget WHERE id = ?", change.pk) }
+            dao.setMeta(SyncRowMetaEntity("budget", change.pk, change.hlc, deleted = true))
+            // Надгробие рассылаем сами (новой версией): иначе, если победитель потом исчезнет раньше, чем дойдёт до
+            // автора проигравшего, у автора она осталась бы жить, а у остальных — нет.
+            rebroadcast("budget", change.pk)
+        }
+        return true
+    }
+
+    /**
+     * Страховка к [resolveBudgetClash]: дубликаты ключа бюджета, возникшие не от прихода строки (например, перенос
+     * бюджетов при слиянии категорий), — остаётся меньший id. Правило детерминировано, поэтому устройства сходятся.
+     */
+    private suspend fun dedupeBudgets() {
+        val hasDuplicates = sql.exists(
+            "SELECT 1 FROM budget b WHERE EXISTS (SELECT 1 FROM budget o WHERE o.id < b.id AND o.category_id IS b.category_id " +
+                "AND o.currency_code = b.currency_code AND o.period = b.period) LIMIT 1",
+        )
+        if (!hasDuplicates) return
+        asLocalChange {
+            sql.exec(
+                "DELETE FROM budget WHERE id IN (SELECT b.id FROM budget b WHERE EXISTS (SELECT 1 FROM budget o WHERE o.id < b.id " +
+                    "AND o.category_id IS b.category_id AND o.currency_code = b.currency_code AND o.period = b.period))",
+            )
+        }
+    }
+
+    /**
+     * Категории, у которых есть перенаправление и конечная категория цепочки уже здесь: переносим их операции/бюджеты и
+     * удаляем, если опустели — то же, что делается в момент прихода перенаправления ([applyUpsert]), но и для случая,
+     * когда конечная категория пришла позже. Правило детерминировано.
+     */
+    private suspend fun sweepRedirectedCategories(redirects: Map<String, String>) {
+        for (from in redirects.keys.toList()) {
+            if (readRow("category", from) == null) continue
+            val target = resolve(from, redirects)
+            if (target == from || readRow("category", target) == null) continue
+            asLocalChange {
+                repointCategory(from, target)
+                deleteCategoryIfUnused(from)
+            }
+        }
     }
 
     private suspend fun repointCategory(from: String, into: String) {

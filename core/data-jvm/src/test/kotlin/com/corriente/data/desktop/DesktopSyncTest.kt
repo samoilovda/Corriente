@@ -4,6 +4,7 @@ import com.corriente.data.backup.BackupRepository
 import com.corriente.data.db.entity.AccountKind
 import com.corriente.data.model.Txn
 import com.corriente.data.repository.AccountRepository
+import com.corriente.data.repository.BudgetRepository
 import com.corriente.data.repository.TxnRepository
 import com.corriente.data.sync.FileSyncFolder
 import com.corriente.data.sync.SyncEngine
@@ -62,6 +63,32 @@ class DesktopSyncTest {
         val onPhone = TxnRepository(phone.txnDao(), phone.accountDao()).getById(t.id) as Txn.Income
         assertEquals("с ноутбука", onPhone.note)
 
+        listOf(phone, laptop).forEach { db ->
+            assertTrue(BackupRepository.validate(BackupRepository(db).buildPayload()).isEmpty())
+            db.close()
+        }
+    }
+
+    // T3: бюджет одной категории и валюты, созданный на обоих устройствах, после обмена — один (меньший id).
+    @Test
+    fun sameBudgetOnBothDevicesBecomesOne() = runBlocking {
+        val folder = FileSyncFolder(tmp.newFolder("sync-budget"))
+        val phone = DesktopDatabase.open(tmp.newFile("phone-b.db").also { it.delete() })
+        val laptop = DesktopDatabase.open(tmp.newFile("laptop-b.db").also { it.delete() })
+        val phoneEngine = SyncEngine(phone, folder)
+        val laptopEngine = SyncEngine(laptop, folder)
+        phoneEngine.enable("phone", primary = true, baseline = true)
+        phoneEngine.sync()
+        laptopEngine.enable("laptop", primary = false, baseline = false)
+        laptopEngine.sync()
+
+        val a = BudgetRepository(phone.budgetDao()).create("seed-exp-groceries", Money(Minor(10_000), rub), LocalDate.of(2026, 10, 1))
+        val b = BudgetRepository(laptop.budgetDao()).create("seed-exp-groceries", Money(Minor(20_000), rub), LocalDate.of(2026, 10, 1))
+        repeat(4) { phoneEngine.sync(); laptopEngine.sync() }
+
+        val winner = minOf(a.id, b.id)
+        assertEquals(listOf(winner), BudgetRepository(phone.budgetDao()).observeAll().first().map { it.id })
+        assertEquals(listOf(winner), BudgetRepository(laptop.budgetDao()).observeAll().first().map { it.id })
         listOf(phone, laptop).forEach { db ->
             assertTrue(BackupRepository.validate(BackupRepository(db).buildPayload()).isEmpty())
             db.close()
