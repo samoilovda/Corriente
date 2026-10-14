@@ -8,3 +8,7 @@ local.properties
 .DS_Store
 .kotlin/
 scripts/.device
+
+# Артефакты IDE (VS Code / Eclipse)
+.vscode/
+**/bin/
