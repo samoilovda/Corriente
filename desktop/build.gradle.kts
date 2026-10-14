@@ -42,6 +42,10 @@ dependencies {
     implementation(compose.material3)
     implementation(compose.materialIconsExtended)
     implementation(libs.kotlinx.coroutines.swing)
+
+    testImplementation(libs.junit)
+    testImplementation(compose.desktop.uiTestJUnit4)
+    testImplementation(libs.kotlinx.coroutines.test)
 }
 
 compose.desktop {
@@ -53,7 +57,7 @@ compose.desktop {
             // .dmg — macOS (собирается на Mac), .msi — Windows, .deb — Linux (каждый — на своей системе).
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
             packageName = "Corriente"
-            packageVersion = "1.0.0"
+            packageVersion = libs.versions.desktopVersion.get()
             description = "Corriente — учёт личных финансов"
             vendor = "Corriente"
             macOS { bundleID = "com.corriente.desktop" }

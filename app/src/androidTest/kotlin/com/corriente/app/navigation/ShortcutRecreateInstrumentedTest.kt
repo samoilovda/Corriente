@@ -1,6 +1,9 @@
 package com.corriente.app.navigation
 
+import android.app.Activity
+import android.app.Application
 import android.content.Intent
+import android.os.Bundle
 import android.net.Uri
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
@@ -15,6 +18,8 @@ import com.corriente.app.R
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicReference
 
 /**
  * A2.8: запуск ярлыком приложения (`corriente://entry?kind=EXPENSE`) → «Назад» → «Отчёт» → пересоздание Activity
@@ -51,7 +56,45 @@ class ShortcutRecreateInstrumentedTest {
             }
             scenario.moveToState(Lifecycle.State.RESUMED)
             composeRule.waitForIdle()
-            scenario.recreate()
+            // ActivityScenario.recreate() и его отслеживание жизненного цикла на медленном эмуляторе иногда теряют
+            // пересоздание (хотя Activity пересоздаётся) — следим за Activity сами через ActivityLifecycleCallbacks
+            // и при необходимости повторяем запрос.
+            val app = context.applicationContext as Application
+            val created = AtomicInteger(0)
+            val resumed = AtomicReference<Activity?>(null)
+            val callbacks = object : Application.ActivityLifecycleCallbacks {
+                override fun onActivityCreated(a: Activity, b: Bundle?) { if (a is MainActivity) created.incrementAndGet() }
+                override fun onActivityResumed(a: Activity) { if (a is MainActivity) resumed.set(a) }
+                override fun onActivityPaused(a: Activity) { resumed.compareAndSet(a, null) }
+                override fun onActivityStarted(a: Activity) = Unit
+                override fun onActivityStopped(a: Activity) = Unit
+                override fun onActivitySaveInstanceState(a: Activity, b: Bundle) = Unit
+                override fun onActivityDestroyed(a: Activity) = Unit
+            }
+            // Activity уже в RESUMED — onActivityResumed для неё не придёт, запоминаем её сами.
+            scenario.onActivity { resumed.set(it) }
+            app.registerActivityLifecycleCallbacks(callbacks)
+            try {
+                val instrumentation = InstrumentationRegistry.getInstrumentation()
+                var lastRequest = 0L
+                composeRule.waitUntil(timeoutMillis = 60_000) {
+                    if (created.get() > 0) return@waitUntil true
+                    // Запрос на пересоздание текущего экрана — сразу и затем повторно каждые 15 с, пока не сработает.
+                    val now = System.currentTimeMillis()
+                    val activity = resumed.get()
+                    if (activity != null && now - lastRequest >= 15_000) {
+                        lastRequest = now
+                        instrumentation.runOnMainSync { activity.recreate() }
+                    }
+                    false
+                }
+                composeRule.waitUntil(timeoutMillis = 15_000) {
+                    composeRule.onAllNodesWithText(context.getString(R.string.report_open_fx)).fetchSemanticsNodes().isNotEmpty() ||
+                        composeRule.onAllNodesWithText(context.getString(R.string.txn_entry_title)).fetchSemanticsNodes().isNotEmpty()
+                }
+            } finally {
+                app.unregisterActivityLifecycleCallbacks(callbacks)
+            }
             composeRule.waitForIdle()
 
             composeRule.onNodeWithText(context.getString(R.string.txn_entry_title)).assertDoesNotExist()

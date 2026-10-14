@@ -1,6 +1,7 @@
 package com.corriente.app.ui.settings
 
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -64,6 +65,11 @@ class BackupRestoreConfirmationInstrumentedTest {
         composeRule.onNodeWithText(str(R.string.autobackup_title)).performClick()
         composeRule.waitForIdle()
 
+        // Список копий в папке читается асинхронно (SAF): кнопка «Восстановить» появляется не сразу, на холодном
+        // эмуляторе — позже, чем waitForIdle.
+        composeRule.waitUntil(10_000) {
+            composeRule.onAllNodesWithText(str(R.string.backup_restore_action)).fetchSemanticsNodes().isNotEmpty()
+        }
         composeRule.onNodeWithText(str(R.string.backup_restore_action)).performClick()
         // Подтверждение обязано появиться прежде, чем данные будут заменены.
         composeRule.onNodeWithText(str(R.string.backup_import_confirm_title)).assertExists()

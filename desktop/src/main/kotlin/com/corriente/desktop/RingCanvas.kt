@@ -13,6 +13,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.corriente.data.usecase.MonthOverview
 import com.corriente.data.usecase.OverviewSlice
@@ -42,6 +43,7 @@ fun RingWithIcons(overview: MonthOverview, onCategory: (String) -> Unit) {
                 Modifier
                     .offset(x = ORBIT * cos(angle).toFloat(), y = ORBIT * sin(angle).toFloat() + 8.dp)
                     .width(ICON + 24.dp)
+                    .testTag("ring-${icon.categoryId}")
                     .clickable { onCategory(icon.categoryId) },
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {

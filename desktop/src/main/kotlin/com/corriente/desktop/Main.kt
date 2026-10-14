@@ -26,10 +26,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
+import kotlin.system.exitProcess
 
 private enum class Section(val title: String) { TRANSACTIONS("Операции"), ACCOUNTS("Счета"), SYNC("Синхронизация") }
 
 fun main() {
+    // Имя в меню macOS при запуске из Gradle (в собранном .dmg оно уже «Corriente»); до создания окна.
+    System.setProperty("apple.awt.application.name", "Corriente")
     val container = DesktopContainer()
     container.sync.start()
     application {
@@ -43,10 +46,12 @@ fun main() {
             }
         }
     }
+    // Фоновый обмен идёт в своих потоках — закрытие окна завершает процесс сразу.
+    exitProcess(0)
 }
 
 @Composable
-private fun App(c: DesktopContainer) {
+internal fun App(c: DesktopContainer) {
     var section by remember { mutableStateOf(Section.TRANSACTIONS) }
     var entry by remember { mutableStateOf<EntryRequest?>(null) }
     Row(Modifier.fillMaxSize()) {

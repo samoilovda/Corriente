@@ -176,6 +176,8 @@ shrinkResources; при первой реальной сборке вне пес
 `versionCode = 2`, `versionName = "0.2.0"` (было `1` / `"0.1"`, ни разу не менявшееся). Затем
 `versionCode = 3`, `versionName = "0.3.0"` — пост-релизные правки, схема БД v6→v7 и аудит 2026-09-23 (A3.2:
 в 0.2.0 успела попасть только схема v5, а бэкап более новой схемы отвергается как «новее»).
+`versionCode = 4`, `versionName = "0.4.0"` — схема БД v8, синхронизация через Syncthing, иконки категорий, окно для компьютера.
+Версия пакета десктопа живёт отдельно (`desktopVersion` в `libs.versions.toml`, `1.x.y`: на macOS `MAJOR` пакета не может быть 0).
 История изменений по коммитам `Tx.y`/`Fx.y`/`Rx.y` — в [`CHANGELOG.md`](CHANGELOG.md).
 
 ### Зависимости
@@ -346,6 +348,7 @@ Corriente синхронизирует данные между своими Andr
 Monefy, автобэкап, замок и виджет — только на телефоне.
 
 ```
+./gradlew :desktop:test           # UI-тесты окна (входят в ./gradlew check)
 ./gradlew :desktop:run            # запустить из исходников
 ./gradlew :desktop:packageDmg     # macOS: desktop/build/compose/binaries/main/dmg/Corriente-<версия>.dmg
 ./gradlew :desktop:packageMsi     # Windows (на Windows-машине)

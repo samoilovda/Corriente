@@ -39,8 +39,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -133,7 +136,14 @@ fun EntryDialog(c: DesktopContainer, request: EntryRequest, onDone: () -> Unit) 
         onDismissRequest = onDone,
         title = { Text(if (editing != null) "Операция" else if (income) "Новый доход" else "Новый расход") },
         text = {
-            Column(Modifier.width(560.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(
+                Modifier.width(560.dp).onPreviewKeyEvent {
+                    // Enter сохраняет из любого поля и после выбора категории мышью (фокус уходит с суммы).
+                    // Только нажатие: на отпускание save() второй раз записал бы дубль операции.
+                    if (it.key == Key.Enter) { if (it.type == KeyEventType.KeyDown) save(); true } else false
+                },
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
                 if (editing == null) {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         FilterChip(selected = !income, onClick = { income = false; categoryId = null }, label = { Text("Расход") })
@@ -147,12 +157,14 @@ fun EntryDialog(c: DesktopContainer, request: EntryRequest, onDone: () -> Unit) 
                         label = { Text("Сумма${currency?.let { ", ${it.code.code}" }.orEmpty()}") },
                         singleLine = true,
                         textStyle = MaterialTheme.typography.headlineSmall.copy(textAlign = TextAlign.End),
-                        modifier = Modifier.weight(1f).focusRequester(amountFocus)
-                            .onPreviewKeyEvent { if (it.key == Key.Enter) { save(); true } else false },
+                        modifier = Modifier.weight(1f).testTag("amount").focusRequester(amountFocus),
                     )
                     AccountPicker(accounts.map { it.id to "${it.name} · ${it.currency.code}" }, account?.let { "${it.name} · ${it.currency.code}" } ?: "Счёт") {
                         accountId = it
-                        if (editing == null) amountText = amountText // валюта меняется вместе со счётом
+                        // Валюта меняется вместе со счётом — вводимая сумма пересобирается под точность новой валюты.
+                        val newCurrency = accounts.firstOrNull { a -> a.id == it }
+                            ?.let { a -> currencyOf(a.currency, currencies.associateBy { c -> c.code.code }) }
+                        if (newCurrency != null) amountText = AmountInput.fromText(amountText, newCurrency).displayText()
                     }
                 }
                 Text("Категория", style = MaterialTheme.typography.labelMedium)
@@ -167,6 +179,7 @@ fun EntryDialog(c: DesktopContainer, request: EntryRequest, onDone: () -> Unit) 
                         val selected = cat.id == categoryId
                         Column(
                             Modifier
+                                .testTag("cat-${cat.id}")
                                 .border(
                                     if (selected) 2.dp else 1.dp,
                                     if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant,
@@ -182,7 +195,7 @@ fun EntryDialog(c: DesktopContainer, request: EntryRequest, onDone: () -> Unit) 
                     }
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    OutlinedTextField(dateText, { dateText = it; error = null }, label = { Text("Дата") }, singleLine = true, modifier = Modifier.width(160.dp))
+                    OutlinedTextField(dateText, { dateText = it; error = null }, label = { Text("Дата") }, singleLine = true, modifier = Modifier.width(160.dp).testTag("date"))
                     OutlinedTextField(note, { note = it }, label = { Text("Заметка") }, singleLine = true, modifier = Modifier.weight(1f))
                 }
                 error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
@@ -206,7 +219,7 @@ fun EntryDialog(c: DesktopContainer, request: EntryRequest, onDone: () -> Unit) 
 private fun AccountPicker(options: List<Pair<String, String>>, label: String, onPick: (String) -> Unit) {
     var open by remember { mutableStateOf(false) }
     Box {
-        TextButton(onClick = { open = true }) {
+        TextButton(onClick = { open = true }, modifier = Modifier.testTag("account-picker")) {
             Text(label)
             Icon(Icons.Filled.ArrowDropDown, null)
         }

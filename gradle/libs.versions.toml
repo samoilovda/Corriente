@@ -5,8 +5,10 @@
 # с каждым релизным APK и никогда не переиспользуется; versionName — семантический
 # (см. README.md, раздел «Версии»). versionCode=1/versionName="0.1" не менялись ни разу —
 # первый настоящий релиз после закрытия BUILD_PLAN/FIX_PLAN/R1–R6 выпущен как 2 / "0.2.0".
-appVersionCode = "3"
-appVersionName = "0.3.0"
+appVersionCode = "4"
+appVersionName = "0.4.0"
+# Версия пакета десктопа (:desktop): на macOS MAJOR у пакета должен быть ≥ 1, поэтому отдельная линия 1.x.y.
+desktopVersion = "1.0.0"
 kotlin = "2.3.20"
 agp = "9.3.0"
 ksp = "2.3.11"
