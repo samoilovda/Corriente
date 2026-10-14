@@ -111,6 +111,7 @@ fun SyncScreen(onBack: () -> Unit, viewModel: SyncViewModel = viewModel(factory 
                     devices = devices.map { DeviceRow(it.name.ifBlank { it.deviceId.take(8) }, it.deviceId == ownId, it.primary) },
                     busy = busy,
                     onSyncNow = viewModel::syncNow,
+                    onCleanup = viewModel::cleanup,
                     onDisable = { confirmDisable = true },
                 )
             }
@@ -188,6 +189,7 @@ private fun EnabledBody(
     devices: List<DeviceRow>,
     busy: Boolean,
     onSyncNow: () -> Unit,
+    onCleanup: () -> Unit,
     onDisable: () -> Unit,
 ) {
     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -213,6 +215,9 @@ private fun EnabledBody(
             Text(stringResource(R.string.sync_deferred, status.deferred), style = MaterialTheme.typography.bodySmall)
         }
         Button(onClick = onSyncNow, enabled = !busy) { Text(stringResource(R.string.sync_now)) }
+        // S5: очистка журнала в общей папке — данные не удаляются.
+        OutlinedButton(onClick = onCleanup, enabled = !busy) { Text(stringResource(R.string.sync_cleanup)) }
+        Text(stringResource(R.string.sync_cleanup_hint), style = MaterialTheme.typography.bodySmall)
     }
     HorizontalDivider()
     Text(stringResource(R.string.sync_devices), style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(16.dp))

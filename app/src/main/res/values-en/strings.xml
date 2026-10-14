@@ -507,6 +507,8 @@
     <string name="sync_newer_schema">Devices %1$s run a newer Corriente version — update the app here to receive their changes.</string>
     <string name="sync_deferred">Waiting for missing data from other devices: %1$d</string>
     <string name="sync_now">Sync now</string>
+    <string name="sync_cleanup">Clean up sync log</string>
+    <string name="sync_cleanup_hint">Removes old files from the shared folder that every device has already applied. Your data is not deleted.</string>
     <string name="sync_devices">Devices in the folder</string>
     <string name="sync_device_this">this device</string>
     <string name="sync_device_primary">main</string>

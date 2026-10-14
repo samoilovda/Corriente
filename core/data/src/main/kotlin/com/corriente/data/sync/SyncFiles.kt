@@ -56,9 +56,24 @@ data class ChangeFile(
     val changes: List<RowChange>,
 ) {
     companion object {
-        const val FORMAT_VERSION = 1
+        /** 2 (S5): появились снимки [SnapshotFile]; сам формат пачки не изменился — формат 1 читается как есть. */
+        const val FORMAT_VERSION = 2
     }
 }
+
+/**
+ * Снимок устройства (S5, docs/SYNC_DESIGN.md §7): `snapshots/<deviceId>.json` — всё синхронизируемое состояние, каким
+ * оно видно этому устройству (строки с версиями HLC и надгробия), актуальное на [seq] его собственных пачек. Применяется
+ * тем же LWW, что и обычные изменения; нужен устройству, которому не хватает уже удалённых пачек.
+ */
+@Serializable
+data class SnapshotFile(
+    val formatVersion: Int = ChangeFile.FORMAT_VERSION,
+    val schemaVersion: Int,
+    val deviceId: String,
+    val seq: Long,
+    val changes: List<RowChange>,
+)
 
 /** Карточка устройства: `devices/<deviceId>.json`. [seen] — до какого `seq` применены файлы каждого устройства (для очистки, S5). */
 @Serializable
@@ -69,6 +84,8 @@ data class DeviceInfo(
     val lastSeq: Long,
     val seen: Map<String, Long> = emptyMap(),
     val primary: Boolean = false,
+    /** Когда карточка записана (мс). 0 — записана приложением без этого поля: считается «живой» (очистку блокирует). */
+    val updatedAt: Long = 0,
 )
 
 internal val syncJson = Json { ignoreUnknownKeys = true; encodeDefaults = true }
@@ -76,6 +93,8 @@ internal val syncJson = Json { ignoreUnknownKeys = true; encodeDefaults = true }
 internal object SyncPaths {
     const val DEVICES = "devices"
     const val CHANGES = "changes"
+    const val SNAPSHOTS = "snapshots"
+    fun snapshot(id: String) = "$SNAPSHOTS/$id.json"
     fun device(id: String) = "$DEVICES/$id.json"
     fun changesDir(id: String) = "$CHANGES/$id"
     fun changeFile(id: String, seq: Long) = "$CHANGES/$id/${seq.toString().padStart(10, '0')}.json"

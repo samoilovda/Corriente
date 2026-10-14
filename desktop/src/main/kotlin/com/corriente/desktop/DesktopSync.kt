@@ -126,6 +126,13 @@ class DesktopSync(
         runLocked(engine)
     }
 
+    /** «Очистить журнал синхронизации» (S5): обмен, снимок, удаление уже применённых своих пачек. Данные не удаляются. */
+    suspend fun cleanup(): String? = mutex.withLock {
+        val engine = engine() ?: return@withLock null
+        if (!engine.isEnabled()) return@withLock null
+        runCatching { engine.cleanup() }.exceptionOrNull()?.let { it.message ?: it.javaClass.simpleName }
+    }
+
     private suspend fun runLocked(engine: SyncEngine): String? {
         val outcome = runCatching { engine.sync() }
         val error = outcome.exceptionOrNull()?.let { e ->

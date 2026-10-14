@@ -129,6 +129,24 @@ class SyncController(private val context: Context, private val db: AppDatabase) 
         runLocked(engine)
     }
 
+    /** «Очистить журнал синхронизации» (S5): обмен, снимок, удаление уже применённых своих пачек. Данные не удаляются. */
+    suspend fun cleanup(): SyncError? = mutex.withLock {
+        val engine = engine() ?: return@withLock null
+        if (!engine.isEnabled()) return@withLock null
+        withContext(Dispatchers.IO) {
+            val error = runCatching { engine.cleanup() }.exceptionOrNull()?.let { e ->
+                when (e) {
+                    is SyncIntegrityException -> SyncError.Integrity
+                    is SecurityException, is java.io.FileNotFoundException, is IllegalArgumentException -> SyncError.FolderUnavailable
+                    else -> SyncError.Other(e.message ?: e.javaClass.simpleName)
+                }
+            }
+            settings.set(AppSettingEntity(KEY_LAST_RUN, System.currentTimeMillis().toString()))
+            settings.set(AppSettingEntity(KEY_LAST_ERROR, encodeError(error)))
+            error
+        }
+    }
+
     suspend fun devices(): List<DeviceInfo> = withContext(Dispatchers.IO) {
         runCatching { engine()?.devices() }.getOrNull().orEmpty()
     }

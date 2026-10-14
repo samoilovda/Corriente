@@ -37,7 +37,12 @@ class SyncEngine(
         val refused: Int = 0,
         /** Устройства, чьи файлы новее схемы этого приложения: нужно обновить приложение здесь. */
         val newerSchemaDevices: List<String> = emptyList(),
+        /** Сколько своих пачек удалила автоматическая очистка папки (S5), 0 — не запускалась. */
+        val cleanedFiles: Int = 0,
     )
+
+    /** Итог очистки папки (S5, docs/SYNC_DESIGN.md §7). */
+    data class CleanupResult(val deletedFiles: Int = 0, val removedTombstones: Int = 0)
 
     private val dao = db.syncDao()
     private val settings = db.appSettingDao()
@@ -94,10 +99,83 @@ class SyncEngine(
     suspend fun sync(): Result {
         check(isEnabled()) { "sync is not enabled" }
         val exported = db.writeTransaction { export() }
-        return db.writeTransaction {
+        val result = db.writeTransaction {
             // Правка, сделанная между двумя транзакциями, должна получить версию до сравнения с чужими.
             val again = export()
             import().copy(exported = exported + again)
+        }
+        // S5: карточка устройства «живая», даже если ничего не менялось, — иначе простаивающее устройство через 90 дней
+        // сочли бы пропавшим. Раз в сутки — автоматическая очистка, если своих пачек накопилось много.
+        db.writeTransaction { heartbeat() }
+        val cleaned = if (cleanupDue()) db.writeTransaction { cleanupNow() }.deletedFiles else 0
+        return result.copy(cleanedFiles = cleaned)
+    }
+
+    /**
+     * Очистка папки по кнопке (S5): сначала обычный обмен, затем — снимок этого устройства и удаление его пачек, которые
+     * уже применили все остальные (кроме не появлявшихся больше 90 дней), и надгробий старше 90 дней.
+     */
+    suspend fun cleanup(): CleanupResult {
+        sync()
+        return db.writeTransaction { cleanupNow() }
+    }
+
+    private suspend fun cleanupDue(): Boolean {
+        val me = deviceId() ?: return false
+        val last = settings.get(KEY_CLEANUP_AT)?.toLongOrNull() ?: 0L
+        if (now() - last < CLEANUP_INTERVAL_MS) return false
+        return folder.list(SyncPaths.changesDir(me)).count { SyncPaths.seqOf(it) != null } > CLEANUP_FILE_THRESHOLD
+    }
+
+    private suspend fun heartbeat() {
+        val me = deviceId() ?: return
+        val last = settings.get(KEY_CARD_AT)?.toLongOrNull() ?: 0L
+        if (now() - last >= HEARTBEAT_MS) writeDeviceInfo(me)
+    }
+
+    private suspend fun cleanupNow(): CleanupResult {
+        val me = requireNotNull(deviceId())
+        set(KEY_CLEANUP_AT, now().toString())
+        val seq = settings.get(KEY_SEQ)?.toLongOrNull() ?: 0L
+
+        var deleted = 0
+        val mine = folder.list(SyncPaths.changesDir(me)).mapNotNull { name -> SyncPaths.seqOf(name)?.let { it to name } }
+        val others = devices().filter { it.deviceId != me }
+        if (others.isNotEmpty() && mine.isNotEmpty()) {
+            // Пачку можно удалить, когда её применили все «живые» устройства; не появлявшиеся > 90 дней не блокируют.
+            // Карточка без времени (старое приложение) считается живой. Нет ни одной живой — безопасно всё своё.
+            val live = others.filter { it.updatedAt == 0L || now() - it.updatedAt <= STALE_MS }
+            val safe = live.minOfOrNull { it.seen[me] ?: 0L } ?: seq
+            val deletable = mine.filter { it.first <= safe }
+            if (deletable.isNotEmpty()) {
+                // Снимок — до удаления: кому пачек не хватит, тот подключится через него.
+                val snapshot = SnapshotFile(schemaVersion = AppDatabase.SCHEMA_VERSION, deviceId = me, seq = seq, changes = snapshotChanges())
+                folder.write(SyncPaths.snapshot(me), syncJson.encodeToString(SnapshotFile.serializer(), snapshot).toByteArray())
+                deletable.forEach { (_, name) -> folder.delete("${SyncPaths.changesDir(me)}/$name") }
+                deleted = deletable.size
+            }
+        }
+
+        // Надгробия старше 90 дней (по времени HLC) больше не нужны.
+        val cutoff = String.format(java.util.Locale.ROOT, "%013d", maxOf(0L, now() - STALE_MS))
+        val oldTombstones = sql.query("SELECT COUNT(*) FROM sync_row_meta WHERE deleted = 1 AND hlc < ?", cutoff) { it.getLong(0) }.single()
+        if (oldTombstones > 0) sql.exec("DELETE FROM sync_row_meta WHERE deleted = 1 AND hlc < ?", cutoff)
+        writeDeviceInfo(me)
+        return CleanupResult(deleted, oldTombstones.toInt())
+    }
+
+    /** Всё состояние с версиями. Строки, ждущие выгрузки (`sync_outbox`), не входят — они уйдут обычной пачкой после [seq]. */
+    private suspend fun snapshotChanges(): List<RowChange> {
+        val pending = dao.outbox().map { it.tableName to it.pk }.toSet()
+        val metas = sql.query("SELECT table_name, pk, hlc, deleted FROM sync_row_meta") {
+            RowChange(it.getText(0), it.getText(1), it.getText(2), deleted = it.getLong(3) != 0L)
+        }
+        return metas.mapNotNull { m ->
+            when {
+                (m.table to m.pk) in pending -> null
+                m.deleted -> m
+                else -> readRow(m.table, m.pk)?.let { m.copy(row = it) }
+            }
         }
     }
 
@@ -153,15 +231,27 @@ class SyncEngine(
             if (device == me || device.startsWith(".")) continue
             val cursor = settings.get(cursorKey(device))?.toLongOrNull() ?: 0L
             var last = cursor
-            val files = folder.list(SyncPaths.changesDir(device))
+            val all = folder.list(SyncPaths.changesDir(device))
                 .mapNotNull { name -> SyncPaths.seqOf(name)?.let { it to name } }
-                .filter { it.first > cursor }
                 .sortedBy { it.first }
+            // S5: первых нужных пачек уже нет (устройство их убрало при очистке) — сначала снимок этого устройства.
+            if (all.firstOrNull()?.first?.let { it > cursor + 1 } != false) {
+                val snapshot = readSnapshot(device)
+                if (snapshot != null && snapshot.seq > cursor) {
+                    if (snapshot.schemaVersion > AppDatabase.SCHEMA_VERSION || snapshot.formatVersion > ChangeFile.FORMAT_VERSION) {
+                        newerSchema += device
+                        continue
+                    }
+                    incoming += snapshot.changes
+                    last = snapshot.seq
+                }
+            }
+            val files = all.filter { it.first > last }
             for ((seq, name) in files) {
                 // Битый/недописанный файл — дальше этого устройства пока не идём (порядок важен).
                 val bytes = folder.read("${SyncPaths.changesDir(device)}/$name") ?: break
                 val file = runCatching { syncJson.decodeFromString(ChangeFile.serializer(), bytes.decodeToString()) }.getOrNull() ?: break
-                if (file.schemaVersion > AppDatabase.SCHEMA_VERSION) {
+                if (file.schemaVersion > AppDatabase.SCHEMA_VERSION || file.formatVersion > ChangeFile.FORMAT_VERSION) {
                     newerSchema += device
                     break
                 }
@@ -174,6 +264,7 @@ class SyncEngine(
             runCatching { syncJson.decodeFromString(RowChange.serializer(), it.payload) }.getOrNull()
         }
         if (incoming.isEmpty() && deferredBefore.isEmpty()) {
+            cursors.forEach { (device, seq) -> set(cursorKey(device), seq.toString()) }
             return Result(newerSchemaDevices = newerSchema)
         }
 
@@ -222,6 +313,10 @@ class SyncEngine(
             newerSchemaDevices = newerSchema,
         )
     }
+
+    private fun readSnapshot(device: String): SnapshotFile? =
+        folder.read(SyncPaths.snapshot(device))
+            ?.let { runCatching { syncJson.decodeFromString(SnapshotFile.serializer(), it.decodeToString()) }.getOrNull() }
 
     private suspend fun isNewer(change: RowChange): Boolean {
         val local = dao.meta(change.table, change.pk) ?: return true
@@ -536,8 +631,10 @@ class SyncEngine(
             lastSeq = settings.get(KEY_SEQ)?.toLongOrNull() ?: 0L,
             seen = seen,
             primary = isPrimary(),
+            updatedAt = now(),
         )
         folder.write(SyncPaths.device(me), syncJson.encodeToString(DeviceInfo.serializer(), info).toByteArray())
+        set(KEY_CARD_AT, now().toString())
     }
 
     private suspend fun loadClock(me: String): Hlc =
@@ -554,6 +651,15 @@ class SyncEngine(
         const val KEY_PRIMARY = "sync.primary"
         private const val KEY_HLC = "sync.hlc"
         private const val KEY_SEQ = "sync.seq"
+        private const val KEY_CARD_AT = "sync.card_at"
+        private const val KEY_CLEANUP_AT = "sync.cleanup_at"
+        /** S5: не появлявшееся дольше устройство не блокирует очистку; надгробия старше удаляются (90 суток). */
+        private const val STALE_MS = 90L * 24 * 60 * 60 * 1000
+        /** Автоочистка — не чаще раза в сутки и только когда своих пачек больше порога. */
+        private const val CLEANUP_INTERVAL_MS = 24L * 60 * 60 * 1000
+        private const val CLEANUP_FILE_THRESHOLD = 200
+        /** Карточку без изменений перезаписываем раз в 12 часов — чтобы устройство не казалось пропавшим. */
+        private const val HEARTBEAT_MS = 12L * 60 * 60 * 1000
         /** Насколько чужие часы могут опережать наши, чтобы мы под них подстраивались (сутки). */
         private const val MAX_CLOCK_LEAD_MS = 24L * 60 * 60 * 1000
         private fun cursorKey(device: String) = "sync.cursor.$device"

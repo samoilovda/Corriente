@@ -517,6 +517,8 @@
     <string name="sync_newer_schema">Устройства %1$s работают на более новой версии Corriente — обновите приложение здесь, чтобы получить их изменения.</string>
     <string name="sync_deferred">Ждут недостающих данных с других устройств: %1$d</string>
     <string name="sync_now">Синхронизировать сейчас</string>
+    <string name="sync_cleanup">Очистить журнал синхронизации</string>
+    <string name="sync_cleanup_hint">Убирает из общей папки старые файлы, которые уже применили все устройства. Данные не удаляются.</string>
     <string name="sync_devices">Устройства в папке</string>
     <string name="sync_device_this">это устройство</string>
     <string name="sync_device_primary">основное</string>

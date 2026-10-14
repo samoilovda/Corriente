@@ -122,8 +122,13 @@ fun SyncScreen(c: DesktopContainer) {
             if (status.deferred > 0) Text("Ждут недостающих данных с других устройств: ${status.deferred}")
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Button(enabled = !busy, onClick = { work { c.sync.runOnce() } }) { Text("Синхронизировать сейчас") }
+                OutlinedButton(enabled = !busy, onClick = { work { c.sync.cleanup() } }) { Text("Очистить журнал синхронизации") }
                 TextButton(enabled = !busy, onClick = { work { c.sync.disable() } }) { Text("Отключить") }
             }
+            Text(
+                "Очистка убирает из общей папки старые файлы, которые уже применили все устройства. Данные не удаляются.",
+                style = MaterialTheme.typography.bodySmall,
+            )
             HorizontalDivider()
             Text("Устройства в папке", style = MaterialTheme.typography.titleSmall)
             devices.forEach { d ->

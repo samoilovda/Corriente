@@ -98,6 +98,8 @@ class SyncViewModel(app: Application, private val controller: SyncController) : 
 
     fun syncNow() = work { controller.runOnce() }
 
+    fun cleanup() = work { controller.cleanup() }
+
     fun disable() = work { controller.disable() }
 
     private fun work(block: suspend () -> Unit) {
