@@ -4,6 +4,19 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.outlined.AccountBalanceWallet
+import androidx.compose.material.icons.outlined.CreditCard
+import androidx.compose.material.icons.outlined.ExpandLess
+import androidx.compose.material.icons.outlined.ExpandMore
+import androidx.compose.material.icons.outlined.Payments
+import androidx.compose.material.icons.outlined.RequestQuote
+import androidx.compose.material.icons.outlined.Savings
+import androidx.compose.material3.Surface
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -83,27 +96,37 @@ fun AccountsScreen(
             }
         },
     ) { padding ->
-        LazyColumn(Modifier.fillMaxWidth().padding(padding)) {
+        var archivedExpanded by remember { mutableStateOf(false) }
+        LazyColumn(Modifier.fillMaxWidth().padding(padding), contentPadding = PaddingValues(bottom = 96.dp)) {
             // R1.5: плашка «Последний бэкап: N дней назад» — та же логика, что и на «Настройках».
             item { BackupReminderBanner(onClick = onOpenAutoBackup) }
             if (state.groups.isEmpty() && state.archived.isEmpty()) {
                 item {
-                    Text(
-                        stringResource(R.string.accounts_empty),
-                        Modifier.padding(24.dp),
-                        style = MaterialTheme.typography.bodyMedium,
+                    com.corriente.app.ui.common.EmptyState(
+                        icon = Icons.Outlined.AccountBalanceWallet,
+                        title = stringResource(R.string.accounts_empty_title),
+                        body = stringResource(R.string.accounts_empty),
                     )
+                }
+            }
+            // UI-2.5: итог по каждой валюте — отдельная карточка сверху (I-8: валюты не складываются).
+            val cards = currencyCards(state.groups)
+            if (cards.isNotEmpty()) {
+                item(key = "cards") {
+                    LazyRow(
+                        contentPadding = PaddingValues(horizontal = 16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        modifier = Modifier.padding(top = 8.dp, bottom = 4.dp),
+                    ) {
+                        items(cards, key = { it.code }) { card -> CurrencyTotalCard(card) }
+                    }
                 }
             }
             state.groups.forEach { group ->
                 item(key = "cur-${group.currency.code.code}") {
-                    CurrencyGroupHeader(
-                        title = "${group.currency.code.code} · ${group.currency.symbol}",
-                        total = group.total?.let { MoneyFormatter.format(it, group.currency) },
-                        totalNegative = group.total?.isNegative == true,
-                    )
+                    CurrencyGroupHeader("${group.currency.code.code} · ${group.currency.symbol}")
                 }
-                items(group.rows, key = { it.account.id }) { row ->
+                itemsIndexed(group.rows, key = { _, it -> it.account.id }) { index, row ->
                     AccountListRow(
                         title = row.account.name,
                         subtitle = accountSubtitle(row.account.kind, row.account.includeInTotal),
@@ -111,31 +134,50 @@ fun AccountsScreen(
                         trailingNegative = row.balance?.isNegative == true,
                         color = row.account.color,
                         icon = row.account.icon,
+                        kind = row.account.kind,
+                        shape = groupItemShape(index, group.rows.size),
                         onClick = { viewModel.startEdit(row.account) },
                         onOpenBalanceChart = { onOpenAccountBalance(row.account.id) },
                     )
-                    HorizontalDivider()
                 }
             }
             if (state.archived.isNotEmpty()) {
-                item {
-                    Text(
-                        text = stringResource(R.string.accounts_archived),
-                        style = MaterialTheme.typography.titleSmall,
-                        modifier = Modifier.padding(16.dp),
-                    )
-                }
-                items(state.archived, key = { "arch-${it.account.id}" }) { row ->
+                // Архивные — свёрнутой группой внизу.
+                item(key = "archived-header") {
                     Row(
-                        Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 4.dp, bottom = 4.dp),
+                        Modifier.fillMaxWidth().clickable { archivedExpanded = !archivedExpanded }
+                            .padding(start = 28.dp, end = 16.dp, top = 20.dp, bottom = 8.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Text(row.account.name, Modifier.weight(1f))
-                        IconButton(onClick = { viewModel.unarchive(row.account.id) }) {
-                            Icon(Icons.Outlined.Unarchive, contentDescription = stringResource(R.string.accounts_unarchive))
+                        Text(
+                            text = stringResource(R.string.accounts_archived) + " · ${state.archived.size}",
+                            style = MaterialTheme.typography.titleSmall,
+                            modifier = Modifier.weight(1f),
+                        )
+                        Icon(
+                            if (archivedExpanded) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
+                            contentDescription = null,
+                        )
+                    }
+                }
+                if (archivedExpanded) {
+                    itemsIndexed(state.archived, key = { _, it -> "arch-${it.account.id}" }) { index, row ->
+                        Surface(
+                            shape = groupItemShape(index, state.archived.size),
+                            color = MaterialTheme.colorScheme.surfaceContainerLow,
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 1.dp),
+                        ) {
+                            Row(
+                                Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 4.dp, bottom = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(row.account.name, Modifier.weight(1f))
+                                IconButton(onClick = { viewModel.unarchive(row.account.id) }) {
+                                    Icon(Icons.Outlined.Unarchive, contentDescription = stringResource(R.string.accounts_unarchive))
+                                }
+                            }
                         }
                     }
-                    HorizontalDivider()
                 }
             }
         }
@@ -154,20 +196,56 @@ fun AccountsScreen(
 }
 
 @Composable
-private fun CurrencyGroupHeader(title: String, total: String?, totalNegative: Boolean) {
-    Row(
-        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
+private fun CurrencyGroupHeader(title: String) {
+    Text(
+        title,
+        style = MaterialTheme.typography.titleSmall,
+        color = MaterialTheme.colorScheme.primary,
+        modifier = Modifier.padding(start = 28.dp, end = 16.dp, top = 20.dp, bottom = 8.dp),
+    )
+}
+
+/** Карточка итога по одной валюте. */
+@Composable
+private fun CurrencyTotalCard(card: CurrencyCard) {
+    Surface(
+        shape = MaterialTheme.shapes.large,
+        color = MaterialTheme.colorScheme.primaryContainer,
+        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
     ) {
-        Text(title, Modifier.weight(1f), style = MaterialTheme.typography.titleSmall)
-        if (total != null) {
-            com.corriente.app.ui.common.MoneyText(
-                total, com.corriente.app.ui.common.MoneyKind.BALANCE,
-                isNegativeBalance = totalNegative, style = MaterialTheme.typography.titleSmall,
-            )
+        Column(Modifier.padding(horizontal = 20.dp, vertical = 14.dp)) {
+            Text("${card.code} · ${card.symbol}", style = MaterialTheme.typography.labelLarge)
+            card.total?.let { total ->
+                com.corriente.app.ui.common.MoneyText(
+                    MoneyFormatter.format(total, card.currency),
+                    com.corriente.app.ui.common.MoneyKind.BALANCE,
+                    isNegativeBalance = total.isNegative,
+                    style = MaterialTheme.typography.titleLarge,
+                    color = if (total.isNegative) com.corriente.app.ui.theme.LocalCorrienteColors.current.expense else androidx.compose.ui.graphics.Color.Unspecified,
+                )
+            }
         }
     }
-    HorizontalDivider()
+}
+
+/** Скругление строки внутри группы: внешние углы крупные, внутренние мелкие — группа читается как одна плитка. */
+@Composable
+private fun groupItemShape(index: Int, size: Int): androidx.compose.ui.graphics.Shape {
+    val outer = 24.dp
+    val inner = 4.dp
+    return RoundedCornerShape(
+        topStart = if (index == 0) outer else inner,
+        topEnd = if (index == 0) outer else inner,
+        bottomStart = if (index == size - 1) outer else inner,
+        bottomEnd = if (index == size - 1) outer else inner,
+    )
+}
+
+private fun kindIcon(kind: AccountKind): ImageVector = when (kind) {
+    AccountKind.CASH -> Icons.Outlined.Payments
+    AccountKind.CARD -> Icons.Outlined.CreditCard
+    AccountKind.SAVINGS -> Icons.Outlined.Savings
+    AccountKind.DEBT -> Icons.Outlined.RequestQuote
 }
 
 @Composable
@@ -178,36 +256,46 @@ private fun AccountListRow(
     trailingNegative: Boolean,
     color: Int,
     icon: String?,
+    kind: AccountKind,
+    shape: androidx.compose.ui.graphics.Shape,
     onClick: () -> Unit,
     onOpenBalanceChart: () -> Unit,
 ) {
-    Row(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(start = 16.dp, end = 4.dp, top = 16.dp, bottom = 16.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    Surface(
+        shape = shape,
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 1.dp),
     ) {
-        Box(
-            Modifier
-                .size(20.dp)
-                .background(
-                    if (color != 0) Color(color) else MaterialTheme.colorScheme.surfaceVariant,
-                    CircleShape,
-                ),
-            contentAlignment = Alignment.Center,
+        Row(
+            modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)
+                .padding(start = 16.dp, end = 4.dp, top = 12.dp, bottom = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            icon?.takeIf { it.isNotBlank() }?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
-        }
-        Column(Modifier.weight(1f)) {
-            Text(title)
-            Text(subtitle, style = MaterialTheme.typography.bodySmall)
-        }
-        com.corriente.app.ui.common.MoneyText(
-            trailing, com.corriente.app.ui.common.MoneyKind.BALANCE, isNegativeBalance = trailingNegative,
-        )
-        // R3.2: график остатка счёта по дням — отдельный тап, не конфликтует с открытием
-        // редактора счёта по тапу на всю строку.
-        IconButton(onClick = onOpenBalanceChart) {
-            Icon(Icons.Outlined.ShowChart, contentDescription = stringResource(R.string.account_balance_chart))
+            // Цветной круг счёта с иконкой (своя или по типу счёта) — не «пустой кружок», похожий на радиокнопку.
+            Box(
+                Modifier.size(40.dp).background(if (color != 0) Color(color) else MaterialTheme.colorScheme.secondaryContainer, CircleShape),
+                contentAlignment = Alignment.Center,
+            ) {
+                val tint = if (color != 0) Color.White else MaterialTheme.colorScheme.onSecondaryContainer
+                if (!icon.isNullOrBlank()) {
+                    com.corriente.app.ui.common.CategoryGlyph(icon, title, tint, size = 22.dp)
+                } else {
+                    Icon(kindIcon(kind), contentDescription = null, tint = tint, modifier = Modifier.size(22.dp))
+                }
+            }
+            Column(Modifier.weight(1f)) {
+                Text(title)
+                Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            com.corriente.app.ui.common.MoneyText(
+                trailing, com.corriente.app.ui.common.MoneyKind.BALANCE, isNegativeBalance = trailingNegative,
+            )
+            // R3.2: график остатка счёта по дням — отдельный тап, не конфликтует с открытием
+            // редактора счёта по тапу на всю строку.
+            IconButton(onClick = onOpenBalanceChart) {
+                Icon(Icons.Outlined.ShowChart, contentDescription = stringResource(R.string.account_balance_chart))
+            }
         }
     }
 }

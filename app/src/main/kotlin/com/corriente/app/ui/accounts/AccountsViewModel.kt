@@ -40,6 +40,12 @@ data class CurrencyBalanceGroup(
     val total: Money?,
 )
 
+/** UI-2.5: карточка итога по одной валюте — берётся прямо из группы, отдельных вычислений нет (I-8). */
+data class CurrencyCard(val code: String, val symbol: String, val currency: Currency, val total: Money?)
+
+fun currencyCards(groups: List<CurrencyBalanceGroup>): List<CurrencyCard> =
+    groups.map { CurrencyCard(it.currency.code.code, it.currency.symbol, it.currency, it.total) }
+
 data class AccountsUiState(
     val groups: List<CurrencyBalanceGroup> = emptyList(),
     val archived: List<AccountRow> = emptyList(),
