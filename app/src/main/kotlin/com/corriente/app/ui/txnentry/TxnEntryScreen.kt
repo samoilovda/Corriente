@@ -28,10 +28,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Backspace
 import androidx.compose.foundation.layout.width
-import androidx.compose.material.icons.filled.AccountBalanceWallet
-import androidx.compose.material.icons.filled.CalendarMonth
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.outlined.AccountBalanceWallet
+import androidx.compose.material.icons.outlined.CalendarMonth
+import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ModalBottomSheet
@@ -178,7 +178,7 @@ fun TxnEntryScreen(
                     horizontalArrangement = Arrangement.Center,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Icon(Icons.Filled.CalendarMonth, contentDescription = stringResource(R.string.txn_entry_date))
+                    Icon(Icons.Outlined.CalendarMonth, contentDescription = stringResource(R.string.txn_entry_date))
                     Spacer(Modifier.width(8.dp))
                     Text(com.corriente.app.ui.common.dayLabel(state.date), style = MaterialTheme.typography.titleMedium)
                 }
@@ -209,7 +209,7 @@ fun TxnEntryScreen(
                     Modifier.fillMaxWidth().padding(top = 16.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Icon(Icons.Filled.Edit, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                    Icon(Icons.Outlined.Edit, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                     Spacer(Modifier.width(8.dp))
                     TextField(
                         value = state.note,
@@ -452,7 +452,7 @@ private fun AmountBar(
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                     ) {
                         Icon(
-                            Icons.Filled.AccountBalanceWallet,
+                            Icons.Outlined.AccountBalanceWallet,
                             contentDescription = stringResource(R.string.txn_entry_account),
                             modifier = Modifier.size(20.dp),
                         )
@@ -470,7 +470,7 @@ private fun AmountBar(
                             text = { Text("$label · ${option.currency.code.code}") },
                             onClick = { onSelectAccount(option.id); menuOpen = false },
                             trailingIcon = if (option.id == selectedAccountId) {
-                                { Icon(Icons.Filled.Check, contentDescription = null) }
+                                { Icon(Icons.Outlined.Check, contentDescription = null) }
                             } else {
                                 null
                             },

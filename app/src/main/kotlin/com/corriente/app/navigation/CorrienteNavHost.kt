@@ -112,7 +112,7 @@ fun CorrienteNavHost(deepLinkIntent: Intent? = null, onDeepLinkConsumed: () -> U
                                     restoreState = true
                                 }
                             },
-                            icon = { Icon(destination.icon, contentDescription = null) },
+                            icon = { Icon(if (selected) destination.selectedIcon else destination.icon, contentDescription = null) },
                             // T2: подпись в одну строку — иначе на узком экране с крупным шрифтом «Transactions»
                             // переносится по слогам. Если не помещается — уменьшаем шрифт (до 8sp), затем многоточие.
                             label = { NavLabel(stringResource(destination.labelRes)) },

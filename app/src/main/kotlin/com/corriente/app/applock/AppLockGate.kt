@@ -9,7 +9,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -104,7 +104,7 @@ private fun AppLockScreen(onUnlocked: () -> Unit) {
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Spacer(Modifier.height(96.dp))
-            Icon(Icons.Filled.Lock, contentDescription = null, modifier = Modifier.size(48.dp))
+            Icon(Icons.Outlined.Lock, contentDescription = null, modifier = Modifier.size(48.dp))
             Spacer(Modifier.height(16.dp))
             Text(stringResource(R.string.app_lock_locked_title), style = MaterialTheme.typography.titleMedium)
             Spacer(Modifier.height(24.dp))

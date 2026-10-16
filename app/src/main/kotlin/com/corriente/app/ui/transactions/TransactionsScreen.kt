@@ -14,18 +14,18 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.outlined.Search
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.text.style.TextAlign
 import kotlinx.coroutines.launch
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.FileDownload
-import androidx.compose.material.icons.filled.FilterList
-import androidx.compose.material.icons.filled.Remove
-import androidx.compose.material.icons.filled.SwapHoriz
+import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.FileDownload
+import androidx.compose.material.icons.outlined.FilterList
+import androidx.compose.material.icons.outlined.Remove
+import androidx.compose.material.icons.outlined.SwapHoriz
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Badge
@@ -130,21 +130,21 @@ fun TransactionsScreen(
                         if (searchOpen) viewModel.setQuery("")
                         searchOpen = !searchOpen
                     }) {
-                        Icon(Icons.Filled.Search, contentDescription = stringResource(R.string.txn_search_hint))
+                        Icon(Icons.Outlined.Search, contentDescription = stringResource(R.string.txn_search_hint))
                     }
                     IconButton(onClick = { showFilters = true }) {
                         BadgedBox(badge = { if (state.filter.isActive) Badge() }) {
                             Icon(
-                                Icons.Filled.FilterList,
+                                Icons.Outlined.FilterList,
                                 contentDescription = stringResource(R.string.txn_filters),
                             )
                         }
                     }
                     IconButton(onClick = { exportCsvLauncher.launch("corriente-transactions.csv") }) {
-                        Icon(Icons.Filled.FileDownload, contentDescription = stringResource(R.string.txn_export_csv))
+                        Icon(Icons.Outlined.FileDownload, contentDescription = stringResource(R.string.txn_export_csv))
                     }
                     IconButton(onClick = onAddTransfer) {
-                        Icon(Icons.Filled.SwapHoriz, contentDescription = stringResource(R.string.transfer_title))
+                        Icon(Icons.Outlined.SwapHoriz, contentDescription = stringResource(R.string.transfer_title))
                     }
                 },
             )
@@ -158,11 +158,11 @@ fun TransactionsScreen(
                     onClick = onAddIncome,
                     containerColor = MaterialTheme.colorScheme.secondaryContainer,
                     elevation = FloatingActionButtonDefaults.loweredElevation(),
-                ) { Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.txn_add_income)) }
+                ) { Icon(Icons.Outlined.Add, contentDescription = stringResource(R.string.txn_add_income)) }
             }
             val expense = @Composable {
                 FloatingActionButton(onClick = onAddExpense) {
-                    Icon(Icons.Filled.Remove, contentDescription = stringResource(R.string.txn_add_expense))
+                    Icon(Icons.Outlined.Remove, contentDescription = stringResource(R.string.txn_add_expense))
                 }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {

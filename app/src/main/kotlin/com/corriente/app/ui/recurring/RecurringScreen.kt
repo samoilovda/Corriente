@@ -11,8 +11,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -83,7 +83,7 @@ fun RecurringScreen(
         },
         floatingActionButton = {
             FloatingActionButton(onClick = viewModel::startCreate) {
-                Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.recurring_add))
+                Icon(Icons.Outlined.Add, contentDescription = stringResource(R.string.recurring_add))
             }
         },
     ) { padding ->
@@ -116,7 +116,7 @@ fun RecurringScreen(
                         },
                         trailingContent = {
                             IconButton(onClick = { pendingDeleteId = row.id }) {
-                                Icon(Icons.Filled.Delete, contentDescription = stringResource(R.string.delete))
+                                Icon(Icons.Outlined.Delete, contentDescription = stringResource(R.string.delete))
                             }
                         },
                         modifier = Modifier.clickable { viewModel.startEdit(row.id) },

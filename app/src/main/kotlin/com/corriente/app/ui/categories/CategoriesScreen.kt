@@ -16,8 +16,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Unarchive
+import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.Unarchive
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -54,7 +54,7 @@ import com.corriente.app.ui.common.CategoryGlyph
 import com.corriente.data.category.OverviewCategoriesSettings
 import com.corriente.data.category.suggestCategoryIcon
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material3.Checkbox
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -104,7 +104,7 @@ fun CategoriesScreen(
                 actions = {
                     Box {
                         IconButton(onClick = { moreMenuOpen = true }) {
-                            Icon(Icons.Filled.MoreVert, contentDescription = stringResource(R.string.more_actions))
+                            Icon(Icons.Outlined.MoreVert, contentDescription = stringResource(R.string.more_actions))
                         }
                         DropdownMenu(expanded = moreMenuOpen, onDismissRequest = { moreMenuOpen = false }) {
                             DropdownMenuItem(
@@ -123,7 +123,7 @@ fun CategoriesScreen(
         floatingActionButton = {
             Box {
                 FloatingActionButton(onClick = { addMenuOpen = true }) {
-                    Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.categories_add))
+                    Icon(Icons.Outlined.Add, contentDescription = stringResource(R.string.categories_add))
                 }
                 DropdownMenu(expanded = addMenuOpen, onDismissRequest = { addMenuOpen = false }) {
                     DropdownMenuItem(
@@ -150,7 +150,7 @@ fun CategoriesScreen(
                     ) {
                         Text(category.name, Modifier.weight(1f))
                         IconButton(onClick = { viewModel.unarchive(category.id) }) {
-                            Icon(Icons.Filled.Unarchive, contentDescription = stringResource(R.string.categories_unarchive))
+                            Icon(Icons.Outlined.Unarchive, contentDescription = stringResource(R.string.categories_unarchive))
                         }
                     }
                     HorizontalDivider()

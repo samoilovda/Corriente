@@ -14,9 +14,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ShowChart
-import androidx.compose.material.icons.filled.Unarchive
+import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.ShowChart
+import androidx.compose.material.icons.outlined.Unarchive
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -79,7 +79,7 @@ fun AccountsScreen(
         topBar = { TopAppBar(title = { Text(stringResource(R.string.nav_accounts)) }) },
         floatingActionButton = {
             FloatingActionButton(onClick = viewModel::startCreate) {
-                Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.accounts_add))
+                Icon(Icons.Outlined.Add, contentDescription = stringResource(R.string.accounts_add))
             }
         },
     ) { padding ->
@@ -132,7 +132,7 @@ fun AccountsScreen(
                     ) {
                         Text(row.account.name, Modifier.weight(1f))
                         IconButton(onClick = { viewModel.unarchive(row.account.id) }) {
-                            Icon(Icons.Filled.Unarchive, contentDescription = stringResource(R.string.accounts_unarchive))
+                            Icon(Icons.Outlined.Unarchive, contentDescription = stringResource(R.string.accounts_unarchive))
                         }
                     }
                     HorizontalDivider()
@@ -207,7 +207,7 @@ private fun AccountListRow(
         // R3.2: график остатка счёта по дням — отдельный тап, не конфликтует с открытием
         // редактора счёта по тапу на всю строку.
         IconButton(onClick = onOpenBalanceChart) {
-            Icon(Icons.Filled.ShowChart, contentDescription = stringResource(R.string.account_balance_chart))
+            Icon(Icons.Outlined.ShowChart, contentDescription = stringResource(R.string.account_balance_chart))
         }
     }
 }
