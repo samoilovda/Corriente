@@ -70,6 +70,8 @@ data class TxnRow(
     val amountPlain: String = "",
     /** A3.15: код валюты [amountPlain]. */
     val currencyCode: String = "",
+    /** UI-1.3: тип суммы — от него зависит цвет в списке. */
+    val kind: com.corriente.app.ui.common.MoneyKind = com.corriente.app.ui.common.MoneyKind.EXPENSE,
 )
 
 /** Итог дня считается по каждой валюте отдельно (I-8) — сложение разных валют невозможно. */
@@ -251,6 +253,7 @@ private fun row(
             title = txn.categoryId?.let { categoryNames[it] } ?: "—",
             note = txn.note,
             amountText = "+" + MoneyFormatter.format(txn.amount, currency),
+            kind = com.corriente.app.ui.common.MoneyKind.INCOME,
             amountPlain = MoneyFormatter.formatPlain(txn.amount, currency),
             currencyCode = currency.code.code,
             editable = true,
@@ -268,6 +271,7 @@ private fun row(
         TxnRow(
             id = txn.id,
             title = "$fromName → $toName",
+            kind = com.corriente.app.ui.common.MoneyKind.TRANSFER,
             note = txn.note,
             amountText = "${MoneyFormatter.format(txn.fromAmount, from)} → ${MoneyFormatter.format(txn.toAmount, to)}",
             amountPlain = MoneyFormatter.formatPlain(-txn.fromAmount, from),

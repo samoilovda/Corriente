@@ -185,7 +185,10 @@ fun ReportScreen(
                             ) {
                                 Text(row.name ?: stringResource(R.string.report_no_category), Modifier.weight(1f))
                                 Text("${row.sharePercent}%", style = MaterialTheme.typography.bodySmall)
-                                Text(row.amountText)
+                                com.corriente.app.ui.common.MoneyText(
+                                    row.amountText,
+                                    if (state.kind == ReportKind.INCOME) com.corriente.app.ui.common.MoneyKind.INCOME else com.corriente.app.ui.common.MoneyKind.EXPENSE,
+                                )
                             }
                             // R3.1: изменение к тому же периоду раньше — «+18 % к прошлому месяцу»,
                             // прочерк вместо 0 % при отсутствии данных за прошлый период.
@@ -249,7 +252,10 @@ fun ReportScreen(
                                 Text(it, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             }
                         }
-                        Text(brief.amountText)
+                        com.corriente.app.ui.common.MoneyText(
+                            brief.amountText,
+                            if (state.kind == ReportKind.INCOME) com.corriente.app.ui.common.MoneyKind.INCOME else com.corriente.app.ui.common.MoneyKind.EXPENSE,
+                        )
                     }
                     HorizontalDivider()
                 }

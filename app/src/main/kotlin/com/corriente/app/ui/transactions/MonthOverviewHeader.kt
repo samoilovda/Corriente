@@ -51,8 +51,6 @@ import com.corriente.app.ui.common.CategoryGlyph
 import kotlin.math.cos
 import kotlin.math.sin
 
-private val INCOME_COLOR = Color(0xFF43A047)
-private val EXPENSE_COLOR = Color(0xFFE53935)
 
 /** Та же палитра-подстраховка, что у кольца в «Отчёте», для категорий без своего цвета. */
 private val FALLBACK = listOf(
@@ -97,8 +95,8 @@ fun MonthOverviewHeader(
         Box(Modifier.size(HEADER_SIZE), contentAlignment = Alignment.Center) {
             Ring(overview.slices, Modifier.size(RING_SIZE))
             Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(RING_SIZE - 44.dp)) {
-                CenterAmount(overview.incomeText, INCOME_COLOR)
-                CenterAmount(overview.expenseText, EXPENSE_COLOR)
+                CenterAmount(overview.incomeText, com.corriente.app.ui.theme.LocalCorrienteColors.current.income)
+                CenterAmount(overview.expenseText, com.corriente.app.ui.theme.LocalCorrienteColors.current.expense)
             }
             val n = overview.icons.size
             overview.icons.forEachIndexed { i, icon ->
@@ -124,11 +122,12 @@ fun MonthOverviewHeader(
         ) {
             Row(Modifier.padding(horizontal = 20.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(stringResource(R.string.overview_balance), style = MaterialTheme.typography.titleMedium)
-                Text(
+                com.corriente.app.ui.common.MoneyText(
                     "  ${overview.balanceText}",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = if (overview.balanceNegative) EXPENSE_COLOR else MaterialTheme.colorScheme.onPrimaryContainer,
+                    com.corriente.app.ui.common.MoneyKind.BALANCE,
+                    isNegativeBalance = overview.balanceNegative,
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+                    color = if (overview.balanceNegative) com.corriente.app.ui.theme.LocalCorrienteColors.current.expense else MaterialTheme.colorScheme.onPrimaryContainer,
                 )
             }
         }

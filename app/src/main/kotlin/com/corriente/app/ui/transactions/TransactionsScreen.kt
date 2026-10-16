@@ -400,7 +400,9 @@ private fun DayHeader(section: DaySection) {
     ) {
         Text(com.corriente.app.ui.common.dayLabel(section.date), Modifier.weight(1f), style = MaterialTheme.typography.titleSmall)
         Column(horizontalAlignment = Alignment.End) {
-            section.totals.forEach { Text(it, style = MaterialTheme.typography.bodySmall) }
+            section.totals.forEach {
+                com.corriente.app.ui.common.MoneyText(it, com.corriente.app.ui.common.MoneyKind.BALANCE, style = MaterialTheme.typography.bodySmall)
+            }
         }
     }
 }
@@ -474,6 +476,6 @@ private fun TxnRowItem(row: TxnRow, onClick: () -> Unit) {
                 Text(it, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
-        Text(row.amountText)
+        com.corriente.app.ui.common.MoneyText(row.amountText, row.kind)
     }
 }

@@ -100,6 +100,7 @@ fun AccountsScreen(
                     CurrencyGroupHeader(
                         title = "${group.currency.code.code} · ${group.currency.symbol}",
                         total = group.total?.let { MoneyFormatter.format(it, group.currency) },
+                        totalNegative = group.total?.isNegative == true,
                     )
                 }
                 items(group.rows, key = { it.account.id }) { row ->
@@ -107,6 +108,7 @@ fun AccountsScreen(
                         title = row.account.name,
                         subtitle = accountSubtitle(row.account.kind, row.account.includeInTotal),
                         trailing = row.balance?.let { MoneyFormatter.format(it, group.currency) }.orEmpty(),
+                        trailingNegative = row.balance?.isNegative == true,
                         color = row.account.color,
                         icon = row.account.icon,
                         onClick = { viewModel.startEdit(row.account) },
@@ -152,14 +154,17 @@ fun AccountsScreen(
 }
 
 @Composable
-private fun CurrencyGroupHeader(title: String, total: String?) {
+private fun CurrencyGroupHeader(title: String, total: String?, totalNegative: Boolean) {
     Row(
         Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(title, Modifier.weight(1f), style = MaterialTheme.typography.titleSmall)
         if (total != null) {
-            Text(total, style = MaterialTheme.typography.titleSmall)
+            com.corriente.app.ui.common.MoneyText(
+                total, com.corriente.app.ui.common.MoneyKind.BALANCE,
+                isNegativeBalance = totalNegative, style = MaterialTheme.typography.titleSmall,
+            )
         }
     }
     HorizontalDivider()
@@ -170,6 +175,7 @@ private fun AccountListRow(
     title: String,
     subtitle: String,
     trailing: String,
+    trailingNegative: Boolean,
     color: Int,
     icon: String?,
     onClick: () -> Unit,
@@ -195,7 +201,9 @@ private fun AccountListRow(
             Text(title)
             Text(subtitle, style = MaterialTheme.typography.bodySmall)
         }
-        Text(trailing)
+        com.corriente.app.ui.common.MoneyText(
+            trailing, com.corriente.app.ui.common.MoneyKind.BALANCE, isNegativeBalance = trailingNegative,
+        )
         // R3.2: график остатка счёта по дням — отдельный тап, не конфликтует с открытием
         // редактора счёта по тапу на всю строку.
         IconButton(onClick = onOpenBalanceChart) {
