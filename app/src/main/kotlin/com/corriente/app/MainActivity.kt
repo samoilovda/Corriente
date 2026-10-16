@@ -7,7 +7,9 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.collectAsState
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -52,7 +54,16 @@ class MainActivity : FragmentActivity() {
         // повторно его обрабатывать нельзя: стек навигации сбросился бы на экран ярлыка.
         if (savedInstanceState == null) pendingDeepLinkIntent = intent
         setContent {
-            CorrienteTheme {
+            val themeMode by UiPrefs.themeMode(this).collectAsState()
+            val dynamicColor by UiPrefs.dynamicColor(this).collectAsState()
+            CorrienteTheme(
+                darkTheme = when (themeMode) {
+                    ThemeMode.SYSTEM -> isSystemInDarkTheme()
+                    ThemeMode.LIGHT -> false
+                    ThemeMode.DARK -> true
+                },
+                dynamicColor = dynamicColor,
+            ) {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     // R5.2: быстрый ввод из виджета — тоже под замком, но списки операций/отчёты
                     // за ним тем более.

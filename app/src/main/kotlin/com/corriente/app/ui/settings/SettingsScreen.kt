@@ -34,6 +34,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.core.content.FileProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.corriente.app.AppLocale
+import com.corriente.app.ThemeMode
 import com.corriente.app.UiPrefs
 import com.corriente.app.R
 import com.corriente.app.backup.ShareBackupCache
@@ -70,6 +71,8 @@ fun SettingsScreen(
     val busy by backupViewModel.busy.collectAsState()
     var pendingImportUri by remember { mutableStateOf<android.net.Uri?>(null) }
     var languageDialogOpen by remember { mutableStateOf(false) }
+    var themeDialogOpen by remember { mutableStateOf(false) }
+    val themeMode by remember(context) { UiPrefs.themeMode(context) }.collectAsState()
     val syncStatus by corrienteContainer().syncController.status.collectAsState(initial = com.corriente.app.sync.SyncStatus())
 
     val exportLauncher = rememberLauncherForActivityResult(
@@ -140,6 +143,22 @@ fun SettingsScreen(
                 },
                 modifier = Modifier.clickable { UiPrefs.setLeftHanded(context, !leftHanded) },
             )
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.theme_title)) },
+                supportingContent = { Text(themeLabel(themeMode)) },
+                modifier = Modifier.clickable { themeDialogOpen = true },
+            )
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                val dynamicColor by remember(context) { UiPrefs.dynamicColor(context) }.collectAsState()
+                ListItem(
+                    headlineContent = { Text(stringResource(R.string.dynamic_color_title)) },
+                    supportingContent = { Text(stringResource(R.string.dynamic_color_hint)) },
+                    trailingContent = {
+                        Switch(checked = dynamicColor, onCheckedChange = { UiPrefs.setDynamicColor(context, it) })
+                    },
+                    modifier = Modifier.clickable { UiPrefs.setDynamicColor(context, !dynamicColor) },
+                )
+            }
             ListItem(
                 headlineContent = { Text(stringResource(R.string.app_lock_title)) },
                 supportingContent = { Text(stringResource(R.string.app_lock_hint)) },
@@ -221,6 +240,31 @@ fun SettingsScreen(
 
     result?.let { current -> BackupResultDialog(current, onDismiss = backupViewModel::consumeResult) }
 
+    if (themeDialogOpen) {
+        val current = themeMode
+        AlertDialog(
+            onDismissRequest = { themeDialogOpen = false },
+            title = { Text(stringResource(R.string.theme_title)) },
+            text = {
+                Column {
+                    ThemeMode.entries.forEach { mode ->
+                        Row(
+                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth().clickable {
+                                themeDialogOpen = false
+                                UiPrefs.setThemeMode(context, mode)
+                            },
+                        ) {
+                            androidx.compose.material3.RadioButton(selected = mode == current, onClick = null)
+                            Text(themeLabel(mode), Modifier.padding(start = 12.dp, top = 12.dp, bottom = 12.dp))
+                        }
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { themeDialogOpen = false }) { Text(stringResource(R.string.cancel)) } },
+        )
+    }
+
     if (languageDialogOpen) {
         val current = AppLocale.get(context)
         AlertDialog(
@@ -249,6 +293,15 @@ fun SettingsScreen(
         )
     }
 }
+
+@androidx.compose.runtime.Composable
+private fun themeLabel(mode: ThemeMode): String = stringResource(
+    when (mode) {
+        ThemeMode.SYSTEM -> R.string.theme_system
+        ThemeMode.LIGHT -> R.string.theme_light
+        ThemeMode.DARK -> R.string.theme_dark
+    },
+)
 
 /** Названия языков — на них самих (не переводятся), кроме «как в системе». */
 @androidx.compose.runtime.Composable
