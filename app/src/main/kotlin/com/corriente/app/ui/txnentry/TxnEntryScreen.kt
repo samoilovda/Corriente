@@ -36,6 +36,7 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.Surface
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
@@ -185,6 +186,7 @@ fun TxnEntryScreen(
                 AmountBar(
                     amountText = state.amountText,
                     currencyCode = state.currency?.code?.code.orEmpty(),
+                    isIncome = state.kind == EntryKind.INCOME,
                     accounts = state.accounts,
                     selectedAccountId = state.selectedAccountId,
                     onSelectAccount = viewModel::selectAccount,
@@ -412,32 +414,50 @@ private fun ChipRow(label: String, content: @Composable () -> Unit) {
     }
 }
 
-/** Зелёная плашка суммы (как в Monefy): слева кошелёк с кодом валюты (выбор счёта), в центре сумма, справа «⌫». */
+/**
+ * Плашка суммы: слева «таблетка» счёта с кодом валюты (выбор счёта), справа сумма и «⌫».
+ * Цвета — из темы (Material You): расход — основной контейнер, доход — третичный.
+ */
 @Composable
 private fun AmountBar(
     amountText: String,
     currencyCode: String,
+    isIncome: Boolean,
     accounts: List<AccountOption>,
     selectedAccountId: String?,
     onSelectAccount: (String) -> Unit,
     onBackspace: () -> Unit,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
+    val colors = MaterialTheme.colorScheme
     Surface(
-        color = Color(0xFF7BC896),
-        contentColor = Color.White,
-        shape = RoundedCornerShape(4.dp),
-        shadowElevation = 2.dp,
+        color = if (isIncome) colors.tertiaryContainer else colors.primaryContainer,
+        contentColor = if (isIncome) colors.onTertiaryContainer else colors.onPrimaryContainer,
+        shape = RoundedCornerShape(28.dp),
         modifier = Modifier.fillMaxWidth().height(88.dp),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(start = 12.dp, end = 4.dp),
+        ) {
             Box {
-                Column(
-                    Modifier.clickable { menuOpen = true }.padding(horizontal = 12.dp, vertical = 8.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
+                Surface(
+                    onClick = { menuOpen = true },
+                    shape = CircleShape,
+                    color = LocalContentColor.current.copy(alpha = 0.12f),
                 ) {
-                    Icon(Icons.Filled.AccountBalanceWallet, contentDescription = stringResource(R.string.txn_entry_account))
-                    Text(currencyCode, style = MaterialTheme.typography.labelMedium)
+                    Row(
+                        Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        Icon(
+                            Icons.Filled.AccountBalanceWallet,
+                            contentDescription = stringResource(R.string.txn_entry_account),
+                            modifier = Modifier.size(20.dp),
+                        )
+                        Text(currencyCode, style = MaterialTheme.typography.labelLarge)
+                    }
                 }
                 DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                     accounts.forEach { option ->
@@ -458,14 +478,13 @@ private fun AmountBar(
                     }
                 }
             }
-            Box(Modifier.width(1.dp).height(56.dp).background(Color.White.copy(alpha = 0.6f)))
             Text(
                 text = amountText,
                 fontSize = 40.sp,
-                fontWeight = FontWeight.Light,
+                fontWeight = FontWeight.Normal,
                 maxLines = 1,
                 softWrap = false,
-                textAlign = TextAlign.Center,
+                textAlign = TextAlign.End,
                 modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
             )
             IconButton(onClick = onBackspace) {
