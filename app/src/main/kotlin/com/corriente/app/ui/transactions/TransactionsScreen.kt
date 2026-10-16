@@ -26,7 +26,17 @@ import androidx.compose.material.icons.outlined.FileDownload
 import androidx.compose.material.icons.outlined.FilterList
 import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.Remove
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.material3.Surface
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.semantics.Role
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.material.icons.outlined.SwapHoriz
@@ -72,7 +82,7 @@ import com.corriente.app.ui.common.CategoryGlyph
 import com.corriente.app.ui.report.ResourceReportTexts
 import com.corriente.app.corrienteContainer
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun TransactionsScreen(
     onAddExpense: () -> Unit,
@@ -127,6 +137,20 @@ fun TransactionsScreen(
     // UI-2.1: панель уезжает при прокрутке вниз и возвращается при прокрутке вверх.
     val topBarScroll = TopAppBarDefaults.enterAlwaysScrollBehavior()
     var overflowOpen by remember { mutableStateOf(false) }
+    var incomeMenuOpen by remember { mutableStateOf(false) }
+    // UI-2.2: кнопки «−»/«+» прячутся при прокрутке вниз, возвращаются при прокрутке вверх.
+    var fabVisible by remember { mutableStateOf(true) }
+    LaunchedEffect(listState) {
+        var prevIndex = listState.firstVisibleItemIndex
+        var prevOffset = listState.firstVisibleItemScrollOffset
+        snapshotFlow { listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset }
+            .collect { (index, offset) ->
+                val direction = scrollDirection(prevIndex, prevOffset, index, offset)
+                fabVisible = nextFabVisible(fabVisible, direction, atTop = index == 0 && offset == 0)
+                prevIndex = index
+                prevOffset = offset
+            }
+    }
 
     Scaffold(
         modifier = Modifier.nestedScroll(topBarScroll.nestedScrollConnection),
@@ -174,25 +198,57 @@ fun TransactionsScreen(
         floatingActionButton = {
             // Правша: «+» доход слева, «−» расход справа (у thumb-зоны). Левша: у левого края, порядок «−», «+».
             // Расход — самый частый сценарий, основная кнопка; «+» вторичного цвета.
+            // UI-2.2: «+» — малая кнопка; долгий тап открывает меню «Доход / Перевод».
             val income = @Composable {
-                FloatingActionButton(
-                    onClick = onAddIncome,
-                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                    elevation = FloatingActionButtonDefaults.loweredElevation(),
-                ) { Icon(Icons.Outlined.Add, contentDescription = stringResource(R.string.txn_add_income)) }
+                Box {
+                    Surface(
+                        shape = FloatingActionButtonDefaults.smallShape,
+                        color = MaterialTheme.colorScheme.secondaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                        shadowElevation = 3.dp,
+                        modifier = Modifier.size(48.dp).combinedClickable(
+                            onClick = onAddIncome,
+                            onLongClick = { incomeMenuOpen = true },
+                            onLongClickLabel = stringResource(R.string.txn_add_income_more),
+                            role = Role.Button,
+                        ),
+                    ) {
+                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Icon(Icons.Outlined.Add, contentDescription = stringResource(R.string.txn_add_income))
+                        }
+                    }
+                    DropdownMenu(expanded = incomeMenuOpen, onDismissRequest = { incomeMenuOpen = false }) {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.txn_add_income)) },
+                            leadingIcon = { Icon(Icons.Outlined.Add, contentDescription = null) },
+                            onClick = { incomeMenuOpen = false; onAddIncome() },
+                        )
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.transfer_title)) },
+                            leadingIcon = { Icon(Icons.Outlined.SwapHoriz, contentDescription = null) },
+                            onClick = { incomeMenuOpen = false; onAddTransfer() },
+                        )
+                    }
+                }
             }
             val expense = @Composable {
                 FloatingActionButton(onClick = onAddExpense) {
                     Icon(Icons.Outlined.Remove, contentDescription = stringResource(R.string.txn_add_expense))
                 }
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                if (leftHanded) {
-                    expense()
-                    income()
-                } else {
-                    income()
-                    expense()
+            AnimatedVisibility(
+                visible = fabVisible,
+                enter = slideInVertically { it } + fadeIn(),
+                exit = slideOutVertically { it } + fadeOut(),
+            ) {
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    if (leftHanded) {
+                        expense()
+                        income()
+                    } else {
+                        income()
+                        expense()
+                    }
                 }
             }
         },

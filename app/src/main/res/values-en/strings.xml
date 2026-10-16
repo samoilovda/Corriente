@@ -461,6 +461,7 @@
     </string-array>
     <string name="more_actions">More</string>
     <string name="date_today">Today</string>
+    <string name="txn_add_income_more">Income or transfer</string>
     <string name="theme_title">Theme</string>
     <string name="theme_system">System default</string>
     <string name="theme_light">Light</string>

@@ -471,6 +471,7 @@
     </string-array>
     <string name="more_actions">Ещё</string>
     <string name="date_today">Сегодня</string>
+    <string name="txn_add_income_more">Доход или перевод</string>
     <string name="theme_title">Тема</string>
     <string name="theme_system">Как в системе</string>
     <string name="theme_light">Светлая</string>
