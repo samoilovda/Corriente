@@ -469,6 +469,12 @@
     </string-array>
     <string name="more_actions">Ещё</string>
     <string name="date_today">Сегодня</string>
+    <string name="settings_group_data">Данные</string>
+    <string name="settings_group_backup">Импорт и бэкап</string>
+    <string name="settings_group_appearance">Оформление</string>
+    <string name="settings_group_security">Безопасность</string>
+    <string name="settings_group_about">О приложении</string>
+    <string name="about_version">Версия %1$s</string>
     <string name="txn_empty_title">Операций пока нет</string>
     <string name="txn_empty_body">Добавьте расход кнопкой «−» или доход кнопкой «+».</string>
     <string name="txn_empty_add">Добавить расход</string>

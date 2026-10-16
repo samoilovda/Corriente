@@ -7,15 +7,32 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.CurrencyExchange
+import androidx.compose.material.icons.outlined.Category
+import androidx.compose.material.icons.outlined.Savings
+import androidx.compose.material.icons.outlined.Repeat
+import androidx.compose.material.icons.outlined.UploadFile
+import androidx.compose.material.icons.outlined.History
+import androidx.compose.material.icons.outlined.FileDownload
+import androidx.compose.material.icons.outlined.FileUpload
+import androidx.compose.material.icons.outlined.Share
+import androidx.compose.material.icons.outlined.Backup
+import androidx.compose.material.icons.outlined.Sync
+import androidx.compose.material.icons.outlined.Language
+import androidx.compose.material.icons.outlined.DarkMode
+import androidx.compose.material.icons.outlined.Palette
+import androidx.compose.material.icons.outlined.PanTool
+import androidx.compose.material.icons.outlined.Widgets
+import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material.icons.outlined.Info
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.ListItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -87,134 +104,157 @@ fun SettingsScreen(
     ) { uri -> pendingImportUri = uri }
 
     Scaffold(topBar = { TopAppBar(title = { Text(stringResource(R.string.nav_settings)) }) }) { padding ->
-        Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState())) {
+        Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(bottom = 24.dp)) {
             // R1.5: плашка «Последний бэкап: N дней назад» — сама решает, показываться ли.
             BackupReminderBanner(onClick = onOpenAutoBackup)
-            ListItem(
-                headlineContent = { Text(stringResource(R.string.currencies_title)) },
-                modifier = Modifier.clickable(onClick = onOpenCurrencies),
-            )
-            ListItem(
-                headlineContent = { Text(stringResource(R.string.categories_title)) },
-                modifier = Modifier.clickable(onClick = onOpenCategories),
-            )
-            ListItem(
-                headlineContent = { Text(stringResource(R.string.widget_settings)) },
-                supportingContent = { Text(stringResource(R.string.widget_settings_hint)) },
-                modifier = Modifier.clickable(onClick = onOpenWidgetSettings),
-            )
-            // Синхронизация: импорт и его откат — только на основном устройстве (docs/SYNC_DESIGN.md §10).
-            val importAllowed = syncStatus.importAllowed
-            ListItem(
-                headlineContent = { Text(stringResource(R.string.import_monefy)) },
-                supportingContent = {
-                    Text(stringResource(if (importAllowed) R.string.import_monefy_hint else R.string.sync_import_primary_only))
-                },
-                modifier = Modifier.clickable(enabled = importAllowed, onClick = onOpenImport),
-            )
-            ListItem(
-                headlineContent = { Text(stringResource(R.string.import_history_title)) },
-                supportingContent = {
-                    Text(stringResource(if (importAllowed) R.string.import_history_hint else R.string.sync_import_primary_only))
-                },
-                modifier = Modifier.clickable(enabled = importAllowed, onClick = onOpenImportHistory),
-            )
-            ListItem(
-                headlineContent = { Text(stringResource(R.string.budgets_title)) },
-                supportingContent = { Text(stringResource(R.string.budgets_hint)) },
-                modifier = Modifier.clickable(onClick = onOpenBudgets),
-            )
-            ListItem(
-                headlineContent = { Text(stringResource(R.string.recurring_title)) },
-                supportingContent = { Text(stringResource(R.string.recurring_hint)) },
-                modifier = Modifier.clickable(onClick = onOpenRecurring),
-            )
-            ListItem(
-                headlineContent = { Text(stringResource(R.string.language_title)) },
-                supportingContent = { Text(languageLabel(AppLocale.get(context))) },
-                modifier = Modifier.clickable { languageDialogOpen = true },
-            )
-            val leftHanded by remember(context) { UiPrefs.leftHanded(context) }.collectAsState()
-            ListItem(
-                headlineContent = { Text(stringResource(R.string.left_handed_title)) },
-                supportingContent = { Text(stringResource(R.string.left_handed_hint)) },
-                trailingContent = {
-                    Switch(checked = leftHanded, onCheckedChange = { UiPrefs.setLeftHanded(context, it) })
-                },
-                modifier = Modifier.clickable { UiPrefs.setLeftHanded(context, !leftHanded) },
-            )
-            ListItem(
-                headlineContent = { Text(stringResource(R.string.theme_title)) },
-                supportingContent = { Text(themeLabel(themeMode)) },
-                modifier = Modifier.clickable { themeDialogOpen = true },
-            )
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
-                val dynamicColor by remember(context) { UiPrefs.dynamicColor(context) }.collectAsState()
-                ListItem(
-                    headlineContent = { Text(stringResource(R.string.dynamic_color_title)) },
-                    supportingContent = { Text(stringResource(R.string.dynamic_color_hint)) },
-                    trailingContent = {
-                        Switch(checked = dynamicColor, onCheckedChange = { UiPrefs.setDynamicColor(context, it) })
-                    },
-                    modifier = Modifier.clickable { UiPrefs.setDynamicColor(context, !dynamicColor) },
+
+            SettingsGroup(stringResource(R.string.settings_group_data)) {
+                SettingsItem(
+                    Icons.Outlined.CurrencyExchange, stringResource(R.string.currencies_title),
+                    onClick = onOpenCurrencies,
+                )
+                SettingsItem(
+                    Icons.Outlined.Category, stringResource(R.string.categories_title),
+                    onClick = onOpenCategories,
+                )
+                SettingsItem(
+                    Icons.Outlined.Savings, stringResource(R.string.budgets_title),
+                    supporting = { Text(stringResource(R.string.budgets_hint)) },
+                    onClick = onOpenBudgets,
+                )
+                SettingsItem(
+                    Icons.Outlined.Repeat, stringResource(R.string.recurring_title),
+                    supporting = { Text(stringResource(R.string.recurring_hint)) },
+                    onClick = onOpenRecurring,
                 )
             }
-            ListItem(
-                headlineContent = { Text(stringResource(R.string.app_lock_title)) },
-                supportingContent = { Text(stringResource(R.string.app_lock_hint)) },
-                modifier = Modifier.clickable(onClick = onOpenAppLock),
-            )
-            HorizontalDivider()
-            ListItem(
-                headlineContent = { Text(stringResource(R.string.backup_export)) },
-                supportingContent = { Text(stringResource(R.string.backup_export_hint)) },
-                modifier = Modifier.clickable(enabled = !busy) { exportLauncher.launch("corriente-backup.json") },
-            )
-            ListItem(
-                headlineContent = { Text(stringResource(R.string.backup_import)) },
-                supportingContent = { Text(stringResource(R.string.backup_import_hint)) },
-                modifier = Modifier.clickable(enabled = !busy) { importLauncher.launch(arrayOf("application/json")) },
-            )
-            ListItem(
-                headlineContent = { Text(stringResource(R.string.backup_share)) },
-                supportingContent = { Text(stringResource(R.string.backup_share_hint)) },
-                modifier = Modifier.clickable(enabled = !busy) {
-                    // R1.2: временный файл в cache/share, отдаётся системному шерингу через
-                    // FileProvider — своей сети приложение не заводит (I-24), сеть трогает
-                    // то приложение, которое пользователь выберет в системном листе.
-                    val dir = ShareBackupCache.dir(context).apply { mkdirs() }
-                    val file = File(dir, "corriente-backup-${System.currentTimeMillis()}.json")
-                    backupViewModel.exportForShare(file) { shared ->
-                        val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", shared)
-                        val sendIntent = Intent(Intent.ACTION_SEND).apply {
-                            type = "application/json"
-                            putExtra(Intent.EXTRA_STREAM, uri)
-                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+
+            SettingsGroup(stringResource(R.string.settings_group_backup)) {
+                // Синхронизация: импорт и его откат — только на основном устройстве (docs/SYNC_DESIGN.md §10).
+                val importAllowed = syncStatus.importAllowed
+                SettingsItem(
+                    Icons.Outlined.UploadFile, stringResource(R.string.import_monefy),
+                    supporting = {
+                        Text(stringResource(if (importAllowed) R.string.import_monefy_hint else R.string.sync_import_primary_only))
+                    },
+                    enabled = importAllowed,
+                    onClick = onOpenImport,
+                )
+                SettingsItem(
+                    Icons.Outlined.History, stringResource(R.string.import_history_title),
+                    supporting = {
+                        Text(stringResource(if (importAllowed) R.string.import_history_hint else R.string.sync_import_primary_only))
+                    },
+                    enabled = importAllowed,
+                    onClick = onOpenImportHistory,
+                )
+                SettingsItem(
+                    Icons.Outlined.FileDownload, stringResource(R.string.backup_export),
+                    supporting = { Text(stringResource(R.string.backup_export_hint)) },
+                    enabled = !busy,
+                    onClick = { exportLauncher.launch("corriente-backup.json") },
+                )
+                SettingsItem(
+                    Icons.Outlined.FileUpload, stringResource(R.string.backup_import),
+                    supporting = { Text(stringResource(R.string.backup_import_hint)) },
+                    enabled = !busy,
+                    onClick = { importLauncher.launch(arrayOf("application/json")) },
+                )
+                SettingsItem(
+                    Icons.Outlined.Share, stringResource(R.string.backup_share),
+                    supporting = { Text(stringResource(R.string.backup_share_hint)) },
+                    enabled = !busy,
+                    onClick = {
+                        // R1.2: временный файл в cache/share, отдаётся системному шерингу через
+                        // FileProvider — своей сети приложение не заводит (I-24), сеть трогает
+                        // то приложение, которое пользователь выберет в системном листе.
+                        val dir = ShareBackupCache.dir(context).apply { mkdirs() }
+                        val file = File(dir, "corriente-backup-${System.currentTimeMillis()}.json")
+                        backupViewModel.exportForShare(file) { shared ->
+                            val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", shared)
+                            val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                                type = "application/json"
+                                putExtra(Intent.EXTRA_STREAM, uri)
+                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                            }
+                            context.startActivity(Intent.createChooser(sendIntent, shareChooserTitle))
                         }
-                        context.startActivity(Intent.createChooser(sendIntent, shareChooserTitle))
-                    }
-                },
-            )
-            if (busy) {
-                LinearProgressIndicator(Modifier.fillMaxWidth())
+                    },
+                )
+                if (busy) {
+                    LinearProgressIndicator(Modifier.fillMaxWidth())
+                }
+                SettingsItem(
+                    Icons.Outlined.Backup, stringResource(R.string.autobackup_title),
+                    supporting = { Text(stringResource(R.string.autobackup_hint)) },
+                    onClick = onOpenAutoBackup,
+                )
+                SettingsItem(
+                    Icons.Outlined.Sync, stringResource(R.string.sync_title),
+                    supporting = {
+                        val error = syncStatus.lastError
+                        when {
+                            !syncStatus.enabled -> Text(stringResource(R.string.sync_hint_off))
+                            error != null -> Text(com.corriente.app.ui.sync.syncErrorText(error), color = androidx.compose.material3.MaterialTheme.colorScheme.error)
+                            else -> Text(com.corriente.app.ui.sync.syncStatusLine(syncStatus))
+                        }
+                    },
+                    onClick = onOpenSync,
+                )
             }
-            ListItem(
-                headlineContent = { Text(stringResource(R.string.autobackup_title)) },
-                supportingContent = { Text(stringResource(R.string.autobackup_hint)) },
-                modifier = Modifier.clickable(onClick = onOpenAutoBackup),
-            )
-            ListItem(
-                headlineContent = { Text(stringResource(R.string.sync_title)) },
-                supportingContent = {
-                    val error = syncStatus.lastError
-                    when {
-                        !syncStatus.enabled -> Text(stringResource(R.string.sync_hint_off))
-                        error != null -> Text(com.corriente.app.ui.sync.syncErrorText(error), color = androidx.compose.material3.MaterialTheme.colorScheme.error)
-                        else -> Text(com.corriente.app.ui.sync.syncStatusLine(syncStatus))
-                    }
-                },
-                modifier = Modifier.clickable(onClick = onOpenSync),
-            )
+
+            SettingsGroup(stringResource(R.string.settings_group_appearance)) {
+                SettingsItem(
+                    Icons.Outlined.Language, stringResource(R.string.language_title),
+                    supporting = { Text(languageLabel(AppLocale.get(context))) },
+                    onClick = { languageDialogOpen = true },
+                )
+                SettingsItem(
+                    Icons.Outlined.DarkMode, stringResource(R.string.theme_title),
+                    supporting = { Text(themeLabel(themeMode)) },
+                    onClick = { themeDialogOpen = true },
+                )
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                    val dynamicColor by remember(context) { UiPrefs.dynamicColor(context) }.collectAsState()
+                    SettingsItem(
+                        Icons.Outlined.Palette, stringResource(R.string.dynamic_color_title),
+                        supporting = { Text(stringResource(R.string.dynamic_color_hint)) },
+                        trailing = {
+                            Switch(checked = dynamicColor, onCheckedChange = { UiPrefs.setDynamicColor(context, it) })
+                        },
+                        onClick = { UiPrefs.setDynamicColor(context, !dynamicColor) },
+                    )
+                }
+                val leftHanded by remember(context) { UiPrefs.leftHanded(context) }.collectAsState()
+                SettingsItem(
+                    Icons.Outlined.PanTool, stringResource(R.string.left_handed_title),
+                    supporting = { Text(stringResource(R.string.left_handed_hint)) },
+                    trailing = {
+                        Switch(checked = leftHanded, onCheckedChange = { UiPrefs.setLeftHanded(context, it) })
+                    },
+                    onClick = { UiPrefs.setLeftHanded(context, !leftHanded) },
+                )
+                SettingsItem(
+                    Icons.Outlined.Widgets, stringResource(R.string.widget_settings),
+                    supporting = { Text(stringResource(R.string.widget_settings_hint)) },
+                    onClick = onOpenWidgetSettings,
+                )
+            }
+
+            SettingsGroup(stringResource(R.string.settings_group_security)) {
+                SettingsItem(
+                    Icons.Outlined.Lock, stringResource(R.string.app_lock_title),
+                    supporting = { Text(stringResource(R.string.app_lock_hint)) },
+                    onClick = onOpenAppLock,
+                )
+            }
+
+            SettingsGroup(stringResource(R.string.settings_group_about)) {
+                SettingsItem(
+                    Icons.Outlined.Info, stringResource(R.string.app_name),
+                    supporting = { Text(stringResource(R.string.about_version, appVersion(context))) },
+                )
+            }
         }
     }
 
@@ -302,6 +342,9 @@ private fun themeLabel(mode: ThemeMode): String = stringResource(
         ThemeMode.DARK -> R.string.theme_dark
     },
 )
+
+private fun appVersion(context: android.content.Context): String =
+    runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }.getOrNull().orEmpty()
 
 /** Названия языков — на них самих (не переводятся), кроме «как в системе». */
 @androidx.compose.runtime.Composable
