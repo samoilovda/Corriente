@@ -1,5 +1,14 @@
 package com.corriente.app.ui.transactions
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
+import androidx.compose.runtime.LaunchedEffect
 import com.corriente.data.usecase.MonthOverview
 import com.corriente.data.usecase.OverviewIcon
 import com.corriente.data.usecase.OverviewSlice
@@ -83,10 +92,21 @@ fun MonthOverviewHeader(
                 Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, stringResource(R.string.overview_prev_month))
             }
             val months = stringArrayResource(R.array.month_names)
-            Text(
-                "${months[overview.month.monthValue - 1]} ${overview.month.year}",
-                style = MaterialTheme.typography.titleSmall,
-            )
+            // UI-3.1: смена месяца — сдвиг подписи по направлению (вперёд — влево, назад — вправо).
+            AnimatedContent(
+                targetState = overview.month,
+                transitionSpec = {
+                    val forward = targetState > initialState
+                    (slideInHorizontally { width -> if (forward) width / 2 else -width / 2 } + fadeIn()) togetherWith
+                        (slideOutHorizontally { width -> if (forward) -width / 2 else width / 2 } + fadeOut())
+                },
+                label = "overview-month",
+            ) { month ->
+                Text(
+                    "${months[month.monthValue - 1]} ${month.year}",
+                    style = MaterialTheme.typography.titleSmall,
+                )
+            }
             IconButton(onClick = { onShiftMonth(1) }) {
                 Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, stringResource(R.string.overview_next_month))
             }
@@ -152,6 +172,9 @@ private fun Ring(slices: List<OverviewSlice>, modifier: Modifier) {
     val uncategorized = MaterialTheme.colorScheme.outline
     // Float — только координаты отрисовки (I-1); доли считаются из уже посчитанных Long.
     val total = slices.sumOf { it.valueMinor }.toDouble()
+    // UI-3.1: дуги «вырастают» при каждом новом наборе долей (смена месяца/счёта).
+    val reveal = remember(slices) { Animatable(0f) }
+    LaunchedEffect(reveal) { reveal.animateTo(1f, tween(durationMillis = 600)) }
     Canvas(modifier) {
         val stroke = Stroke(width = size.minDimension / 6.5f)
         val inset = stroke.width / 2
@@ -163,7 +186,7 @@ private fun Ring(slices: List<OverviewSlice>, modifier: Modifier) {
         }
         var start = -90f
         slices.forEachIndexed { i, slice ->
-            val sweep = (slice.valueMinor / total * 360.0).toFloat()
+            val sweep = (slice.valueMinor / total * 360.0).toFloat() * reveal.value
             val color = when {
                 slice.color != 0 -> Color(slice.color)
                 else -> uncategorized

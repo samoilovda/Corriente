@@ -211,9 +211,11 @@ private fun LazyListScope.branch(
     if (nodes.isEmpty()) return
     item(key = "header-$title") { SectionHeader(title) }
     nodes.forEach { node ->
-        item(key = node.category.id) { CategoryRow(node.category, indent = false, onClick = { onEdit(node.category) }) }
+        item(key = node.category.id) {
+            CategoryRow(node.category, indent = false, onClick = { onEdit(node.category) }, modifier = Modifier.animateItem())
+        }
         items(node.children, key = { it.id }) { child ->
-            CategoryRow(child, indent = true, onClick = { onEdit(child) })
+            CategoryRow(child, indent = true, onClick = { onEdit(child) }, modifier = Modifier.animateItem())
         }
     }
 }
@@ -224,9 +226,9 @@ private fun SectionHeader(text: String) {
 }
 
 @Composable
-private fun CategoryRow(category: Category, indent: Boolean, onClick: () -> Unit) {
+private fun CategoryRow(category: Category, indent: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
     Row(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
             .padding(start = if (indent) 40.dp else 16.dp, end = 16.dp, top = 12.dp, bottom = 12.dp),

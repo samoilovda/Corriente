@@ -295,11 +295,15 @@ private fun PeriodModeChip(current: PeriodMode, mode: PeriodMode, labelRes: Int,
 /** R2.3: полоса «потрачено из бюджета» — цвет меняется на error при перерасходе. */
 @Composable
 private fun BudgetProgressBar(bar: BudgetBar) {
+    val animatedProgress by androidx.compose.animation.core.animateFloatAsState(
+        targetValue = bar.percentClamped / 100f,
+        label = "budget-progress",
+    )
     Column(Modifier.fillMaxWidth().padding(top = 4.dp)) {
         LinearProgressIndicator(
             // Float — только на этой границе с Compose (InvariantGuards floatAllowlist);
             // ViewModel считает и хранит целые проценты (I-1).
-            progress = { bar.percentClamped / 100f },
+            progress = { animatedProgress },
             modifier = Modifier.fillMaxWidth(),
             color = if (bar.isOverBudget) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
         )

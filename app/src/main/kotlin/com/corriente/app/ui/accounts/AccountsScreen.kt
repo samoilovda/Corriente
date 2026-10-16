@@ -128,6 +128,7 @@ fun AccountsScreen(
                 }
                 itemsIndexed(group.rows, key = { _, it -> it.account.id }) { index, row ->
                     AccountListRow(
+                        modifier = Modifier.animateItem(),
                         title = row.account.name,
                         subtitle = accountSubtitle(row.account.kind, row.account.includeInTotal),
                         trailing = row.balance?.let { MoneyFormatter.format(it, group.currency) }.orEmpty(),
@@ -250,6 +251,7 @@ private fun kindIcon(kind: AccountKind): ImageVector = when (kind) {
 
 @Composable
 private fun AccountListRow(
+    modifier: Modifier = Modifier,
     title: String,
     subtitle: String,
     trailing: String,
@@ -264,7 +266,7 @@ private fun AccountListRow(
     Surface(
         shape = shape,
         color = MaterialTheme.colorScheme.surfaceContainerLow,
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 1.dp),
+        modifier = modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 1.dp),
     ) {
         Row(
             modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)

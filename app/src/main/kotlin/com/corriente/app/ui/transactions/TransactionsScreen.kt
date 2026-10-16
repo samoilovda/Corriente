@@ -330,6 +330,7 @@ fun TransactionsScreen(
                     items(section.rows, key = { it.id }) { row ->
                         TxnRowItem(
                             row,
+                            modifier = Modifier.animateItem(),
                             onClick = {
                                 when {
                                     row.isTransfer -> onEditTransfer(row.id)
@@ -514,9 +515,9 @@ private fun DayHeader(section: DaySection) {
 }
 
 @Composable
-private fun TxnRowItem(row: TxnRow, onClick: () -> Unit) {
+private fun TxnRowItem(row: TxnRow, modifier: Modifier = Modifier, onClick: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 12.dp),
+        modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {

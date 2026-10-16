@@ -1,5 +1,10 @@
 package com.corriente.app.ui.txnentry
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -544,15 +549,24 @@ private fun AmountBar(
                     onSelect = { onSelectAccount(it); menuOpen = false },
                 )
             }
-            Text(
-                text = amountText,
-                fontSize = 40.sp,
-                fontWeight = FontWeight.Normal,
-                maxLines = 1,
-                softWrap = false,
-                textAlign = TextAlign.End,
+            // UI-3.1: короткий кросс-фейд при вводе цифры.
+            AnimatedContent(
+                targetState = amountText,
+                transitionSpec = { fadeIn(tween(90)) togetherWith fadeOut(tween(90)) },
+                contentAlignment = Alignment.CenterEnd,
+                label = "amount-text",
                 modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
-            )
+            ) { shown ->
+                Text(
+                    text = shown,
+                    fontSize = 40.sp,
+                    fontWeight = FontWeight.Normal,
+                    maxLines = 1,
+                    softWrap = false,
+                    textAlign = TextAlign.End,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
             IconButton(onClick = onBackspace) {
                 Icon(Icons.AutoMirrored.Filled.Backspace, contentDescription = stringResource(R.string.txn_entry_backspace))
             }
