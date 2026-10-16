@@ -6,7 +6,9 @@ import android.content.Intent
 import android.os.Bundle
 import android.net.Uri
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.lifecycle.Lifecycle
@@ -46,12 +48,12 @@ class ShortcutRecreateInstrumentedTest {
             composeRule.waitForIdle()
             composeRule.onNodeWithText(context.getString(R.string.nav_report)).performClick()
             composeRule.waitForIdle()
-            composeRule.onNodeWithText(context.getString(R.string.report_open_fx)).assertExists()
+            composeRule.onNodeWithContentDescription(context.getString(R.string.report_open_fx)).assertExists()
 
             // T1: на медленном эмуляторе Activity могла ещё не стать RESUMED (идёт переход) — recreate() тогда
             // падал с «Requested a re-creation of Activity but didn't happen». Ждём устойчивого состояния.
             composeRule.waitUntil(timeoutMillis = 10_000) {
-                composeRule.onAllNodesWithText(context.getString(R.string.report_open_fx))
+                composeRule.onAllNodesWithContentDescription(context.getString(R.string.report_open_fx))
                     .fetchSemanticsNodes().isNotEmpty()
             }
             scenario.moveToState(Lifecycle.State.RESUMED)
@@ -89,7 +91,7 @@ class ShortcutRecreateInstrumentedTest {
                     false
                 }
                 composeRule.waitUntil(timeoutMillis = 15_000) {
-                    composeRule.onAllNodesWithText(context.getString(R.string.report_open_fx)).fetchSemanticsNodes().isNotEmpty() ||
+                    composeRule.onAllNodesWithContentDescription(context.getString(R.string.report_open_fx)).fetchSemanticsNodes().isNotEmpty() ||
                         composeRule.onAllNodesWithText(context.getString(R.string.txn_entry_title)).fetchSemanticsNodes().isNotEmpty()
                 }
             } finally {
@@ -98,7 +100,7 @@ class ShortcutRecreateInstrumentedTest {
             composeRule.waitForIdle()
 
             composeRule.onNodeWithText(context.getString(R.string.txn_entry_title)).assertDoesNotExist()
-            composeRule.onNodeWithText(context.getString(R.string.report_open_fx)).assertExists()
+            composeRule.onNodeWithContentDescription(context.getString(R.string.report_open_fx)).assertExists()
         }
     }
 }

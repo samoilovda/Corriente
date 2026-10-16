@@ -14,6 +14,11 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.CurrencyExchange
+import androidx.compose.material.icons.outlined.FileDownload
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material.icons.outlined.PieChart
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
@@ -89,26 +94,30 @@ fun ReportScreen(
             TopAppBar(
                 title = { Text(stringResource(R.string.nav_report)) },
                 actions = {
-                    TextButton(onClick = { exportCsvLauncher.launch("corriente-report.csv") }) {
-                        Text(stringResource(R.string.report_export_csv))
+                    IconButton(onClick = { exportCsvLauncher.launch("corriente-report.csv") }) {
+                        Icon(Icons.Outlined.FileDownload, contentDescription = stringResource(R.string.report_export_csv))
                     }
-                    TextButton(onClick = onOpenFxReport) { Text(stringResource(R.string.report_open_fx)) }
+                    IconButton(onClick = onOpenFxReport) {
+                        Icon(Icons.Outlined.CurrencyExchange, contentDescription = stringResource(R.string.report_open_fx))
+                    }
                 },
             )
         },
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
-            ScrollableChips {
-                FilterChip(
+            // UI-2.6: «Расход/Доход» — сегментная кнопка на всю ширину, период ниже — чипы: разные по смыслу
+            // переключатели выглядят по-разному.
+            SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
+                SegmentedButton(
                     selected = state.kind == ReportKind.EXPENSE,
                     onClick = { viewModel.setKind(ReportKind.EXPENSE) },
-                    label = { Text(stringResource(R.string.category_kind_expense)) },
-                )
-                FilterChip(
+                    shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
+                ) { Text(stringResource(R.string.category_kind_expense)) }
+                SegmentedButton(
                     selected = state.kind == ReportKind.INCOME,
                     onClick = { viewModel.setKind(ReportKind.INCOME) },
-                    label = { Text(stringResource(R.string.category_kind_income)) },
-                )
+                    shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
+                ) { Text(stringResource(R.string.category_kind_income)) }
             }
 
             ScrollableChips {
@@ -126,7 +135,12 @@ fun ReportScreen(
                 IconButton(onClick = { viewModel.shiftPeriod(-1) }, enabled = state.periodMode != PeriodMode.CUSTOM) {
                     Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = stringResource(R.string.report_prev))
                 }
-                Text(state.periodLabel, Modifier.weight(1f), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                Text(
+                    state.periodLabel,
+                    Modifier.weight(1f),
+                    style = MaterialTheme.typography.titleMedium,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                )
                 IconButton(onClick = { viewModel.shiftPeriod(1) }, enabled = state.periodMode != PeriodMode.CUSTOM) {
                     Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = stringResource(R.string.report_next))
                 }
