@@ -286,7 +286,6 @@
 
     <string name="txn_list_all_accounts">All accounts</string>
     <string name="txn_list_all_currencies">All currencies</string>
-    <string name="txn_list_empty">No transactions yet. Add an expense with the "−" button or income with the "+" button.</string>
     <string name="txn_list_no_match">Nothing matches the filter.</string>
     <string name="txn_list_load_earlier">Show earlier</string>
     <string name="txn_search_hint">Search by note and category</string>
@@ -342,7 +341,6 @@
     <string name="budgets_hint">How much of the monthly plan has been spent</string>
     <string name="budgets_add">Add budget</string>
     <string name="budgets_edit">Edit budget</string>
-    <string name="budgets_empty">No budgets yet. Add one — the report screen will show a "spent of budget" bar.</string>
     <string name="budgets_per_month">%1$s per month</string>
     <string name="budgets_whole_currency">For everything</string>
     <string name="budgets_amount">Amount</string>
@@ -461,6 +459,15 @@
     </string-array>
     <string name="more_actions">More</string>
     <string name="date_today">Today</string>
+    <string name="txn_empty_title">No transactions yet</string>
+    <string name="txn_empty_body">Add an expense with the "−" button or income with the "+" button.</string>
+    <string name="txn_empty_add">Add expense</string>
+    <string name="txn_empty_period_title">No transactions in this period</string>
+    <string name="txn_empty_period_body">Look at earlier months or add a transaction.</string>
+    <string name="txn_empty_filter_title">Nothing found</string>
+    <string name="report_empty_title">No data for this period</string>
+    <string name="budgets_empty_title">No budgets yet</string>
+    <string name="budgets_empty_body">Add a budget — the report will show a "spent of budget" bar.</string>
     <string name="txn_add_income_more">Income or transfer</string>
     <string name="theme_title">Theme</string>
     <string name="theme_system">System default</string>

@@ -14,6 +14,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.PieChart
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material3.DateRangePicker
@@ -158,10 +159,10 @@ fun ReportScreen(
             HorizontalDivider()
 
             if (state.rows.isEmpty()) {
-                Text(
-                    stringResource(R.string.report_empty),
-                    Modifier.padding(24.dp),
-                    style = MaterialTheme.typography.bodyMedium,
+                com.corriente.app.ui.common.EmptyState(
+                    icon = Icons.Outlined.PieChart,
+                    title = stringResource(R.string.report_empty_title),
+                    body = stringResource(R.string.report_empty),
                 )
             } else {
                 LazyColumn(Modifier.fillMaxSize()) {

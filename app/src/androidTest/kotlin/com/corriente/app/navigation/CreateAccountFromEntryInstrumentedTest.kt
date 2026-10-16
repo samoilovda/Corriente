@@ -62,7 +62,7 @@ class CreateAccountFromEntryInstrumentedTest {
             composeRule.onNodeWithText(composeRule.activity.getString(R.string.nav_transactions)).performClick()
             composeRule.waitForIdle()
             // Реально на экране «Операции»: виден его пустой список и нижняя панель.
-            composeRule.onNodeWithText(composeRule.activity.getString(R.string.txn_list_empty)).assertIsDisplayed()
+            composeRule.onNodeWithText(composeRule.activity.getString(R.string.txn_empty_title)).assertIsDisplayed()
             composeRule.onNodeWithText(composeRule.activity.getString(R.string.nav_report)).assertIsDisplayed()
             composeRule.onNodeWithText(composeRule.activity.getString(R.string.txn_entry_no_accounts)).assertDoesNotExist()
 

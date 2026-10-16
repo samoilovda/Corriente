@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -66,10 +67,10 @@ fun ImportHistoryScreen(
         },
     ) { padding ->
         if (batches.isEmpty()) {
-            Text(
-                stringResource(R.string.import_history_empty),
-                Modifier.padding(padding).padding(24.dp),
-                style = MaterialTheme.typography.bodyMedium,
+            com.corriente.app.ui.common.EmptyState(
+                icon = Icons.Outlined.History,
+                title = stringResource(R.string.import_history_empty),
+                modifier = Modifier.padding(padding),
             )
         } else {
             LazyColumn(Modifier.fillMaxSize().padding(padding)) {

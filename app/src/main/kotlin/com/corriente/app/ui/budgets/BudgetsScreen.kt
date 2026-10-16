@@ -12,6 +12,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.Savings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -78,10 +79,11 @@ fun BudgetsScreen(
         },
     ) { padding ->
         if (state.rows.isEmpty()) {
-            Text(
-                stringResource(R.string.budgets_empty),
-                Modifier.fillMaxSize().padding(padding).padding(24.dp),
-                style = MaterialTheme.typography.bodyMedium,
+            com.corriente.app.ui.common.EmptyState(
+                icon = Icons.Outlined.Savings,
+                title = stringResource(R.string.budgets_empty_title),
+                body = stringResource(R.string.budgets_empty_body),
+                modifier = Modifier.padding(padding),
             )
         } else {
             LazyColumn(Modifier.fillMaxSize().padding(padding)) {

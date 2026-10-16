@@ -25,6 +25,9 @@ import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.FileDownload
 import androidx.compose.material.icons.outlined.FilterList
 import androidx.compose.material.icons.outlined.MoreVert
+import androidx.compose.material.icons.outlined.ReceiptLong
+import androidx.compose.material.icons.outlined.SearchOff
+import com.corriente.app.ui.common.EmptyState
 import androidx.compose.material.icons.outlined.Remove
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -118,6 +121,12 @@ fun TransactionsScreen(
     LaunchedEffect(state.filter.accountId) { overviewViewModel.setAccount(state.filter.accountId) }
     // Месяц в кольце глубже подгруженного окна списка — подгружаем историю до него.
     val overviewMonth = overview.overview?.month
+    // Шапка с кольцом приходит позже первого кадра: список держит позицию по ключу и без этого остаётся
+    // прокрученным мимо неё — возвращаем наверх, если пользователь сам ещё ничего не листал.
+    val hasHeader = overview.overview != null && state.filter.query.isBlank()
+    LaunchedEffect(hasHeader) {
+        if (hasHeader && !listState.isScrollInProgress) listState.scrollToItem(0)
+    }
     LaunchedEffect(overviewMonth) { overviewMonth?.let(viewModel::ensureWindowCovers) }
     val message by viewModel.messages.collectAsState()
     val snackbarState = rememberMessageSnackbarState(message, viewModel::consumeMessage)
@@ -143,13 +152,15 @@ fun TransactionsScreen(
     LaunchedEffect(listState) {
         var prevIndex = listState.firstVisibleItemIndex
         var prevOffset = listState.firstVisibleItemScrollOffset
-        snapshotFlow { listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset }
-            .collect { (index, offset) ->
-                val direction = scrollDirection(prevIndex, prevOffset, index, offset)
-                fabVisible = nextFabVisible(fabVisible, direction, atTop = index == 0 && offset == 0)
-                prevIndex = index
-                prevOffset = offset
-            }
+        // Только пальцем: сдвиг списка из-за вставки шапки/пустого состояния (программный) кнопки не прячет.
+        snapshotFlow {
+            Triple(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset, listState.isScrollInProgress)
+        }.collect { (index, offset, byUser) ->
+            val direction = if (byUser) scrollDirection(prevIndex, prevOffset, index, offset) else 0
+            fabVisible = nextFabVisible(fabVisible, direction, atTop = index == 0 && offset == 0)
+            prevIndex = index
+            prevOffset = offset
+        }
     }
 
     Scaffold(
@@ -289,12 +300,29 @@ fun TransactionsScreen(
                 }
                 if (state.sections.isEmpty()) {
                     item(key = "empty") {
-                        Text(
-                            stringResource(if (state.noMatch) R.string.txn_list_no_match else R.string.txn_list_empty),
-                            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 32.dp),
-                            style = MaterialTheme.typography.bodyMedium,
-                            textAlign = TextAlign.Center,
-                        )
+                        when (txnEmptyKind(sectionsEmpty = true, anyExist = !state.empty, filterActive = state.filter.isActive)) {
+                            TxnEmptyKind.FILTERED -> EmptyState(
+                                icon = Icons.Outlined.SearchOff,
+                                title = stringResource(R.string.txn_empty_filter_title),
+                                body = stringResource(R.string.txn_list_no_match),
+                                actionLabel = stringResource(R.string.txn_filter_clear),
+                                onAction = viewModel::clearFilters,
+                            )
+                            TxnEmptyKind.PERIOD_EMPTY -> EmptyState(
+                                icon = Icons.Outlined.ReceiptLong,
+                                title = stringResource(R.string.txn_empty_period_title),
+                                body = stringResource(R.string.txn_empty_period_body),
+                                actionLabel = stringResource(R.string.txn_empty_add),
+                                onAction = onAddExpense,
+                            )
+                            else -> EmptyState(
+                                icon = Icons.Outlined.ReceiptLong,
+                                title = stringResource(R.string.txn_empty_title),
+                                body = stringResource(R.string.txn_empty_body),
+                                actionLabel = stringResource(R.string.txn_empty_add),
+                                onAction = onAddExpense,
+                            )
+                        }
                     }
                 }
                 state.sections.forEach { section ->

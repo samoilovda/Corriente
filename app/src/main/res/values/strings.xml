@@ -286,7 +286,6 @@
 
     <string name="txn_list_all_accounts">Все счета</string>
     <string name="txn_list_all_currencies">Все валюты</string>
-    <string name="txn_list_empty">Операций пока нет. Добавьте расход кнопкой «−» или доход кнопкой «+».</string>
     <string name="txn_list_no_match">Под фильтр ничего не подходит.</string>
     <string name="txn_list_load_earlier">Показать более ранние</string>
     <string name="txn_search_hint">Поиск по заметке и категории</string>
@@ -342,7 +341,6 @@
     <string name="budgets_hint">Сколько потрачено из запланированного на месяц</string>
     <string name="budgets_add">Добавить бюджет</string>
     <string name="budgets_edit">Изменить бюджет</string>
-    <string name="budgets_empty">Бюджетов пока нет. Добавьте — на экране отчёта появится полоса «потрачено из бюджета».</string>
     <string name="budgets_per_month">%1$s в месяц</string>
     <string name="budgets_whole_currency">На всё</string>
     <string name="budgets_amount">Сумма</string>
@@ -471,6 +469,15 @@
     </string-array>
     <string name="more_actions">Ещё</string>
     <string name="date_today">Сегодня</string>
+    <string name="txn_empty_title">Операций пока нет</string>
+    <string name="txn_empty_body">Добавьте расход кнопкой «−» или доход кнопкой «+».</string>
+    <string name="txn_empty_add">Добавить расход</string>
+    <string name="txn_empty_period_title">В этом периоде операций нет</string>
+    <string name="txn_empty_period_body">Загляните в более ранние месяцы или добавьте операцию.</string>
+    <string name="txn_empty_filter_title">Ничего не найдено</string>
+    <string name="report_empty_title">Нет данных за период</string>
+    <string name="budgets_empty_title">Бюджетов пока нет</string>
+    <string name="budgets_empty_body">Добавьте бюджет — в отчёте появится полоса «потрачено из бюджета».</string>
     <string name="txn_add_income_more">Доход или перевод</string>
     <string name="theme_title">Тема</string>
     <string name="theme_system">Как в системе</string>
