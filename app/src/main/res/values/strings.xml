@@ -383,6 +383,8 @@
     <!-- R5.2: блокировка приложения. -->
     <string name="language_title">Язык</string>
     <string name="language_system">Как в системе</string>
+    <string name="left_handed_title">Режим для левшей</string>
+    <string name="left_handed_hint">Кнопки «−» и «+» слева, в порядке «−», «+»</string>
     <string name="app_lock_title">Блокировка приложения</string>
     <string name="app_lock_hint">Замок при возврате в приложение</string>
     <string name="app_lock_disclaimer">Замок защищает от случайного просмотра, если телефон окажется в чужих руках — не более того. Данные приложения при этом НЕ шифруются: тот, кто получит прямой доступ к файлам устройства (например, при физическом изъятии или root), сможет прочитать их в обход этого экрана. Это не защита от кражи устройства.</string>

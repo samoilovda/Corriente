@@ -33,6 +33,7 @@ import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FabPosition
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.HorizontalDivider
@@ -62,6 +63,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.corriente.app.R
+import com.corriente.app.UiPrefs
 import com.corriente.app.ui.common.CategoryGlyph
 import com.corriente.app.ui.report.ResourceReportTexts
 import com.corriente.app.corrienteContainer
@@ -107,6 +109,7 @@ fun TransactionsScreen(
     val snackbarState = rememberMessageSnackbarState(message, viewModel::consumeMessage)
     var showFilters by remember { mutableStateOf(false) }
     val context = LocalContext.current
+    val leftHanded by remember(context) { UiPrefs.leftHanded(context) }.collectAsState()
 
     // R3.3: экспорт списка операций (с наложенными на экране фильтрами) в CSV через SAF.
     val exportCsvLauncher = rememberLauncherForActivityResult(
@@ -146,17 +149,29 @@ fun TransactionsScreen(
                 },
             )
         },
+        floatingActionButtonPosition = if (leftHanded) FabPosition.Start else FabPosition.End,
         floatingActionButton = {
-            // «+» доход слева, «−» расход справа (у thumb-зоны): расход — самый частый сценарий,
-            // основная кнопка; «+» вторичного цвета.
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            // Правша: «+» доход слева, «−» расход справа (у thumb-зоны). Левша: у левого края, порядок «−», «+».
+            // Расход — самый частый сценарий, основная кнопка; «+» вторичного цвета.
+            val income = @Composable {
                 FloatingActionButton(
                     onClick = onAddIncome,
                     containerColor = MaterialTheme.colorScheme.secondaryContainer,
                     elevation = FloatingActionButtonDefaults.loweredElevation(),
                 ) { Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.txn_add_income)) }
+            }
+            val expense = @Composable {
                 FloatingActionButton(onClick = onAddExpense) {
                     Icon(Icons.Filled.Remove, contentDescription = stringResource(R.string.txn_add_expense))
+                }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                if (leftHanded) {
+                    expense()
+                    income()
+                } else {
+                    income()
+                    expense()
                 }
             }
         },

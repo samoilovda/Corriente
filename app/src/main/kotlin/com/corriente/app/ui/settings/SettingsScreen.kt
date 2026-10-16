@@ -17,6 +17,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -33,6 +34,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.core.content.FileProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.corriente.app.AppLocale
+import com.corriente.app.UiPrefs
 import com.corriente.app.R
 import com.corriente.app.backup.ShareBackupCache
 import com.corriente.app.corrienteContainer
@@ -128,6 +130,15 @@ fun SettingsScreen(
                 headlineContent = { Text(stringResource(R.string.language_title)) },
                 supportingContent = { Text(languageLabel(AppLocale.get(context))) },
                 modifier = Modifier.clickable { languageDialogOpen = true },
+            )
+            val leftHanded by remember(context) { UiPrefs.leftHanded(context) }.collectAsState()
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.left_handed_title)) },
+                supportingContent = { Text(stringResource(R.string.left_handed_hint)) },
+                trailingContent = {
+                    Switch(checked = leftHanded, onCheckedChange = { UiPrefs.setLeftHanded(context, it) })
+                },
+                modifier = Modifier.clickable { UiPrefs.setLeftHanded(context, !leftHanded) },
             )
             ListItem(
                 headlineContent = { Text(stringResource(R.string.app_lock_title)) },
