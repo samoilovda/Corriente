@@ -112,8 +112,8 @@ fun AccountBalanceScreen(
                     modifier = Modifier.padding(horizontal = 16.dp),
                 )
                 Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text(state.points.first().date.toString(), style = MaterialTheme.typography.labelSmall)
-                    Text(state.points.last().date.toString(), style = MaterialTheme.typography.labelSmall)
+                    Text(com.corriente.app.ui.common.shortDateLabel(state.points.first().date), style = MaterialTheme.typography.labelSmall)
+                    Text(com.corriente.app.ui.common.shortDateLabel(state.points.last().date), style = MaterialTheme.typography.labelSmall)
                 }
             }
         }

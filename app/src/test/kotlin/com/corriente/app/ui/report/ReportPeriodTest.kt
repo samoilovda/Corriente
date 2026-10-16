@@ -46,7 +46,7 @@ class ReportPeriodTest {
 
     @Test
     fun `label reads sensibly for each mode`() {
-        assertEquals("05.2026", periodLabel(PeriodMode.MONTH, periodRange(PeriodMode.MONTH, may15)))
+        assertEquals("May 2026", periodLabel(PeriodMode.MONTH, periodRange(PeriodMode.MONTH, may15), java.util.Locale.ENGLISH))
         assertEquals("Q2 2026", periodLabel(PeriodMode.QUARTER, periodRange(PeriodMode.QUARTER, may15)))
         assertEquals("2026", periodLabel(PeriodMode.YEAR, periodRange(PeriodMode.YEAR, may15)))
     }

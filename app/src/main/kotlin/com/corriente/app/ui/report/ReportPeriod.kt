@@ -34,9 +34,15 @@ fun shiftAnchor(mode: PeriodMode, anchor: LocalDate, delta: Long): LocalDate = w
 }
 
 /** Человекочитаемая подпись периода для шапки экрана. */
-fun periodLabel(mode: PeriodMode, range: ClosedRange<LocalDate>): String = when (mode) {
-    PeriodMode.MONTH -> "%02d.%d".format(range.start.monthValue, range.start.year)
+fun periodLabel(
+    mode: PeriodMode,
+    range: ClosedRange<LocalDate>,
+    locale: java.util.Locale = java.util.Locale.getDefault(),
+): String = when (mode) {
+    PeriodMode.MONTH -> com.corriente.app.ui.common.formatMonth(java.time.YearMonth.from(range.start), locale)
     PeriodMode.QUARTER -> "Q%d %d".format((range.start.monthValue - 1) / 3 + 1, range.start.year)
     PeriodMode.YEAR -> range.start.year.toString()
-    PeriodMode.CUSTOM -> "${range.start} – ${range.endInclusive}"
+    PeriodMode.CUSTOM ->
+        "${com.corriente.app.ui.common.formatMediumDate(range.start, locale)} – " +
+            com.corriente.app.ui.common.formatMediumDate(range.endInclusive, locale)
 }

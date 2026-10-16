@@ -398,7 +398,7 @@ private fun DayHeader(section: DaySection) {
         Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(section.date.toString(), Modifier.weight(1f), style = MaterialTheme.typography.titleSmall)
+        Text(com.corriente.app.ui.common.dayLabel(section.date), Modifier.weight(1f), style = MaterialTheme.typography.titleSmall)
         Column(horizontalAlignment = Alignment.End) {
             section.totals.forEach { Text(it, style = MaterialTheme.typography.bodySmall) }
         }

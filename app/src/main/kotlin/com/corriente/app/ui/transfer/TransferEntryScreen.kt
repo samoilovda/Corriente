@@ -163,7 +163,7 @@ fun TransferEntryScreen(
 
             Row {
                 Text(stringResource(R.string.txn_entry_date), Modifier.weight(1f))
-                TextButton(onClick = { datePickerOpen = true }) { Text(state.date.toString()) }
+                TextButton(onClick = { datePickerOpen = true }) { Text(com.corriente.app.ui.common.dayLabel(state.date)) }
             }
             OutlinedTextField(
                 value = state.note,

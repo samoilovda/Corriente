@@ -180,7 +180,7 @@ fun TxnEntryScreen(
                 ) {
                     Icon(Icons.Filled.CalendarMonth, contentDescription = stringResource(R.string.txn_entry_date))
                     Spacer(Modifier.width(8.dp))
-                    Text(state.date.toString(), style = MaterialTheme.typography.titleMedium)
+                    Text(com.corriente.app.ui.common.dayLabel(state.date), style = MaterialTheme.typography.titleMedium)
                 }
 
                 AmountBar(

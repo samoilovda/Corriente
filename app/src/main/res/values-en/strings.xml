@@ -460,6 +460,8 @@
         <item>September</item><item>October</item><item>November</item><item>December</item>
     </string-array>
     <string name="more_actions">More</string>
+    <string name="date_today">Today</string>
+    <string name="date_yesterday">Yesterday</string>
     <string name="categories_auto_icons">Suggest icons</string>
     <string name="categories_icons_assigned">Icons assigned: %1$d</string>
     <string name="categories_ring_title">Categories on the main screen</string>

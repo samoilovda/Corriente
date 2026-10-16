@@ -136,7 +136,7 @@ class ReportViewModelTest {
         assertEquals(listOf("Еда", "Развлечения"), rows.map { it.name })
         assertEquals(listOf(80, 20), rows.map { it.sharePercent })
         assertEquals("RUB", model.uiState.value.selectedCurrency)
-        assertEquals("05.2026", model.uiState.value.periodLabel)
+        assertEquals(com.corriente.app.ui.common.formatMonth(java.time.YearMonth.of(2026, 5), java.util.Locale.getDefault()), model.uiState.value.periodLabel)
     }
 
     @Test
@@ -151,7 +151,7 @@ class ReportViewModelTest {
 
         model.shiftPeriod(-1)
         advanceUntilIdle()
-        assertEquals("04.2026", model.uiState.value.periodLabel)
+        assertEquals(com.corriente.app.ui.common.formatMonth(java.time.YearMonth.of(2026, 4), java.util.Locale.getDefault()), model.uiState.value.periodLabel)
         assertTrue(model.uiState.value.rows.isEmpty())
     }
 

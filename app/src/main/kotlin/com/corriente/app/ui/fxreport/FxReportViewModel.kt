@@ -61,7 +61,7 @@ class FxReportViewModel(
                 deals = pair.deals.map { deal ->
                     FxDealUi(
                         txnId = deal.txnId,
-                        dateText = deal.date.toString(),
+                        dateText = com.corriente.app.ui.common.shortDateLabel(deal.date),
                         rateLabel = deal.rateLabel,
                         fromText = MoneyFormatter.format(deal.from, fallback(deal.from.currency)),
                         toText = MoneyFormatter.format(deal.to, fallback(deal.to.currency)),

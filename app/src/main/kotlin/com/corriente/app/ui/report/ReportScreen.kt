@@ -244,7 +244,7 @@ fun ReportScreen(
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
                         Column(Modifier.weight(1f)) {
-                            Text(brief.date.toString())
+                            Text(com.corriente.app.ui.common.shortDateLabel(brief.date))
                             brief.note?.takeIf { it.isNotBlank() }?.let {
                                 Text(it, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             }
