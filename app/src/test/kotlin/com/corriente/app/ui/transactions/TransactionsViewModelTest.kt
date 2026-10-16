@@ -197,6 +197,34 @@ class TransactionsViewModelTest {
             assertEquals(false, vm.uiState.value.canLoadEarlier)
         }
 
+    // Кольцо ушло на месяц глубже окна — окно расширяется шагами по 3 месяца и операции месяца видны в списке.
+    @Test
+    fun `ensureWindowCovers loads history down to the month shown in the ring`() = runTest(dispatcher) {
+        val txnDao = FakeTxnDao()
+        val accountDao = FakeAccountDao()
+        val currencyDao = FakeCurrencyDao(listOf(CurrencyEntity("RUB", 2, 2, "₽", true, 0)))
+        accountDao.insert(AccountEntity("cash", "Наличные", "RUB", AccountKind.CASH, 0, 0))
+        val txns = TxnRepository(txnDao, accountDao)
+        val today = LocalDate.of(2026, 9, 15)
+        txns.addExpense("cash", Money(Minor(100_00), rub), null, today.minusDays(3), null)
+        txns.addExpense("cash", Money(Minor(200_00), rub), null, LocalDate.of(2025, 3, 10), null)
+
+        val vm = TransactionsViewModel(
+            txns, AccountRepository(accountDao), CategoryRepository(FakeCategoryDao()),
+            CurrencyRepository(currencyDao), today = { today },
+        )
+        backgroundScope.observe(vm)
+        advanceUntilIdle()
+        assertEquals(1, vm.uiState.value.sections.size)
+
+        vm.ensureWindowCovers(java.time.YearMonth.of(2025, 3)); advanceUntilIdle()
+        assertEquals(2, vm.uiState.value.sections.size)
+
+        // Месяц внутри окна окно не трогает.
+        vm.ensureWindowCovers(java.time.YearMonth.of(2026, 9)); advanceUntilIdle()
+        assertEquals(2, vm.uiState.value.sections.size)
+    }
+
     // A2.1: экспорт CSV — ошибка провайдера даёт сообщение, а не падение; успех — «Сохранено».
     private fun exportVm(): TransactionsViewModel {
         val accountDao = FakeAccountDao()

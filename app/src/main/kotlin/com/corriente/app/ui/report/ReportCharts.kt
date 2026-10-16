@@ -120,12 +120,16 @@ fun CategoryDonut(slices: List<CategorySlice>, modifier: Modifier = Modifier) {
                 var startAngle = -90f
                 positive.forEachIndexed { i, slice ->
                     val sweep = (slice.valueMinor / total * 360.0).toFloat()
+                    // Обводка центрирована на контуре дуги: без отступа в полтолщины кольцо вылезает за холст.
+                    val stroke = size.minDimension / 4f
                     drawArc(
                         color = sliceColor(slice.color, i),
                         startAngle = startAngle,
                         sweepAngle = sweep,
                         useCenter = false,
-                        style = Stroke(width = size.minDimension / 4f),
+                        topLeft = Offset(stroke / 2f, stroke / 2f),
+                        size = Size(size.width - stroke, size.height - stroke),
+                        style = Stroke(width = stroke),
                     )
                     startAngle += sweep
                 }

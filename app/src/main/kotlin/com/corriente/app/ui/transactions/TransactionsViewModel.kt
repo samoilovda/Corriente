@@ -372,6 +372,21 @@ class TransactionsViewModel(
 
     fun loadEarlier() = windowMonths.update { it + DEFAULT_WINDOW_MONTHS }
 
+    /**
+     * Кольцо над списком может уйти на месяц глубже окна — тогда расширяем окно (шагами по
+     * [DEFAULT_WINDOW_MONTHS], как «показать ещё»), чтобы операции этого месяца были в списке.
+     */
+    fun ensureWindowCovers(month: java.time.YearMonth) {
+        val needed = java.time.temporal.ChronoUnit.MONTHS.between(month.atDay(1), today()) + 1
+        windowMonths.update { current ->
+            if (needed <= current) {
+                current
+            } else {
+                current + (needed - current + DEFAULT_WINDOW_MONTHS - 1) / DEFAULT_WINDOW_MONTHS * DEFAULT_WINDOW_MONTHS
+            }
+        }
+    }
+
     fun setAccountFilter(accountId: String?) = filter.update { it.copy(accountId = accountId) }
 
     fun setCurrencyFilter(code: String?) = filter.update { it.copy(currencyCode = code) }

@@ -100,6 +100,9 @@ fun TransactionsScreen(
     val scope = rememberCoroutineScope()
     // Счёт в шапке и фильтр списка по счёту — одно и то же (как в Monefy: выбранный счёт видно и в кольце, и в списке).
     LaunchedEffect(state.filter.accountId) { overviewViewModel.setAccount(state.filter.accountId) }
+    // Месяц в кольце глубже подгруженного окна списка — подгружаем историю до него.
+    val overviewMonth = overview.overview?.month
+    LaunchedEffect(overviewMonth) { overviewMonth?.let(viewModel::ensureWindowCovers) }
     val message by viewModel.messages.collectAsState()
     val snackbarState = rememberMessageSnackbarState(message, viewModel::consumeMessage)
     var showFilters by remember { mutableStateOf(false) }
