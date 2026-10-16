@@ -24,7 +24,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.FileDownload
 import androidx.compose.material.icons.outlined.FilterList
+import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.Remove
+import androidx.compose.foundation.layout.Box
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.material.icons.outlined.SwapHoriz
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -120,10 +124,16 @@ fun TransactionsScreen(
         }
     }
 
+    // UI-2.1: панель уезжает при прокрутке вниз и возвращается при прокрутке вверх.
+    val topBarScroll = TopAppBarDefaults.enterAlwaysScrollBehavior()
+    var overflowOpen by remember { mutableStateOf(false) }
+
     Scaffold(
+        modifier = Modifier.nestedScroll(topBarScroll.nestedScrollConnection),
         snackbarHost = { SnackbarHost(snackbarState) },
         topBar = {
             TopAppBar(
+                scrollBehavior = topBarScroll,
                 title = { Text(stringResource(R.string.nav_transactions)) },
                 actions = {
                     IconButton(onClick = {
@@ -140,11 +150,22 @@ fun TransactionsScreen(
                             )
                         }
                     }
-                    IconButton(onClick = { exportCsvLauncher.launch("corriente-transactions.csv") }) {
-                        Icon(Icons.Outlined.FileDownload, contentDescription = stringResource(R.string.txn_export_csv))
-                    }
-                    IconButton(onClick = onAddTransfer) {
-                        Icon(Icons.Outlined.SwapHoriz, contentDescription = stringResource(R.string.transfer_title))
+                    Box {
+                        IconButton(onClick = { overflowOpen = true }) {
+                            Icon(Icons.Outlined.MoreVert, contentDescription = stringResource(R.string.more_actions))
+                        }
+                        DropdownMenu(expanded = overflowOpen, onDismissRequest = { overflowOpen = false }) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.transfer_title)) },
+                                leadingIcon = { Icon(Icons.Outlined.SwapHoriz, contentDescription = null) },
+                                onClick = { overflowOpen = false; onAddTransfer() },
+                            )
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.txn_export_csv)) },
+                                leadingIcon = { Icon(Icons.Outlined.FileDownload, contentDescription = null) },
+                                onClick = { overflowOpen = false; exportCsvLauncher.launch("corriente-transactions.csv") },
+                            )
+                        }
                     }
                 },
             )
@@ -221,7 +242,7 @@ fun TransactionsScreen(
                     }
                 }
                 state.sections.forEach { section ->
-                    item(key = "h-${section.date}") { DayHeader(section) }
+                    stickyHeader(key = "h-${section.date}") { DayHeader(section) }
                     items(section.rows, key = { it.id }) { row ->
                         TxnRowItem(
                             row,
@@ -395,7 +416,8 @@ private fun FilterDropdown(
 @Composable
 private fun DayHeader(section: DaySection) {
     Row(
-        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+        Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceContainer)
+            .padding(horizontal = 16.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(com.corriente.app.ui.common.dayLabel(section.date), Modifier.weight(1f), style = MaterialTheme.typography.titleSmall)

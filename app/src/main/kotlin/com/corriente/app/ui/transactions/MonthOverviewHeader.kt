@@ -116,8 +116,8 @@ fun MonthOverviewHeader(
 
         Surface(
             onClick = onBalanceClick,
-            shape = RoundedCornerShape(6.dp),
-            color = MaterialTheme.colorScheme.primaryContainer,
+            shape = MaterialTheme.shapes.medium,
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
             modifier = Modifier.padding(top = 4.dp, bottom = 8.dp),
         ) {
             Row(Modifier.padding(horizontal = 20.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -127,7 +127,7 @@ fun MonthOverviewHeader(
                     com.corriente.app.ui.common.MoneyKind.BALANCE,
                     isNegativeBalance = overview.balanceNegative,
                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
-                    color = if (overview.balanceNegative) com.corriente.app.ui.theme.LocalCorrienteColors.current.expense else MaterialTheme.colorScheme.onPrimaryContainer,
+                    color = if (overview.balanceNegative) com.corriente.app.ui.theme.LocalCorrienteColors.current.expense else MaterialTheme.colorScheme.onSurface,
                 )
             }
         }
