@@ -3,22 +3,15 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
+    <!-- Волна «C» -->
     <path
-        android:strokeColor="#FFFFFF"
-        android:strokeWidth="7"
-        android:strokeLineCap="round"
-        android:pathData="M34,42 h34" />
-    <path android:fillColor="#FFFFFF" android:pathData="M72,42 m-6,0 a6,6 0 1,0 12,0 a6,6 0 1,0 -12,0" />
+        android:fillColor="#FFFFFF"
+        android:pathData="M81,37 C71,25 47,22 34,38 C21,54 28,76 50,81 C62,83 74,79 83,72 C72,75 60,74 50,68 C38,60 36,46 44,38 C54,29 70,31 81,37 Z" />
+    <!-- Стопка монет -->
     <path
-        android:strokeColor="#FFFFFF"
-        android:strokeWidth="7"
-        android:strokeLineCap="round"
-        android:pathData="M34,58 h22" />
-    <path android:fillColor="#FFFFFF" android:pathData="M60,58 m-6,0 a6,6 0 1,0 12,0 a6,6 0 1,0 -12,0" />
+        android:fillColor="#FFFFFF"
+        android:pathData="M50,48 h16 a2,2 0 0 1 2,2 v0.5 a2,2 0 0 1 -2,2 h-16 a2,2 0 0 1 -2,-2 v-0.5 a2,2 0 0 1 2,-2 Z M48,54 h20 a2,2 0 0 1 2,2 v0.5 a2,2 0 0 1 -2,2 h-20 a2,2 0 0 1 -2,-2 v-0.5 a2,2 0 0 1 2,-2 Z M48,60 h20 a2,2 0 0 1 2,2 v0.5 a2,2 0 0 1 -2,2 h-20 a2,2 0 0 1 -2,-2 v-0.5 a2,2 0 0 1 2,-2 Z" />
     <path
-        android:strokeColor="#FFFFFF"
-        android:strokeWidth="7"
-        android:strokeLineCap="round"
-        android:pathData="M34,74 h30" />
-    <path android:fillColor="#FFFFFF" android:pathData="M68,74 m-6,0 a6,6 0 1,0 12,0 a6,6 0 1,0 -12,0" />
+        android:fillColor="#FFFFFF"
+        android:pathData="M74,48 C78,48 80.5,52 80.5,57 C80.5,62 78,66 74,66 C70,66 71,62 71,57 C71,52 70,48 74,48 Z" />
 </vector>

@@ -105,11 +105,12 @@ fun TxnEntryScreen(
     initialKind: EntryKind = EntryKind.EXPENSE,
     initialCategoryId: String? = null,
     initialAccountId: String? = null,
+    repeatTxnId: String? = null,
     viewModel: TxnEntryViewModel = viewModel(
         factory = with(corrienteContainer()) {
             TxnEntryViewModel.factory(
                 txnRepository, accountRepository, categoryRepository, currencyRepository, editingTxnId, initialKind,
-                initialCategoryId, initialAccountId,
+                initialCategoryId, initialAccountId, repeatTxnId,
             )
         },
     ),

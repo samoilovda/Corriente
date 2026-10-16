@@ -24,6 +24,16 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.FileDownload
 import androidx.compose.material.icons.outlined.FilterList
+import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.Repeat
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxValue
+import androidx.compose.material3.rememberSwipeToDismissBoxState
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarResult
+import kotlinx.coroutines.withTimeoutOrNull
+import com.corriente.app.ui.common.MoneyKind
+import com.corriente.app.ui.txnentry.EntryKind
 import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.ReceiptLong
 import androidx.compose.material.icons.outlined.SearchOff
@@ -93,6 +103,8 @@ fun TransactionsScreen(
     onAddTransfer: () -> Unit,
     onEditTransaction: (String) -> Unit,
     onEditTransfer: (String) -> Unit,
+    /** UI-3.2: свайп вправо — «Повторить»: ввод с той же категорией/счётом/суммой и сегодняшней датой. */
+    onRepeatTransaction: (id: String, kind: EntryKind) -> Unit = { _, _ -> },
     /** Тап по иконке категории в шапке: ввод расхода в эту категорию (и выбранный в шапке счёт, если он есть). */
     onAddExpenseInCategory: (categoryId: String, accountId: String?) -> Unit = { _, _ -> onAddExpense() },
     viewModel: TransactionsViewModel = viewModel(
@@ -130,6 +142,17 @@ fun TransactionsScreen(
     LaunchedEffect(overviewMonth) { overviewMonth?.let(viewModel::ensureWindowCovers) }
     val message by viewModel.messages.collectAsState()
     val snackbarState = rememberMessageSnackbarState(message, viewModel::consumeMessage)
+    // UI-3.2: «Удалено · Отменить» на 5 секунд; по истечении удаление окончательно.
+    val pendingUndo by viewModel.pendingUndo.collectAsState()
+    val undoMessage = stringResource(R.string.txn_deleted_undo_message)
+    val undoLabel = stringResource(R.string.undo)
+    LaunchedEffect(pendingUndo) {
+        if (pendingUndo == null) return@LaunchedEffect
+        val result = withTimeoutOrNull(UNDO_WINDOW_MS) {
+            snackbarState.showSnackbar(undoMessage, undoLabel, duration = SnackbarDuration.Indefinite)
+        }
+        if (result == SnackbarResult.ActionPerformed) viewModel.undoDelete() else viewModel.consumeUndo()
+    }
     var showFilters by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val leftHanded by remember(context) { UiPrefs.leftHanded(context) }.collectAsState()
@@ -328,14 +351,18 @@ fun TransactionsScreen(
                 state.sections.forEach { section ->
                     stickyHeader(key = "h-${section.date}") { DayHeader(section) }
                     items(section.rows, key = { it.id }) { row ->
-                        TxnRowItem(
-                            row,
+                        SwipeableTxnRow(
+                            row = row,
                             modifier = Modifier.animateItem(),
                             onClick = {
                                 when {
                                     row.isTransfer -> onEditTransfer(row.id)
                                     row.editable -> onEditTransaction(row.id)
                                 }
+                            },
+                            onDelete = { viewModel.deleteTxn(row.id) },
+                            onRepeat = {
+                                onRepeatTransaction(row.id, if (row.kind == MoneyKind.INCOME) EntryKind.INCOME else EntryKind.EXPENSE)
                             },
                         )
                         HorizontalDivider()
@@ -584,5 +611,55 @@ private fun TxnRowItem(row: TxnRow, modifier: Modifier = Modifier, onClick: () -
             }
         }
         com.corriente.app.ui.common.MoneyText(row.amountText, row.kind)
+    }
+}
+
+private const val UNDO_WINDOW_MS = 5_000L
+
+/**
+ * UI-3.2: строка операции со свайпами — влево «удалить» (с отменой в снекбаре), вправо «повторить»
+ * (только для расходов/доходов; перевод так не повторяется). Направления не зеркалятся режимом левши — это жест, не кнопка.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SwipeableTxnRow(
+    row: TxnRow,
+    onClick: () -> Unit,
+    onDelete: () -> Unit,
+    onRepeat: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val canRepeat = row.editable && !row.isTransfer
+    val state = rememberSwipeToDismissBoxState(
+        confirmValueChange = { value ->
+            when (value) {
+                SwipeToDismissBoxValue.EndToStart -> { onDelete(); true }
+                SwipeToDismissBoxValue.StartToEnd -> { onRepeat(); false } // строка возвращается на место
+                SwipeToDismissBoxValue.Settled -> false
+            }
+        },
+    )
+    SwipeToDismissBox(
+        state = state,
+        modifier = modifier,
+        enableDismissFromStartToEnd = canRepeat,
+        enableDismissFromEndToStart = true,
+        backgroundContent = {
+            val deleting = state.dismissDirection == SwipeToDismissBoxValue.EndToStart
+            val colors = MaterialTheme.colorScheme
+            Box(
+                Modifier.fillMaxSize().background(if (deleting) colors.errorContainer else colors.secondaryContainer)
+                    .padding(horizontal = 24.dp),
+                contentAlignment = if (deleting) Alignment.CenterEnd else Alignment.CenterStart,
+            ) {
+                Icon(
+                    if (deleting) Icons.Outlined.Delete else Icons.Outlined.Repeat,
+                    contentDescription = null,
+                    tint = if (deleting) colors.onErrorContainer else colors.onSecondaryContainer,
+                )
+            }
+        },
+    ) {
+        Box(Modifier.background(MaterialTheme.colorScheme.surface)) { TxnRowItem(row, onClick = onClick) }
     }
 }

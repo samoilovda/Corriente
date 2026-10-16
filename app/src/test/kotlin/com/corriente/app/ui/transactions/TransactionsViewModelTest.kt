@@ -170,6 +170,58 @@ class TransactionsViewModelTest {
         assertEquals(2, vm.uiState.value.sections.single().rows.size)
     }
 
+    // UI-3.2: свайп-удаление + «Отменить» возвращает ту же строку (id, createdAt, updatedAt, заметка).
+    @Test
+    fun `swipe delete then undo restores the identical transaction`() = runTest(dispatcher) {
+        val txnDao = FakeTxnDao()
+        val accountDao = FakeAccountDao()
+        val currencyDao = FakeCurrencyDao(listOf(CurrencyEntity("RUB", 2, 2, "₽", true, 0)))
+        accountDao.insert(AccountEntity("cash", "Наличные", "RUB", AccountKind.CASH, 0, 0))
+        val txns = TxnRepository(txnDao, accountDao)
+        txns.addExpense("cash", Money(Minor(123_45), rub), null, d1, "заметка")
+        val before = txnDao.rows.value.single()
+
+        val vm = TransactionsViewModel(
+            txns, AccountRepository(accountDao), CategoryRepository(FakeCategoryDao()),
+            CurrencyRepository(currencyDao), today = { d2 },
+        )
+        backgroundScope.observe(vm)
+        advanceUntilIdle()
+
+        vm.deleteTxn(before.id)
+        advanceUntilIdle()
+        assertTrue(txnDao.rows.value.isEmpty())
+        assertEquals(before.id, vm.pendingUndo.value?.id)
+
+        vm.undoDelete()
+        advanceUntilIdle()
+        assertEquals(before, txnDao.rows.value.single())
+        assertEquals(null, vm.pendingUndo.value)
+    }
+
+    @Test
+    fun `swipe delete without undo is final once the snackbar expires`() = runTest(dispatcher) {
+        val txnDao = FakeTxnDao()
+        val accountDao = FakeAccountDao()
+        val currencyDao = FakeCurrencyDao(listOf(CurrencyEntity("RUB", 2, 2, "₽", true, 0)))
+        accountDao.insert(AccountEntity("cash", "Наличные", "RUB", AccountKind.CASH, 0, 0))
+        val txns = TxnRepository(txnDao, accountDao)
+        txns.addExpense("cash", Money(Minor(10_00), rub), null, d1, null)
+        val id = txnDao.rows.value.single().id
+
+        val vm = TransactionsViewModel(
+            txns, AccountRepository(accountDao), CategoryRepository(FakeCategoryDao()),
+            CurrencyRepository(currencyDao), today = { d2 },
+        )
+        backgroundScope.observe(vm)
+        advanceUntilIdle()
+
+        vm.deleteTxn(id); advanceUntilIdle()
+        vm.consumeUndo()
+        vm.undoDelete(); advanceUntilIdle() // нечего возвращать
+        assertTrue(txnDao.rows.value.isEmpty())
+    }
+
     // A1.1: «Показать ещё» есть, пока за границей окна лежат операции; нет операции ровно на границе.
     @Test
     fun `load earlier is offered while history remains beyond the window and vanishes once exhausted`() =

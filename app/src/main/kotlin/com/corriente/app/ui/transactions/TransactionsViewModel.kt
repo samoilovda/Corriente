@@ -286,7 +286,7 @@ private fun row(
 }
 
 class TransactionsViewModel(
-    txns: TxnRepository,
+    private val txns: TxnRepository,
     accounts: AccountRepository,
     categories: CategoryRepository,
     currencies: CurrencyRepository,
@@ -296,6 +296,33 @@ class TransactionsViewModel(
 ) : WritingViewModel(io) {
 
     private val filter = MutableStateFlow(TxnFilter())
+
+    /** UI-3.2: только что удалённая свайпом операция — копия для «Отменить» (I-22: из БД она уже ушла). */
+    private val _pendingUndo = MutableStateFlow<Txn?>(null)
+    val pendingUndo: kotlinx.coroutines.flow.StateFlow<Txn?> = _pendingUndo
+
+    /** Удаление свайпом: физическое и немедленное, копия живёт здесь, пока снекбар не истёк. */
+    fun deleteTxn(id: String) {
+        launchWrite(onError = { com.corriente.app.ui.common.uiMessage(com.corriente.app.R.string.txn_entry_error_delete) }) {
+            val existing = txns.getById(id) ?: return@launchWrite
+            txns.deleteById(id)
+            _pendingUndo.value = existing
+        }
+    }
+
+    /** Отмена удаления — та же операция, тот же `id`/`createdAt`/`import_hash` (как в R5.3). */
+    fun undoDelete() {
+        val txn = _pendingUndo.value ?: return
+        _pendingUndo.value = null
+        launchWrite(onError = { com.corriente.app.ui.common.uiMessage(com.corriente.app.R.string.txn_entry_error_restore) }) {
+            txns.restore(txn)
+        }
+    }
+
+    /** Снекбар истёк без отмены — удаление окончательно. */
+    fun consumeUndo() {
+        _pendingUndo.value = null
+    }
 
     /** F2.1: сколько месяцев истории подгружено. Растёт по «показать ещё». */
     private val windowMonths = MutableStateFlow(DEFAULT_WINDOW_MONTHS)

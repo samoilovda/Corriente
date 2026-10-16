@@ -136,6 +136,7 @@ fun CorrienteNavHost(deepLinkIntent: Intent? = null, onDeepLinkConsumed: () -> U
                     onAddTransfer = { navController.navigate(TRANSFER_ROUTE) },
                     onEditTransaction = { id -> navController.navigate("$TXN_EDIT_ROUTE/$id") },
                     onEditTransfer = { id -> navController.navigate("$TRANSFER_EDIT_ROUTE/$id") },
+                    onRepeatTransaction = { id, kind -> navController.navigate("$TXN_ENTRY_ROUTE?kind=${kind.name}&repeat=$id") },
                     onAddExpenseInCategory = { categoryId, accountId ->
                         val account = accountId?.let { "&account=$it" }.orEmpty()
                         navController.navigate("$TXN_ENTRY_ROUTE?kind=${EntryKind.EXPENSE.name}&category=$categoryId$account")
@@ -211,11 +212,12 @@ fun CorrienteNavHost(deepLinkIntent: Intent? = null, onDeepLinkConsumed: () -> U
                 CategoriesScreen(onBack = { navController.popBackStack() })
             }
             composable(
-                "$TXN_ENTRY_ROUTE?kind={kind}&category={category}&account={account}",
+                "$TXN_ENTRY_ROUTE?kind={kind}&category={category}&account={account}&repeat={repeat}",
                 arguments = listOf(
                     navArgument("kind") { type = NavType.StringType; defaultValue = EntryKind.EXPENSE.name },
                     navArgument("category") { type = NavType.StringType; nullable = true; defaultValue = null },
                     navArgument("account") { type = NavType.StringType; nullable = true; defaultValue = null },
+                    navArgument("repeat") { type = NavType.StringType; nullable = true; defaultValue = null },
                 ),
                 // R4.4: ярлыки «Записать расход»/«Записать доход» ведут сюда через deep link.
                 deepLinks = listOf(navDeepLink { uriPattern = "$DEEP_LINK_SCHEME://entry?kind={kind}" }),
@@ -241,6 +243,7 @@ fun CorrienteNavHost(deepLinkIntent: Intent? = null, onDeepLinkConsumed: () -> U
                         ?: EntryKind.EXPENSE,
                     initialCategoryId = entry.arguments?.getString("category"),
                     initialAccountId = entry.arguments?.getString("account"),
+                    repeatTxnId = entry.arguments?.getString("repeat"),
                 )
             }
             composable(

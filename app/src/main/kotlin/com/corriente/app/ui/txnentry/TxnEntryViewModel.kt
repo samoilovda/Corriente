@@ -148,6 +148,8 @@ class TxnEntryViewModel(
     /** Тап по категории на главном экране: ввод сразу с этой категорией (и счётом, если на главном выбран счёт). */
     private val initialCategoryId: String? = null,
     private val initialAccountId: String? = null,
+    /** UI-3.2: «Повторить» — форма заполняется как у этой операции, дата — сегодня (сама операция не меняется). */
+    private val repeatTxnId: String? = null,
     /**
      * R5.4: форма живёт здесь, а не только в [form] — `SavedStateHandle` переживает убийство
      * процесса («Не сохранять действия» в параметрах разработчика), обычный `MutableStateFlow`
@@ -225,6 +227,27 @@ class TxnEntryViewModel(
             when {
                 savedStateHandle.get<String>(SavedKeys.KIND) != null -> {
                     form.value = restoreFormFromSavedState()
+                }
+                repeatTxnId != null && editingTxnId == null -> {
+                    val source = txns.getById(repeatTxnId)
+                    val prefill = when (source) {
+                        is Txn.Expense -> Quad(EntryKind.EXPENSE, source.accountId, source.amount, source.categoryId)
+                        is Txn.Income -> Quad(EntryKind.INCOME, source.accountId, source.amount, source.categoryId)
+                        is Txn.Transfer, null -> null // перевод так не повторяется
+                    }
+                    if (source != null && prefill != null) {
+                        val (kind, accountId, amount, categoryId) = prefill
+                        val currency = currencies.getByCode(amount.currency)
+                            ?: Currency(amount.currency, minorUnits = 2, displayScale = 2, symbol = amount.currency.code)
+                        form.value = Form(
+                            kind = kind,
+                            amount = AmountInput.fromMinor(amount.amount, currency),
+                            selectedAccountId = accountId,
+                            selectedCategoryId = categoryId,
+                            date = today(),
+                            note = source.note.orEmpty(),
+                        )
+                    }
                 }
                 editingTxnId != null -> {
                     val existing = txns.getById(editingTxnId)
@@ -561,6 +584,7 @@ class TxnEntryViewModel(
             initialKind: EntryKind = EntryKind.EXPENSE,
             initialCategoryId: String? = null,
             initialAccountId: String? = null,
+            repeatTxnId: String? = null,
         ) = viewModelFactory {
             initializer {
                 // R5.4: createSavedStateHandle() — расширение на CreationExtras, доступное здесь
@@ -569,6 +593,7 @@ class TxnEntryViewModel(
                 TxnEntryViewModel(
                     txns, accounts, categories, currencies, editingTxnId, initialKind,
                     initialCategoryId = initialCategoryId, initialAccountId = initialAccountId,
+                    repeatTxnId = repeatTxnId,
                     savedStateHandle = createSavedStateHandle(),
                 )
             }

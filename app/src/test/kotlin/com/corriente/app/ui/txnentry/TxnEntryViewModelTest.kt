@@ -76,6 +76,7 @@ class TxnEntryViewModelTest {
         savedStateHandle: androidx.lifecycle.SavedStateHandle = androidx.lifecycle.SavedStateHandle(),
         initialCategoryId: String? = null,
         initialAccountId: String? = null,
+        repeatTxnId: String? = null,
     ): TxnEntryViewModel = TxnEntryViewModel(
         txns = TxnRepository(fakes.txnDao, fakes.accountDao),
         accounts = AccountRepository(fakes.accountDao),
@@ -86,6 +87,7 @@ class TxnEntryViewModelTest {
         today = { today },
         initialCategoryId = initialCategoryId,
         initialAccountId = initialAccountId,
+        repeatTxnId = repeatTxnId,
         savedStateHandle = savedStateHandle,
     )
 
@@ -428,6 +430,37 @@ class TxnEntryViewModelTest {
         assertEquals(id, row.id)
         assertEquals(500000L, row.amountMinor)
         assertNull(row.categoryId)
+    }
+
+    // UI-3.2: «Повторить» — форма как у исходной операции, но дата — сегодня; исходная строка не меняется.
+    @Test
+    fun `repeat prefills kind account category amount and note, with today as the date`() = runTest(dispatcher) {
+        val fakes = Fakes().apply { seed() }
+        val creator = vm(fakes)
+        backgroundScope.observe(creator)
+        advanceUntilIdle()
+        creator.selectCategory("cat-food")
+        creator.pressDigit('5'); creator.pressDigit('0'); creator.pressDigit('0')
+        creator.setNote("такси")
+        advanceUntilIdle()
+        creator.save()
+        advanceUntilIdle()
+        val original = fakes.txnDao.rows.value.single()
+
+        val repeater = vm(fakes, repeatTxnId = original.id)
+        backgroundScope.observe(repeater)
+        advanceUntilIdle()
+        assertFalse(repeater.isEditing)
+        assertEquals("500", repeater.uiState.value.amountText)
+        assertEquals("cat-food", repeater.uiState.value.selectedCategoryId)
+        assertEquals("acc-rub", repeater.uiState.value.selectedAccountId)
+        assertEquals("такси", repeater.uiState.value.note)
+        assertEquals(today, repeater.uiState.value.date)
+
+        assertTrue(repeater.save())
+        advanceUntilIdle()
+        assertEquals(2, fakes.txnDao.rows.value.size) // новая операция, исходная на месте
+        assertTrue(fakes.txnDao.rows.value.any { it.id == original.id })
     }
 
     // F2.8 — «5 − 10 =» показывает «−5», сохранение недоступно; «+ 20 =» даёт «15».
