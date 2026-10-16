@@ -31,6 +31,8 @@ object InvariantGuards {
         // Шапка «Операций»: дуги кольца и позиции иконок по окружности — только координаты Canvas/offset;
         // доли и проценты считаются в `MonthOverview.kt` целыми числами.
         "app/src/main/kotlin/com/corriente/app/ui/transactions/MonthOverviewHeader.kt",
+        // UI-1.1: контраст цветов по WCAG — яркость цвета это Float; к деньгам отношения не имеет.
+        "app/src/main/kotlin/com/corriente/app/ui/theme/Contrast.kt",
         // То же кольцо в окне для компьютера.
         "desktop/src/main/kotlin/com/corriente/desktop/RingCanvas.kt",
     )
