@@ -32,6 +32,13 @@ import androidx.compose.material.icons.outlined.AccountBalanceWallet
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ModalBottomSheet
@@ -146,22 +153,19 @@ fun TxnEntryScreen(
         },
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).imePadding().padding(horizontal = 12.dp)) {
-            Row(
-                Modifier.fillMaxWidth().padding(top = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
-            ) {
-                FilterChip(
+            SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(top = 4.dp)) {
+                SegmentedButton(
                     selected = state.kind == EntryKind.EXPENSE,
                     enabled = !viewModel.isEditing,
                     onClick = { viewModel.setKind(EntryKind.EXPENSE) },
-                    label = { Text(stringResource(R.string.category_kind_expense)) },
-                )
-                FilterChip(
+                    shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
+                ) { Text(stringResource(R.string.category_kind_expense)) }
+                SegmentedButton(
                     selected = state.kind == EntryKind.INCOME,
                     enabled = !viewModel.isEditing,
                     onClick = { viewModel.setKind(EntryKind.INCOME) },
-                    label = { Text(stringResource(R.string.category_kind_income)) },
-                )
+                    shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
+                ) { Text(stringResource(R.string.category_kind_income)) }
             }
 
             if (!state.loaded) {
@@ -173,14 +177,41 @@ fun TxnEntryScreen(
                 }
             } else {
                 // Дата — по центру, с иконкой календаря (как в Monefy).
+                // UI-1.2 / UI-2.7: дата и счёт — чипами рядом («Сегодня», «Кошелёк»).
                 Row(
-                    Modifier.fillMaxWidth().clickable { datePickerOpen = true }.padding(vertical = 12.dp),
-                    horizontalArrangement = Arrangement.Center,
+                    Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Icon(Icons.Outlined.CalendarMonth, contentDescription = stringResource(R.string.txn_entry_date))
-                    Spacer(Modifier.width(8.dp))
-                    Text(com.corriente.app.ui.common.dayLabel(state.date), style = MaterialTheme.typography.titleMedium)
+                    AssistChip(
+                        onClick = { datePickerOpen = true },
+                        label = { Text(com.corriente.app.ui.common.dayLabel(state.date)) },
+                        leadingIcon = {
+                            Icon(
+                                Icons.Outlined.CalendarMonth,
+                                contentDescription = stringResource(R.string.txn_entry_date),
+                                modifier = Modifier.size(18.dp),
+                            )
+                        },
+                    )
+                    var accountChipMenuOpen by remember { mutableStateOf(false) }
+                    val accountName = state.accounts.firstOrNull { it.id == state.selectedAccountId }?.name
+                    if (accountName != null) {
+                        Box {
+                            AssistChip(
+                                onClick = { accountChipMenuOpen = true },
+                                label = { Text(accountName, maxLines = 1) },
+                                leadingIcon = { Icon(Icons.Outlined.AccountBalanceWallet, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                            )
+                            AccountMenu(
+                                expanded = accountChipMenuOpen,
+                                onDismiss = { accountChipMenuOpen = false },
+                                accounts = state.accounts,
+                                selectedAccountId = state.selectedAccountId,
+                                onSelect = { viewModel.selectAccount(it); accountChipMenuOpen = false },
+                            )
+                        }
+                    }
                 }
 
                 AmountBar(
@@ -255,26 +286,44 @@ fun TxnEntryScreen(
                         Button(
                             onClick = { viewModel.save() },
                             enabled = state.canSave && !state.saving && pendingUndo == null,
-                            shape = RoundedCornerShape(6.dp),
+                            shape = MaterialTheme.shapes.large,
                             modifier = Modifier.weight(1f).height(56.dp),
                         ) {
-                            Text(stringResource(R.string.txn_entry_add_to_category, selectedCategoryName).uppercase())
+                            Text(stringResource(R.string.txn_entry_add_to_category, selectedCategoryName))
                         }
                         OutlinedButton(
                             onClick = { categorySheetOpen = true },
                             enabled = !state.saving && pendingUndo == null,
-                            shape = RoundedCornerShape(6.dp),
+                            shape = MaterialTheme.shapes.large,
                             modifier = Modifier.height(56.dp),
                         ) { Text(stringResource(R.string.txn_entry_other_category)) }
                     }
                 } else {
-                    OutlinedButton(
-                        onClick = { categorySheetOpen = true },
-                        enabled = !state.saving && pendingUndo == null,
-                        shape = RoundedCornerShape(6.dp),
-                        modifier = Modifier.fillMaxWidth().height(56.dp),
-                    ) {
-                        Text((selectedCategoryName ?: stringResource(R.string.txn_entry_choose_category)).uppercase())
+                    val selectedCategory = state.categories.firstOrNull { it.id == state.selectedCategoryId }
+                    if (selectedCategory != null) {
+                        // Категория уже выбрана — показываем её (иконка и цвет), а не «Выбрать категорию».
+                        FilledTonalButton(
+                            onClick = { categorySheetOpen = true },
+                            enabled = !state.saving && pendingUndo == null,
+                            shape = MaterialTheme.shapes.large,
+                            modifier = Modifier.fillMaxWidth().height(56.dp),
+                        ) {
+                            if (!selectedCategory.icon.isNullOrBlank()) {
+                                val tint = if (selectedCategory.color != 0) Color(selectedCategory.color) else MaterialTheme.colorScheme.onSecondaryContainer
+                                CategoryGlyph(selectedCategory.icon, selectedCategory.name, tint, size = 22.dp)
+                                Spacer(Modifier.width(8.dp))
+                            }
+                            Text(selectedCategory.name)
+                        }
+                    } else {
+                        Button(
+                            onClick = { categorySheetOpen = true },
+                            enabled = !state.saving && pendingUndo == null,
+                            shape = MaterialTheme.shapes.large,
+                            modifier = Modifier.fillMaxWidth().height(56.dp),
+                        ) {
+                            Text(stringResource(R.string.txn_entry_choose_category))
+                        }
                     }
                 }
                 if (viewModel.isEditing) {
@@ -414,6 +463,34 @@ private fun ChipRow(label: String, content: @Composable () -> Unit) {
     }
 }
 
+@Composable
+private fun AccountMenu(
+    expanded: Boolean,
+    onDismiss: () -> Unit,
+    accounts: List<AccountOption>,
+    selectedAccountId: String?,
+    onSelect: (String) -> Unit,
+) {
+    DropdownMenu(expanded = expanded, onDismissRequest = onDismiss) {
+        accounts.forEach { option ->
+            val label = if (option.isArchived) {
+                stringResource(R.string.entry_archived_suffix, option.name)
+            } else {
+                option.name
+            }
+            DropdownMenuItem(
+                text = { Text("$label · ${option.currency.code.code}") },
+                onClick = { onSelect(option.id) },
+                trailingIcon = if (option.id == selectedAccountId) {
+                    { Icon(Icons.Outlined.Check, contentDescription = null) }
+                } else {
+                    null
+                },
+            )
+        }
+    }
+}
+
 /**
  * Плашка суммы: слева «таблетка» счёта с кодом валюты (выбор счёта), справа сумма и «⌫».
  * Цвета — из темы (Material You): расход — основной контейнер, доход — третичный.
@@ -459,24 +536,13 @@ private fun AmountBar(
                         Text(currencyCode, style = MaterialTheme.typography.labelLarge)
                     }
                 }
-                DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                    accounts.forEach { option ->
-                        val label = if (option.isArchived) {
-                            stringResource(R.string.entry_archived_suffix, option.name)
-                        } else {
-                            option.name
-                        }
-                        DropdownMenuItem(
-                            text = { Text("$label · ${option.currency.code.code}") },
-                            onClick = { onSelectAccount(option.id); menuOpen = false },
-                            trailingIcon = if (option.id == selectedAccountId) {
-                                { Icon(Icons.Outlined.Check, contentDescription = null) }
-                            } else {
-                                null
-                            },
-                        )
-                    }
-                }
+                AccountMenu(
+                    expanded = menuOpen,
+                    onDismiss = { menuOpen = false },
+                    accounts = accounts,
+                    selectedAccountId = selectedAccountId,
+                    onSelect = { onSelectAccount(it); menuOpen = false },
+                )
             }
             Text(
                 text = amountText,
@@ -509,28 +575,44 @@ private fun Keypad(
         listOf("7", "8", "9", "×"),
         listOf(".", "0", "=", "÷"),
     )
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    val haptic = LocalHapticFeedback.current
+    val colors = MaterialTheme.colorScheme
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         rows.forEach { row ->
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                 row.forEach { key ->
-                    OutlinedButton(
-                        onClick = {
-                            when (key) {
-                                "." -> onDecimalPoint()
-                                "=" -> onEquals()
-                                "+" -> onOp(CalcOp.PLUS)
-                                "−" -> onOp(CalcOp.MINUS)
-                                "×" -> onOp(CalcOp.TIMES)
-                                "÷" -> onOp(CalcOp.DIVIDE)
-                                else -> onDigit(key[0])
-                            }
-                        },
-                        enabled = key != "=" || equalsEnabled,
-                        shape = RoundedCornerShape(6.dp),
-                        contentPadding = PaddingValues(0.dp),
-                        modifier = Modifier.weight(1f).height(64.dp),
-                    ) {
-                        Text(key, fontSize = 30.sp, fontWeight = FontWeight.Light)
+                    val isOp = key in setOf("+", "−", "×", "÷")
+                    if (key == "=" && !equalsEnabled) {
+                        // UI-2.7: «=» появляется, только когда есть что вычислять; место остаётся пустым.
+                        Spacer(Modifier.weight(1f).height(64.dp))
+                    } else {
+                        FilledTonalButton(
+                            onClick = {
+                                haptic.performHapticFeedback(HapticFeedbackType.VirtualKey)
+                                when (key) {
+                                    "." -> onDecimalPoint()
+                                    "=" -> onEquals()
+                                    "+" -> onOp(CalcOp.PLUS)
+                                    "−" -> onOp(CalcOp.MINUS)
+                                    "×" -> onOp(CalcOp.TIMES)
+                                    "÷" -> onOp(CalcOp.DIVIDE)
+                                    else -> onDigit(key[0])
+                                }
+                            },
+                            shape = MaterialTheme.shapes.large,
+                            colors = when {
+                                key == "=" -> ButtonDefaults.buttonColors()
+                                isOp -> ButtonDefaults.filledTonalButtonColors()
+                                else -> ButtonDefaults.filledTonalButtonColors(
+                                    containerColor = colors.surfaceContainerHigh,
+                                    contentColor = colors.onSurface,
+                                )
+                            },
+                            contentPadding = PaddingValues(0.dp),
+                            modifier = Modifier.weight(1f).height(64.dp),
+                        ) {
+                            Text(key, fontSize = 28.sp, fontWeight = if (isOp) FontWeight.Medium else FontWeight.Normal)
+                        }
                     }
                 }
             }

@@ -69,7 +69,7 @@ class TxnEntryFlowInstrumentedTest {
         composeRule.onNodeWithText("5").performClick()
         composeRule.onNodeWithText("0").performClick()
 
-        composeRule.onNodeWithText(composeRule.activity.getString(R.string.txn_entry_choose_category).uppercase()).performClick()
+        composeRule.onNodeWithText(composeRule.activity.getString(R.string.txn_entry_choose_category)).performClick()
         composeRule.onNodeWithText("Еда-тест").performClick()
         composeRule.waitForIdle()
 
