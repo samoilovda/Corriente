@@ -469,6 +469,8 @@
     </string-array>
     <string name="more_actions">Ещё</string>
     <string name="date_today">Сегодня</string>
+    <string name="txn_pane_empty_title">Выберите операцию</string>
+    <string name="txn_pane_empty_body">Откройте операцию из списка слева или добавьте новую кнопкой «−» / «+».</string>
     <string name="accounts_empty_title">Счетов пока нет</string>
     <string name="settings_group_data">Данные</string>
     <string name="settings_group_backup">Импорт и бэкап</string>

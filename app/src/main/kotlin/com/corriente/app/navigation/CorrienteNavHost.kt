@@ -1,6 +1,17 @@
 package com.corriente.app.navigation
 
 import android.content.Intent
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.material3.NavigationRail
+import androidx.compose.material3.NavigationRailItem
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Icon
@@ -96,22 +107,30 @@ fun CorrienteNavHost(deepLinkIntent: Intent? = null, onDeepLinkConsumed: () -> U
         if (handled == true) onDeepLinkConsumed()
     }
 
+    val layout = navLayoutFor(LocalConfiguration.current.screenWidthDp)
+    val topLevel = CorrienteDestination.isTopLevelRoute(currentDestination?.route)
+    val navigateTo: (CorrienteDestination) -> Unit = { destination ->
+        navController.navigate(destination.route) {
+            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+            launchSingleTop = true
+            restoreState = true
+        }
+    }
+    // UI-3.3: две панели нужны только «Операциям»; остальным экранам на широком окне — читаемая ширина по центру,
+    // а не растянутая телефонная вёрстка.
+    val twoPane = layout == NavLayout.RAIL_TWO_PANE &&
+        currentDestination?.route == CorrienteDestination.TRANSACTIONS.route
+
     Scaffold(
         bottomBar = {
-            // Панель разделов — только на корневых экранах; под-экраны открываются поверх.
-            if (CorrienteDestination.isTopLevelRoute(currentDestination?.route)) {
+            // Панель разделов — только на корневых экранах и только на телефоне; на широких окнах — рейка слева.
+            if (layout == NavLayout.BOTTOM_BAR && topLevel) {
                 NavigationBar {
                     CorrienteDestination.entries.forEach { destination ->
                         val selected = currentDestination?.hierarchy?.any { it.route == destination.route } == true
                         NavigationBarItem(
                             selected = selected,
-                            onClick = {
-                                navController.navigate(destination.route) {
-                                    popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                                    launchSingleTop = true
-                                    restoreState = true
-                                }
-                            },
+                            onClick = { navigateTo(destination) },
                             icon = { Icon(if (selected) destination.selectedIcon else destination.icon, contentDescription = null) },
                             // T2: подпись в одну строку — иначе на узком экране с крупным шрифтом «Transactions»
                             // переносится по слогам. Если не помещается — уменьшаем шрифт (до 8sp), затем многоточие.
@@ -122,14 +141,33 @@ fun CorrienteNavHost(deepLinkIntent: Intent? = null, onDeepLinkConsumed: () -> U
             }
         },
     ) { padding ->
+        // F2.4: корневой Scaffold отвечает за нижнюю панель; вложенные Scaffold'ы экранов
+        // применяют оставшиеся вставки к своим TopAppBar — consumeWindowInsets убирает двойной учёт.
+        Row(Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding)) {
+            if (layout != NavLayout.BOTTOM_BAR && topLevel) {
+                NavigationRail {
+                    CorrienteDestination.entries.forEach { destination ->
+                        val selected = currentDestination?.hierarchy?.any { it.route == destination.route } == true
+                        NavigationRailItem(
+                            selected = selected,
+                            onClick = { navigateTo(destination) },
+                            icon = { Icon(if (selected) destination.selectedIcon else destination.icon, contentDescription = null) },
+                            label = { Text(stringResource(destination.labelRes), maxLines = 1) },
+                        )
+                    }
+                }
+            }
+            Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.TopCenter) {
         NavHost(
             navController = navController,
             startDestination = CorrienteDestination.TRANSACTIONS.route,
-            // F2.4: корневой Scaffold отвечает за нижнюю панель; вложенные Scaffold'ы экранов
-            // применяют оставшиеся вставки к своим TopAppBar — consumeWindowInsets убирает двойной учёт.
-            modifier = Modifier.padding(padding).consumeWindowInsets(padding),
+            modifier = if (twoPane) Modifier.fillMaxSize() else Modifier.fillMaxHeight().widthIn(max = 840.dp).fillMaxWidth(),
         ) {
             composable(CorrienteDestination.TRANSACTIONS.route) {
+                if (twoPane) {
+                    TransactionsTwoPane(onCreateAccount = { navigateTo(CorrienteDestination.ACCOUNTS) })
+                    return@composable
+                }
                 TransactionsScreen(
                     onAddExpense = { navController.navigate("$TXN_ENTRY_ROUTE?kind=${EntryKind.EXPENSE.name}") },
                     onAddIncome = { navController.navigate("$TXN_ENTRY_ROUTE?kind=${EntryKind.INCOME.name}") },
@@ -270,6 +308,8 @@ fun CorrienteNavHost(deepLinkIntent: Intent? = null, onDeepLinkConsumed: () -> U
                     onDone = { navController.popBackStack() },
                     editingTxnId = entry.arguments?.getString("txnId"),
                 )
+            }
+        }
             }
         }
     }
