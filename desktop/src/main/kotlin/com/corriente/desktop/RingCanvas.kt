@@ -17,6 +17,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.corriente.data.usecase.MonthOverview
 import com.corriente.data.usecase.OverviewSlice
+import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.sin
 
@@ -56,43 +57,53 @@ fun RingWithIcons(overview: MonthOverview, onCategory: (String) -> Unit) {
 
 @Composable
 private fun Ring(slices: List<OverviewSlice>, modifier: Modifier) {
-    val trackColor = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.5f)
+    val trackColor = MaterialTheme.colorScheme.surfaceContainerHighest
     val uncategorized = MaterialTheme.colorScheme.outline
     // Доли — из уже посчитанных Long; дробные числа здесь — только координаты отрисовки (I-1).
     val total = slices.sumOf { it.valueMinor }.toDouble()
     Canvas(modifier) {
         val strokeWidth = size.minDimension / 6.5f
+        val trackStroke = Stroke(width = strokeWidth * 0.65f, cap = androidx.compose.ui.graphics.StrokeCap.Round)
         val stroke = Stroke(width = strokeWidth, cap = androidx.compose.ui.graphics.StrokeCap.Round)
         val inset = strokeWidth / 2f
         val arcSize = androidx.compose.ui.geometry.Size(size.width - strokeWidth, size.height - strokeWidth)
         val topLeft = androidx.compose.ui.geometry.Offset(inset, inset)
 
         // Фоновый трек кольца
-        drawArc(trackColor, 0f, 360f, useCenter = false, topLeft = topLeft, size = arcSize, style = stroke)
+        drawArc(trackColor, 0f, 360f, useCenter = false, topLeft = topLeft, size = arcSize, style = trackStroke)
 
         if (total <= 0.0) return@Canvas
 
         val positiveSlices = slices.filter { it.valueMinor > 0 }
         if (positiveSlices.isEmpty()) return@Canvas
 
+        val radius = (size.minDimension - strokeWidth) / 2f
+        val capDegrees = if (radius > 0f) {
+            Math.toDegrees(atan2((strokeWidth / 2f).toDouble(), radius.toDouble())).toFloat()
+        } else {
+            0f
+        }
         val gapDegrees = if (positiveSlices.size > 1) 4f else 0f
-        val totalGaps = gapDegrees * positiveSlices.size
-        val usableDegrees = (360f - totalGaps).coerceAtLeast(0f)
 
         var start = -90f
         positiveSlices.forEach { slice ->
-            val rawSweep = (slice.valueMinor / total * usableDegrees).toFloat()
-            val sweep = if (positiveSlices.size > 1) (rawSweep - 0.5f).coerceAtLeast(1f) else rawSweep
+            val rawSweep = (slice.valueMinor / total * 360.0).toFloat()
+            val arcStart = if (positiveSlices.size > 1) start + gapDegrees / 2f + capDegrees else start
+            val sweep = if (positiveSlices.size > 1) {
+                (rawSweep - gapDegrees - 2f * capDegrees).coerceAtLeast(0.5f)
+            } else {
+                rawSweep
+            }
             drawArc(
                 color = if (slice.color != 0) categoryColor(slice.color) else uncategorized,
-                startAngle = start,
+                startAngle = arcStart,
                 sweepAngle = sweep,
                 useCenter = false,
                 topLeft = topLeft,
                 size = arcSize,
                 style = stroke,
             )
-            start += rawSweep + gapDegrees
+            start += rawSweep
         }
     }
 }

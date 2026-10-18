@@ -171,7 +171,8 @@ fun ReportScreen(
                 }
             }
 
-            state.totalText?.let { totalText ->
+            val total = state.totalText
+            if (total != null) {
                 Surface(
                     shape = MaterialTheme.shapes.large,
                     color = MaterialTheme.colorScheme.surfaceContainerLow,
@@ -188,7 +189,7 @@ fun ReportScreen(
                                 style = MaterialTheme.typography.titleMedium,
                             )
                             com.corriente.app.ui.common.MoneyText(
-                                text = totalText,
+                                text = total,
                                 kind = if (state.kind == ReportKind.INCOME) com.corriente.app.ui.common.MoneyKind.INCOME else com.corriente.app.ui.common.MoneyKind.EXPENSE,
                                 style = MaterialTheme.typography.headlineSmall,
                                 deemphasizeFraction = true,
@@ -207,6 +208,10 @@ fun ReportScreen(
                             Text(stringResource(if (state.wholeCurrencyBudgetBar != null || state.categoryBudgetBars.isNotEmpty()) R.string.report_open_budgets else R.string.report_set_budget))
                         }
                     }
+                }
+            } else {
+                TextButton(onClick = onOpenBudgets, modifier = Modifier.padding(horizontal = 4.dp)) {
+                    Text(stringResource(if (state.wholeCurrencyBudgetBar != null || state.categoryBudgetBars.isNotEmpty()) R.string.report_open_budgets else R.string.report_set_budget))
                 }
             }
 

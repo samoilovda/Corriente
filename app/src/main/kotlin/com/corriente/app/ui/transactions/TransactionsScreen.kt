@@ -432,7 +432,7 @@ fun TransactionsScreen(
                 state.sections.forEach { section ->
                     stickyHeader(key = "h-${section.date}") { DayHeader(section) }
                     itemsIndexed(section.rows, key = { _, it -> it.id }) { index, row ->
-                        val shape = groupItemShape(index, section.rows.size, outer = 18.dp, inner = 4.dp)
+                        val shape = groupItemShape(index, section.rows.size)
                         SwipeableTxnRow(
                             row = row,
                             modifier = Modifier
@@ -532,27 +532,6 @@ private fun TxnRowItem(row: TxnRow, modifier: Modifier = Modifier, onClick: () -
                 ) {
                     CategoryGlyph(row.icon, row.title, badgeColor, size = 20.dp)
                 }
-                if (row.accountColor != 0) {
-                    Box(
-                        Modifier
-                            .align(Alignment.BottomEnd)
-                            .size(12.dp)
-                            .background(
-                                MaterialTheme.colorScheme.surfaceContainerLow,
-                                CircleShape,
-                            ),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Box(
-                            Modifier
-                                .size(8.dp)
-                                .background(
-                                    Color(row.accountColor),
-                                    CircleShape,
-                                ),
-                        )
-                    }
-                }
             } else {
                 Box(
                     Modifier
@@ -567,26 +546,26 @@ private fun TxnRowItem(row: TxnRow, modifier: Modifier = Modifier, onClick: () -
                         modifier = Modifier.size(22.dp),
                     )
                 }
-                if (row.accountColor != 0) {
+            }
+            if (row.accountColor != 0) {
+                Box(
+                    Modifier
+                        .align(Alignment.BottomEnd)
+                        .size(14.dp)
+                        .background(
+                            MaterialTheme.colorScheme.surfaceContainerLow,
+                            CircleShape,
+                        ),
+                    contentAlignment = Alignment.Center,
+                ) {
                     Box(
                         Modifier
-                            .align(Alignment.BottomEnd)
-                            .size(12.dp)
+                            .size(10.dp)
                             .background(
-                                MaterialTheme.colorScheme.surfaceContainerLow,
+                                Color(row.accountColor),
                                 CircleShape,
                             ),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Box(
-                            Modifier
-                                .size(8.dp)
-                                .background(
-                                    Color(row.accountColor),
-                                    CircleShape,
-                                ),
-                        )
-                    }
+                    )
                 }
             }
         }

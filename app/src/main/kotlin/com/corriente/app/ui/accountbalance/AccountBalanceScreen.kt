@@ -91,7 +91,8 @@ fun AccountBalanceScreen(
                 }
             }
 
-            state.currentBalanceText?.let { balanceText ->
+            val currentBalance = state.currentBalanceText
+            if (currentBalance != null) {
                 androidx.compose.material3.Surface(
                     shape = MaterialTheme.shapes.large,
                     color = MaterialTheme.colorScheme.surfaceContainerLow,
@@ -108,7 +109,7 @@ fun AccountBalanceScreen(
                                 style = MaterialTheme.typography.titleMedium,
                             )
                             com.corriente.app.ui.common.MoneyText(
-                                text = balanceText,
+                                text = currentBalance,
                                 kind = com.corriente.app.ui.common.MoneyKind.BALANCE,
                                 isNegativeBalance = state.points.lastOrNull()?.let { it.valueMinor < 0 } ?: false,
                                 style = MaterialTheme.typography.headlineSmall,
@@ -144,6 +145,12 @@ fun AccountBalanceScreen(
                         }
                     }
                 }
+            } else if (state.points.size < 2) {
+                Text(
+                    stringResource(R.string.account_balance_empty),
+                    Modifier.padding(24.dp),
+                    style = MaterialTheme.typography.bodyMedium,
+                )
             }
         }
     }

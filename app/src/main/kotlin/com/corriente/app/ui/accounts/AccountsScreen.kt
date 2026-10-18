@@ -226,7 +226,7 @@ private fun CurrencyTotalCard(card: CurrencyCard) {
                     kind = com.corriente.app.ui.common.MoneyKind.BALANCE,
                     isNegativeBalance = total.isNegative,
                     style = MaterialTheme.typography.headlineSmall,
-                    color = if (total.isNegative) com.corriente.app.ui.theme.LocalCorrienteColors.current.expense else androidx.compose.ui.graphics.Color.Unspecified,
+                    color = if (total.isNegative) com.corriente.app.ui.theme.LocalCorrienteColors.current.expense else MaterialTheme.colorScheme.onPrimaryContainer,
                     deemphasizeFraction = true,
                 )
             }
@@ -267,9 +267,9 @@ private fun AccountListRow(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            // Цветной круг счёта с иконкой (своя или по типу счёта) — не «пустой кружок», похожий на радиокнопку.
+            // Цветной бейдж счёта с иконкой (своя или по типу счёта) — не «пустой кружок», похожий на радиокнопку.
             Box(
-                Modifier.size(40.dp).background(if (color != 0) Color(color) else MaterialTheme.colorScheme.secondaryContainer, CircleShape),
+                Modifier.size(40.dp).background(if (color != 0) Color(color) else MaterialTheme.colorScheme.secondaryContainer, RoundedCornerShape(14.dp)),
                 contentAlignment = Alignment.Center,
             ) {
                 val tint = if (color != 0) Color.White else MaterialTheme.colorScheme.onSecondaryContainer
@@ -280,11 +280,15 @@ private fun AccountListRow(
                 }
             }
             Column(Modifier.weight(1f)) {
-                Text(title)
+                Text(title, style = MaterialTheme.typography.bodyLarge.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Medium))
                 Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             com.corriente.app.ui.common.MoneyText(
-                trailing, com.corriente.app.ui.common.MoneyKind.BALANCE, isNegativeBalance = trailingNegative,
+                trailing,
+                com.corriente.app.ui.common.MoneyKind.BALANCE,
+                isNegativeBalance = trailingNegative,
+                style = MaterialTheme.typography.titleMedium,
+                deemphasizeFraction = true,
             )
             // R3.2: график остатка счёта по дням — отдельный тап, не конфликтует с открытием
             // редактора счёта по тапу на всю строку.

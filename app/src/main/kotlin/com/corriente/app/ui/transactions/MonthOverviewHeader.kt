@@ -19,13 +19,15 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
@@ -50,19 +52,18 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
-
 import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.corriente.app.R
 import com.corriente.app.ui.common.CategoryGlyph
+import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.sin
 
@@ -169,41 +170,45 @@ fun MonthOverviewHeader(
         }
 
         Row(
-            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
+            Modifier.fillMaxWidth().height(IntrinsicSize.Max).padding(horizontal = 16.dp, vertical = 6.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             MonthAmountCard(
                 label = stringResource(R.string.overview_expenses_for, monthLabel),
                 amount = overview.expenseText,
                 kind = com.corriente.app.ui.common.MoneyKind.EXPENSE,
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.weight(1f).fillMaxHeight(),
             )
             MonthAmountCard(
                 label = stringResource(R.string.overview_income_for, monthLabel),
                 amount = overview.incomeText,
                 kind = com.corriente.app.ui.common.MoneyKind.INCOME,
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.weight(1f).fillMaxHeight(),
             )
         }
 
         Surface(
             onClick = onBalanceClick,
             shape = MaterialTheme.shapes.medium,
-            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.55f),
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
         ) {
             Row(
-                Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(stringResource(R.string.overview_balance), style = MaterialTheme.typography.titleSmall)
+                Text(
+                    stringResource(R.string.overview_balance),
+                    style = MaterialTheme.typography.titleSmall,
+                    modifier = Modifier.weight(1f),
+                )
                 com.corriente.app.ui.common.MoneyText(
                     overview.balanceText,
                     com.corriente.app.ui.common.MoneyKind.BALANCE,
                     isNegativeBalance = overview.balanceNegative,
                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
-                    color = if (overview.balanceNegative) com.corriente.app.ui.theme.LocalCorrienteColors.current.expense else MaterialTheme.colorScheme.onSurface,
+                    color = if (overview.balanceNegative) com.corriente.app.ui.theme.LocalCorrienteColors.current.expense else MaterialTheme.colorScheme.onSecondaryContainer,
                     deemphasizeFraction = true,
                 )
             }
@@ -220,16 +225,15 @@ private fun MonthAmountCard(label: String, amount: String, kind: com.corriente.a
         modifier = modifier,
     ) {
         Column(
-            Modifier.padding(horizontal = 12.dp, vertical = 10.dp).semantics(mergeDescendants = true) {},
+            Modifier.padding(12.dp).semantics(mergeDescendants = true) {},
             horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
         ) {
             Text(
                 label,
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
             )
             com.corriente.app.ui.common.MoneyText(
                 amount,
@@ -237,7 +241,7 @@ private fun MonthAmountCard(label: String, amount: String, kind: com.corriente.a
                 style = MaterialTheme.typography.titleMedium,
                 textAlign = TextAlign.Center,
                 deemphasizeFraction = true,
-                maxLines = 1,
+                maxLines = 2,
             )
         }
     }
@@ -245,7 +249,7 @@ private fun MonthAmountCard(label: String, amount: String, kind: com.corriente.a
 
 @Composable
 private fun Ring(slices: List<OverviewSlice>, modifier: Modifier) {
-    val trackColor = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.5f)
+    val trackColor = MaterialTheme.colorScheme.surfaceContainerHighest
     val uncategorized = MaterialTheme.colorScheme.outline
     // Float — только координаты отрисовки (I-1); доли считаются из уже посчитанных Long.
     val fractions = com.corriente.app.ui.report.ChartGeometry.fractionsOfTotal(slices.map { it.valueMinor })
@@ -257,10 +261,11 @@ private fun Ring(slices: List<OverviewSlice>, modifier: Modifier) {
 
     Canvas(modifier) {
         val strokeWidth = size.minDimension / 6.5f
-        val stroke = Stroke(width = strokeWidth, cap = if (activeCount > 1) StrokeCap.Round else StrokeCap.Butt)
-        val inset = strokeWidth / 2
+        val inset = strokeWidth / 2f
         val arcSize = androidx.compose.ui.geometry.Size(size.width - strokeWidth, size.height - strokeWidth)
         val topLeft = androidx.compose.ui.geometry.Offset(inset, inset)
+        val radius = (size.minDimension - strokeWidth) / 2f
+        val capDegrees = Math.toDegrees(atan2((strokeWidth / 2f).toDouble(), radius.toDouble())).toFloat()
 
         drawArc(
             trackColor,
@@ -269,7 +274,7 @@ private fun Ring(slices: List<OverviewSlice>, modifier: Modifier) {
             useCenter = false,
             topLeft = topLeft,
             size = arcSize,
-            style = Stroke(width = strokeWidth * 0.7f),
+            style = Stroke(width = strokeWidth * 0.65f),
         )
 
         if (fractions.all { it == 0.0 }) {
@@ -281,12 +286,32 @@ private fun Ring(slices: List<OverviewSlice>, modifier: Modifier) {
             val fraction = fractions[i]
             if (fraction > 0.0) {
                 val fullSweep = (fraction * 360.0).toFloat() * reveal.value
-                val sweep = if (fullSweep > gap && activeCount > 1) fullSweep - gap else fullSweep
-                val color = when {
-                    slice.color != 0 -> Color(slice.color)
-                    else -> uncategorized
+                val color = if (slice.color != 0) Color(slice.color) else uncategorized
+                if (activeCount == 1) {
+                    val cap = if (fullSweep < 359f) StrokeCap.Round else StrokeCap.Butt
+                    drawArc(color, start, fullSweep, useCenter = false, topLeft = topLeft, size = arcSize, style = Stroke(width = strokeWidth, cap = cap))
+                } else if (fullSweep > gap + capDegrees * 2f) {
+                    drawArc(
+                        color = color,
+                        startAngle = start + gap / 2f + capDegrees,
+                        sweepAngle = fullSweep - gap - capDegrees * 2f,
+                        useCenter = false,
+                        topLeft = topLeft,
+                        size = arcSize,
+                        style = Stroke(width = strokeWidth, cap = StrokeCap.Round),
+                    )
+                } else {
+                    val buttSweep = (fullSweep - gap).coerceAtLeast(1.5f)
+                    drawArc(
+                        color = color,
+                        startAngle = start + (fullSweep - buttSweep) / 2f,
+                        sweepAngle = buttSweep,
+                        useCenter = false,
+                        topLeft = topLeft,
+                        size = arcSize,
+                        style = Stroke(width = strokeWidth, cap = StrokeCap.Butt),
+                    )
                 }
-                drawArc(color, start + (gap / 2f), sweep, useCenter = false, topLeft = topLeft, size = arcSize, style = stroke)
                 start += fullSweep
             }
         }

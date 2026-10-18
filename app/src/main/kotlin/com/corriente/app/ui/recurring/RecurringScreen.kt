@@ -1,6 +1,5 @@
 package com.corriente.app.ui.recurring
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -26,7 +25,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedTextField
@@ -171,12 +169,12 @@ fun RecurringScreen(
                 }
                 items(state.rows, key = { it.id }) { row ->
                     Surface(
+                        onClick = { viewModel.startEdit(row.id) },
                         shape = MaterialTheme.shapes.large,
                         color = MaterialTheme.colorScheme.surfaceContainerLow,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 4.dp)
-                            .clickable { viewModel.startEdit(row.id) },
+                            .padding(horizontal = 16.dp, vertical = 4.dp),
                     ) {
                         Row(
                             modifier = Modifier.padding(16.dp),

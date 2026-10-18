@@ -42,7 +42,6 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -77,13 +76,14 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.LocalContentColor
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.Surface
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
@@ -498,8 +498,8 @@ private fun CategoryField(category: Category?, enabled: Boolean, onClick: () -> 
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            if (category != null && !category.icon.isNullOrBlank()) {
-                val tint = if (category.color != 0) Color(category.color) else MaterialTheme.colorScheme.onSurfaceVariant
+            if (category != null) {
+                val tint = if (category.color != 0) Color(category.color) else MaterialTheme.colorScheme.primary
                 Box(
                     modifier = Modifier.size(32.dp).background(tint.copy(alpha = 0.18f), RoundedCornerShape(10.dp)),
                     contentAlignment = Alignment.Center,
@@ -562,6 +562,7 @@ private fun CategoryGrid(
                     text = stringResource(R.string.txn_entry_no_category),
                     icon = null,
                     color = 0,
+                    showGlyph = false,
                     selected = selectedId == null,
                     onClick = { onSelect(null) },
                 )
@@ -571,6 +572,7 @@ private fun CategoryGrid(
                     text = if (category.isArchived) archivedFmt.format(category.name) else category.name,
                     icon = category.icon?.takeIf { it.isNotBlank() },
                     color = category.color,
+                    showGlyph = true,
                     selected = selectedId == category.id,
                     onClick = { onSelect(category.id) },
                 )
@@ -594,6 +596,7 @@ private fun CategoryCell(
     text: String,
     icon: String?,
     color: Int,
+    showGlyph: Boolean,
     selected: Boolean,
     onClick: () -> Unit,
 ) {
@@ -612,6 +615,7 @@ private fun CategoryCell(
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(min = 52.dp)
+            .clip(shape)
             .background(bgColor, shape)
             .then(borderModifier)
             // U08: TalkBack слышит «выбрано» — выбор виден не только рамкой.
@@ -625,7 +629,7 @@ private fun CategoryCell(
             Modifier.size(32.dp).background(tint.copy(alpha = 0.18f), CircleShape),
             contentAlignment = Alignment.Center,
         ) {
-            if (icon != null) CategoryGlyph(icon, text, tint, size = 18.dp)
+            if (showGlyph) CategoryGlyph(icon, text, tint, size = 18.dp)
         }
         Text(
             text,
@@ -712,7 +716,8 @@ private fun AmountBar(
                 Surface(
                     onClick = { menuOpen = true },
                     shape = RoundedCornerShape(16.dp),
-                    color = LocalContentColor.current.copy(alpha = 0.14f),
+                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.65f),
+                    contentColor = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.heightIn(min = 48.dp).semantics { contentDescription = accountDescription },
                 ) {
                     Row(
@@ -732,11 +737,6 @@ private fun AmountBar(
                     onSelect = { onSelectAccount(it); menuOpen = false },
                 )
             }
-            val amountFontSize = when {
-                amountText.length <= 7 -> 40.sp
-                amountText.length <= 11 -> 32.sp
-                else -> 26.sp
-            }
             // UI-3.1: короткий кросс-фейд при вводе цифры.
             AnimatedContent(
                 targetState = amountText,
@@ -745,10 +745,18 @@ private fun AmountBar(
                 label = "amount-text",
                 modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
             ) { shown ->
+                val amountFontSize = when {
+                    shown.length > 13 -> 26.sp
+                    shown.length > 9 -> 32.sp
+                    else -> 40.sp
+                }
                 Text(
                     text = shown,
-                    fontSize = amountFontSize,
-                    fontWeight = FontWeight.SemiBold,
+                    style = LocalTextStyle.current.copy(
+                        fontSize = amountFontSize,
+                        fontWeight = FontWeight.SemiBold,
+                        fontFeatureSettings = "tnum",
+                    ),
                     maxLines = 1,
                     softWrap = false,
                     textAlign = TextAlign.End,

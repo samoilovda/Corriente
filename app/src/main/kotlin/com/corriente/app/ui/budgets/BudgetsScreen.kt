@@ -1,6 +1,5 @@
 package com.corriente.app.ui.budgets
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -28,7 +27,6 @@ import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedTextField
@@ -122,12 +120,12 @@ fun BudgetsScreen(
                     }
                 items(rowsOfCurrency, key = { it.id }) { row ->
                     Surface(
+                        onClick = { viewModel.startEdit(row.id) },
                         shape = MaterialTheme.shapes.large,
                         color = MaterialTheme.colorScheme.surfaceContainerLow,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 6.dp)
-                            .clickable { viewModel.startEdit(row.id) },
+                            .padding(horizontal = 16.dp, vertical = 6.dp),
                     ) {
                         Column(
                             modifier = Modifier.padding(16.dp),

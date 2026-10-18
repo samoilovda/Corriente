@@ -20,6 +20,7 @@ import androidx.glance.appwidget.action.actionStartActivity
 import androidx.glance.appwidget.cornerRadius
 import androidx.glance.appwidget.provideContent
 import androidx.glance.background
+import androidx.glance.layout.Box
 import androidx.glance.layout.Column
 import androidx.glance.layout.Row
 import androidx.glance.layout.Spacer
@@ -141,31 +142,38 @@ private fun LargeBody(snapshot: WidgetSnapshot, context: Context) {
         snapshot.quickCategories.chunked(3).forEach { row ->
             Row(modifier = GlanceModifier.fillMaxWidth()) {
                 row.forEach { category ->
-                    Text(
-                        // Линейная иконка (`mi:…`) в Glance-тексте не рисуется — для неё, как и без иконки, буквы названия.
-                        text = category.icon?.takeIf { it.isNotBlank() && com.corriente.data.category.materialIconKey(it) == null }
-                            ?: category.name.take(8),
-                        style = TextStyle(
-                            color = GlanceTheme.colors.onSecondaryContainer,
-                            fontWeight = FontWeight.Medium,
-                            fontSize = 12.sp,
-                            textAlign = TextAlign.Center,
-                        ),
+                    // В Glance (RemoteViews) два .padding() на одном узле складываются во внутренний
+                    // padding TextView, а .background() заливает всю область без внешнего зазора.
+                    // Внешний Box даёт реальный отступ между капсулами.
+                    Box(
                         modifier = GlanceModifier
                             .defaultWeight()
-                            .padding(horizontal = 3.dp, vertical = 2.dp)
-                            .background(GlanceTheme.colors.secondaryContainer)
-                            .cornerRadius(12.dp)
-                            .padding(horizontal = 6.dp, vertical = 6.dp)
-                            .clickable(
-                                actionStartActivity(
-                                    quickExpenseIntent(context.packageName, category.id, category.name),
-                                ),
+                            .padding(horizontal = 3.dp, vertical = 2.dp),
+                    ) {
+                        Text(
+                            // Линейная иконка (`mi:…`) в Glance-тексте не рисуется — для неё, как и без иконки, буквы названия.
+                            text = category.icon?.takeIf { it.isNotBlank() && com.corriente.data.category.materialIconKey(it) == null }
+                                ?: category.name.take(8),
+                            style = TextStyle(
+                                color = GlanceTheme.colors.onSecondaryContainer,
+                                fontWeight = FontWeight.Medium,
+                                fontSize = 12.sp,
+                                textAlign = TextAlign.Center,
                             ),
-                    )
+                            modifier = GlanceModifier
+                                .fillMaxWidth()
+                                .background(GlanceTheme.colors.secondaryContainer)
+                                .cornerRadius(12.dp)
+                                .padding(horizontal = 6.dp, vertical = 6.dp)
+                                .clickable(
+                                    actionStartActivity(
+                                        quickExpenseIntent(context.packageName, category.id, category.name),
+                                    ),
+                                ),
+                        )
+                    }
                 }
             }
-            Spacer(GlanceModifier.height(4.dp))
         }
     }
 }

@@ -216,7 +216,7 @@ fun CategoryDonut(slices: List<CategorySlice>, currencyCode: String, periodLabel
     if (positive.isEmpty()) return
     val fractions = ChartGeometry.fractionsOfTotal(positive.map { it.valueMinor })
     val noCategory = stringResource(R.string.report_no_category)
-    val trackColor = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.5f)
+    val trackColor = MaterialTheme.colorScheme.surfaceContainerHighest
 
     Column(modifier.fillMaxWidth().padding(16.dp)) {
         Text(
@@ -226,10 +226,12 @@ fun CategoryDonut(slices: List<CategorySlice>, currencyCode: String, periodLabel
         )
         Row(verticalAlignment = Alignment.CenterVertically) {
             Canvas(Modifier.size(120.dp).clearAndSetSemantics { }) {
-                val stroke = size.minDimension / 4f
-                val gapDegrees = if (positive.size > 1) 4f else 0f
-                val totalGaps = gapDegrees * positive.size
-                val usableDegrees = (360f - totalGaps).coerceAtLeast(0f)
+                val stroke = size.minDimension / 5f
+                val topLeft = Offset(stroke / 2f, stroke / 2f)
+                val arcSize = Size(size.width - stroke, size.height - stroke)
+                val radius = (size.minDimension - stroke) / 2f
+                val capDegrees = Math.toDegrees(kotlin.math.atan2((stroke / 2f).toDouble(), radius.toDouble())).toFloat()
+                val gap = if (positive.size > 1) 4f else 0f
 
                 // Фоновый трек кольца
                 drawArc(
@@ -237,25 +239,48 @@ fun CategoryDonut(slices: List<CategorySlice>, currencyCode: String, periodLabel
                     startAngle = 0f,
                     sweepAngle = 360f,
                     useCenter = false,
-                    topLeft = Offset(stroke / 2f, stroke / 2f),
-                    size = Size(size.width - stroke, size.height - stroke),
-                    style = Stroke(width = stroke),
+                    topLeft = topLeft,
+                    size = arcSize,
+                    style = Stroke(width = stroke * 0.65f),
                 )
 
                 var startAngle = -90f
                 positive.forEachIndexed { i, slice ->
-                    val rawSweep = (fractions[i] * usableDegrees).toFloat()
-                    val sweep = if (positive.size > 1) (rawSweep - 0.5f).coerceAtLeast(1f) else rawSweep
-                    drawArc(
-                        color = sliceColor(slice.color, i),
-                        startAngle = startAngle,
-                        sweepAngle = sweep,
-                        useCenter = false,
-                        topLeft = Offset(stroke / 2f, stroke / 2f),
-                        size = Size(size.width - stroke, size.height - stroke),
-                        style = Stroke(width = stroke, cap = StrokeCap.Round),
-                    )
-                    startAngle += rawSweep + gapDegrees
+                    val fullSweep = (fractions[i] * 360.0).toFloat()
+                    val color = sliceColor(slice.color, i)
+                    if (positive.size == 1) {
+                        drawArc(
+                            color = color,
+                            startAngle = startAngle,
+                            sweepAngle = fullSweep,
+                            useCenter = false,
+                            topLeft = topLeft,
+                            size = arcSize,
+                            style = Stroke(width = stroke, cap = StrokeCap.Butt),
+                        )
+                    } else if (fullSweep > gap + capDegrees * 2f) {
+                        drawArc(
+                            color = color,
+                            startAngle = startAngle + gap / 2f + capDegrees,
+                            sweepAngle = fullSweep - gap - capDegrees * 2f,
+                            useCenter = false,
+                            topLeft = topLeft,
+                            size = arcSize,
+                            style = Stroke(width = stroke, cap = StrokeCap.Round),
+                        )
+                    } else {
+                        val buttSweep = (fullSweep - gap).coerceAtLeast(1.5f)
+                        drawArc(
+                            color = color,
+                            startAngle = startAngle + (fullSweep - buttSweep) / 2f,
+                            sweepAngle = buttSweep,
+                            useCenter = false,
+                            topLeft = topLeft,
+                            size = arcSize,
+                            style = Stroke(width = stroke, cap = StrokeCap.Butt),
+                        )
+                    }
+                    startAngle += fullSweep
                 }
             }
             Column(Modifier.padding(start = 16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
