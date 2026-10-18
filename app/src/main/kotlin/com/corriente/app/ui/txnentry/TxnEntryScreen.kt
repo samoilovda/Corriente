@@ -33,10 +33,13 @@ import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -272,23 +275,32 @@ fun TxnEntryScreen(
                             }
                         }
 
-                        Row(
-                            Modifier.fillMaxWidth().padding(top = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically,
+                        Surface(
+                            shape = MaterialTheme.shapes.medium,
+                            color = MaterialTheme.colorScheme.surfaceContainerLow,
+                            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
                         ) {
-                            Icon(Icons.Outlined.Edit, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                            Spacer(Modifier.width(8.dp))
-                            TextField(
-                                value = state.note,
-                                onValueChange = viewModel::setNote,
-                                placeholder = { Text(stringResource(R.string.txn_entry_note)) },
-                                singleLine = true,
-                                colors = TextFieldDefaults.colors(
-                                    focusedContainerColor = Color.Transparent,
-                                    unfocusedContainerColor = Color.Transparent,
-                                ),
-                                modifier = Modifier.weight(1f),
-                            )
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 2.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Icon(Icons.Outlined.Edit, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                                Spacer(Modifier.width(8.dp))
+                                TextField(
+                                    value = state.note,
+                                    onValueChange = viewModel::setNote,
+                                    placeholder = { Text(stringResource(R.string.txn_entry_note)) },
+                                    singleLine = true,
+                                    colors = TextFieldDefaults.colors(
+                                        focusedContainerColor = Color.Transparent,
+                                        unfocusedContainerColor = Color.Transparent,
+                                        focusedIndicatorColor = Color.Transparent,
+                                        unfocusedIndicatorColor = Color.Transparent,
+                                        disabledIndicatorColor = Color.Transparent,
+                                    ),
+                                    modifier = Modifier.weight(1f),
+                                )
+                            }
                         }
 
                         // R2.2: «частые» — тап заполняет вид/счёт/категорию/сумму целиком.
@@ -470,21 +482,41 @@ private val ROOMY_HEIGHT = 600.dp
 private fun CategoryField(category: Category?, enabled: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val label = stringResource(R.string.txn_entry_category)
     val value = category?.name ?: stringResource(R.string.txn_entry_no_category)
-    OutlinedButton(
+    val surfaceColor = if (category != null && category.color != 0) {
+        Color(category.color).copy(alpha = 0.14f)
+    } else {
+        MaterialTheme.colorScheme.surfaceContainerHigh
+    }
+    Surface(
         onClick = onClick,
         enabled = enabled,
         shape = MaterialTheme.shapes.large,
-        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+        color = surfaceColor,
         modifier = modifier.heightIn(min = 56.dp).semantics { contentDescription = "$label: $value" },
     ) {
-        if (category != null && !category.icon.isNullOrBlank()) {
-            val tint = if (category.color != 0) Color(category.color) else MaterialTheme.colorScheme.onSurfaceVariant
-            CategoryGlyph(category.icon, category.name, tint, size = 22.dp)
-            Spacer(Modifier.width(8.dp))
-        }
-        Column(Modifier.weight(1f, fill = false)) {
-            Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text(value, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        Row(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (category != null && !category.icon.isNullOrBlank()) {
+                val tint = if (category.color != 0) Color(category.color) else MaterialTheme.colorScheme.onSurfaceVariant
+                Box(
+                    modifier = Modifier.size(32.dp).background(tint.copy(alpha = 0.18f), RoundedCornerShape(10.dp)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    CategoryGlyph(category.icon, category.name, tint, size = 20.dp)
+                }
+                Spacer(Modifier.width(10.dp))
+            }
+            Column(Modifier.weight(1f, fill = false)) {
+                Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    value,
+                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
         }
     }
 }
@@ -565,21 +597,28 @@ private fun CategoryCell(
     selected: Boolean,
     onClick: () -> Unit,
 ) {
-    val borderColor = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant
+    val shape = RoundedCornerShape(16.dp)
+    val bgColor = if (selected) {
+        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
+    } else {
+        MaterialTheme.colorScheme.surfaceContainerLow
+    }
+    val borderModifier = if (selected) {
+        Modifier.border(2.dp, MaterialTheme.colorScheme.primary, shape)
+    } else {
+        Modifier
+    }
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .heightIn(min = 48.dp)
-            .border(
-                width = if (selected) 2.dp else 1.dp,
-                color = borderColor,
-                shape = RoundedCornerShape(10.dp),
-            )
+            .heightIn(min = 52.dp)
+            .background(bgColor, shape)
+            .then(borderModifier)
             // U08: TalkBack слышит «выбрано» — выбор виден не только рамкой.
             .selectable(selected = selected, role = Role.RadioButton, onClick = onClick)
             .padding(vertical = 8.dp, horizontal = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(2.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         val tint = if (color != 0) Color(color) else MaterialTheme.colorScheme.onSurfaceVariant
         Box(
@@ -591,6 +630,7 @@ private fun CategoryCell(
         Text(
             text,
             style = MaterialTheme.typography.labelSmall,
+            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
             textAlign = TextAlign.Center,
@@ -671,8 +711,8 @@ private fun AmountBar(
             Box {
                 Surface(
                     onClick = { menuOpen = true },
-                    shape = CircleShape,
-                    color = LocalContentColor.current.copy(alpha = 0.12f),
+                    shape = RoundedCornerShape(16.dp),
+                    color = LocalContentColor.current.copy(alpha = 0.14f),
                     modifier = Modifier.heightIn(min = 48.dp).semantics { contentDescription = accountDescription },
                 ) {
                     Row(
@@ -692,6 +732,11 @@ private fun AmountBar(
                     onSelect = { onSelectAccount(it); menuOpen = false },
                 )
             }
+            val amountFontSize = when {
+                amountText.length <= 7 -> 40.sp
+                amountText.length <= 11 -> 32.sp
+                else -> 26.sp
+            }
             // UI-3.1: короткий кросс-фейд при вводе цифры.
             AnimatedContent(
                 targetState = amountText,
@@ -702,8 +747,8 @@ private fun AmountBar(
             ) { shown ->
                 Text(
                     text = shown,
-                    fontSize = 40.sp,
-                    fontWeight = FontWeight.Normal,
+                    fontSize = amountFontSize,
+                    fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
                     softWrap = false,
                     textAlign = TextAlign.End,
@@ -756,6 +801,26 @@ private fun Keypad(
                         // UI-2.7: «=» появляется, только когда есть что вычислять; место остаётся пустым.
                         Spacer(Modifier.weight(1f).height(keyHeight))
                     } else {
+                        val interactionSource = remember { MutableInteractionSource() }
+                        val isPressed by interactionSource.collectIsPressedAsState()
+                        val keyRadius by animateDpAsState(
+                            targetValue = if (isPressed) 12.dp else 24.dp,
+                            label = "keypad-shape",
+                        )
+                        val buttonColors = when {
+                            key == "=" -> ButtonDefaults.buttonColors(
+                                containerColor = colors.primary,
+                                contentColor = colors.onPrimary,
+                            )
+                            isOp -> ButtonDefaults.filledTonalButtonColors(
+                                containerColor = colors.secondaryContainer,
+                                contentColor = colors.onSecondaryContainer,
+                            )
+                            else -> ButtonDefaults.filledTonalButtonColors(
+                                containerColor = colors.surfaceContainerLow,
+                                contentColor = colors.onSurface,
+                            )
+                        }
                         FilledTonalButton(
                             onClick = {
                                 haptic.performHapticFeedback(HapticFeedbackType.VirtualKey)
@@ -769,15 +834,9 @@ private fun Keypad(
                                     else -> onDigit(key[0])
                                 }
                             },
-                            shape = MaterialTheme.shapes.large,
-                            colors = when {
-                                key == "=" -> ButtonDefaults.buttonColors()
-                                isOp -> ButtonDefaults.filledTonalButtonColors()
-                                else -> ButtonDefaults.filledTonalButtonColors(
-                                    containerColor = colors.surfaceContainerHigh,
-                                    contentColor = colors.onSurface,
-                                )
-                            },
+                            shape = RoundedCornerShape(keyRadius),
+                            colors = buttonColors,
+                            interactionSource = interactionSource,
                             contentPadding = PaddingValues(0.dp),
                             modifier = Modifier.weight(1f).height(keyHeight)
                                 .then(spoken[key]?.let { label -> Modifier.semantics { contentDescription = label } } ?: Modifier),
