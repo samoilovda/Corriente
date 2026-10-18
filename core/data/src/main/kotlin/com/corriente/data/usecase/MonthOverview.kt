@@ -25,7 +25,7 @@ data class OverviewIcon(
 )
 
 /** Сегмент кольца; [color] == 0 у «Без категории» — экран красит его нейтральным цветом. */
-data class OverviewSlice(val valueMinor: Long, val color: Int)
+data class OverviewSlice(val valueMinor: Long, val color: Int, val categoryId: String? = null)
 
 /**
  * Шапка «Операций» в духе Monefy: расходы месяца кольцом по категориям, доход/расход в центре, баланс под кольцом.
@@ -131,7 +131,7 @@ fun buildMonthOverview(
         expenseText = MoneyFormatter.format(expense, currency),
         balanceText = MoneyFormatter.format(balance, currency),
         balanceNegative = balance.amount.raw < 0,
-        slices = spent.map { (id, money) -> OverviewSlice(money.amount.raw, id?.let { categoryById[it]?.color } ?: 0) },
+        slices = spent.map { (id, money) -> OverviewSlice(money.amount.raw, id?.let { categoryById[it]?.color } ?: 0, id) },
         icons = icons,
         currencyOptions = currencyOptions,
         accountOptions = active,

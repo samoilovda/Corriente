@@ -585,13 +585,24 @@ private fun TxnRowItem(row: TxnRow, modifier: Modifier = Modifier, onClick: () -
                     overflow = TextOverflow.Ellipsis,
                 )
             }
+            // Перевод: «сумма → сумма» длинная, поэтому уходит под название и не обрезает имена счетов.
+            if (row.isTransfer) {
+                com.corriente.app.ui.common.MoneyText(
+                    row.amountText,
+                    row.kind,
+                    style = MaterialTheme.typography.titleSmall,
+                    deemphasizeFraction = true,
+                )
+            }
         }
-        com.corriente.app.ui.common.MoneyText(
-            row.amountText,
-            row.kind,
-            style = MaterialTheme.typography.titleMedium,
-            deemphasizeFraction = true,
-        )
+        if (!row.isTransfer) {
+            com.corriente.app.ui.common.MoneyText(
+                row.amountText,
+                row.kind,
+                style = MaterialTheme.typography.titleMedium,
+                deemphasizeFraction = true,
+            )
+        }
     }
 }
 

@@ -49,6 +49,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -133,7 +134,7 @@ fun MonthOverviewHeader(
                 .ifEmpty { stringResource(R.string.overview_ring_empty) },
         )
         Box(Modifier.size(HEADER_SIZE), contentAlignment = Alignment.Center) {
-            Ring(overview.slices, Modifier.size(RING_SIZE).clearAndSetSemantics { contentDescription = ringDescription })
+            Ring(overview.slices, overview.icons, Modifier.size(RING_SIZE).clearAndSetSemantics { contentDescription = ringDescription })
             Column(
                 modifier = Modifier.width(RING_SIZE - 36.dp).clearAndSetSemantics {},
                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -248,7 +249,7 @@ private fun MonthAmountCard(label: String, amount: String, kind: com.corriente.a
 }
 
 @Composable
-private fun Ring(slices: List<OverviewSlice>, modifier: Modifier) {
+private fun Ring(slices: List<OverviewSlice>, icons: List<OverviewIcon>, modifier: Modifier) {
     val trackColor = MaterialTheme.colorScheme.surfaceContainerHighest
     val uncategorized = MaterialTheme.colorScheme.outline
     // Float — только координаты отрисовки (I-1); доли считаются из уже посчитанных Long.
@@ -286,7 +287,14 @@ private fun Ring(slices: List<OverviewSlice>, modifier: Modifier) {
             val fraction = fractions[i]
             if (fraction > 0.0) {
                 val fullSweep = (fraction * 360.0).toFloat() * reveal.value
-                val color = if (slice.color != 0) Color(slice.color) else uncategorized
+                val iconIndex = icons.indexOfFirst { it.categoryId != null && it.categoryId == slice.categoryId }
+                val color = when {
+                    slice.color != 0 -> Color(slice.color)
+                    // Цвет дуги совпадает с цветом иконки на орбите (там та же палитра по индексу).
+                    iconIndex >= 0 -> FALLBACK[iconIndex % FALLBACK.size]
+                    slice.categoryId != null -> FALLBACK[(icons.size + i) % FALLBACK.size]
+                    else -> uncategorized
+                }
                 if (activeCount == 1) {
                     val cap = if (fullSweep < 359f) StrokeCap.Round else StrokeCap.Butt
                     drawArc(color, start, fullSweep, useCenter = false, topLeft = topLeft, size = arcSize, style = Stroke(width = strokeWidth, cap = cap))
@@ -324,6 +332,8 @@ private fun CategoryIcon(icon: OverviewIcon, fallback: Color, onClick: () -> Uni
     Column(
         modifier
             .width(ICON_SIZE + 18.dp)
+            // Категории без трат за месяц приглушены, чтобы акцент оставался на тех, что в кольце.
+            .alpha(if (icon.percent == null) 0.55f else 1f)
             .semantics { contentDescription = icon.name }
             .clickable(onClick = onClick),
         horizontalAlignment = Alignment.CenterHorizontally,
