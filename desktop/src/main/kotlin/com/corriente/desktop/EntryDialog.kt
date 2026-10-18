@@ -50,6 +50,9 @@ import androidx.compose.ui.unit.dp
 import com.corriente.data.db.entity.CategoryKind
 import com.corriente.data.model.Txn
 import com.corriente.money.AmountInput
+import com.corriente.money.AmountParse
+import com.corriente.money.AmountParseError
+import com.corriente.money.StrictAmountParser
 import com.corriente.money.Money
 import kotlinx.coroutines.launch
 import java.time.LocalDate
@@ -90,6 +93,15 @@ fun EntryDialog(c: DesktopContainer, request: EntryRequest, onDone: () -> Unit) 
     var dateText by remember { mutableStateOf((editing?.date ?: LocalDate.now()).toString()) }
     var note by remember { mutableStateOf(editing?.note.orEmpty()) }
     var error by remember { mutableStateOf<String?>(null) }
+    // U13: запись в полёте — второй Enter/клик до закрытия окна не создаёт дубль.
+    var saving by remember { mutableStateOf(false) }
+    var confirmDiscard by remember { mutableStateOf(false) }
+    // U13: исходные значения формы — Esc на изменённой форме спрашивает, а не теряет ввод молча.
+    var initialAmountText by remember { mutableStateOf("") }
+    val initialIncome = remember { income }
+    val initialCategoryId = remember { categoryId }
+    val initialDateText = remember { dateText }
+    val initialNote = remember { note }
 
     // Счёт по умолчанию — первый активный; сумма при правке — из операции в валюте её счёта.
     LaunchedEffect(accounts, currencies) {
@@ -101,7 +113,10 @@ fun EntryDialog(c: DesktopContainer, request: EntryRequest, onDone: () -> Unit) 
                 is Txn.Transfer -> null
             }
             val currency = money?.let { currencyOf(it.currency, currencies.associateBy { c -> c.code.code }) }
-            if (money != null && currency != null) amountText = AmountInput.fromMinor(money.amount, currency).displayText()
+            if (money != null && currency != null) {
+                amountText = AmountInput.fromMinor(money.amount, currency).displayText()
+                initialAmountText = amountText
+            }
         }
     }
 
@@ -110,14 +125,35 @@ fun EntryDialog(c: DesktopContainer, request: EntryRequest, onDone: () -> Unit) 
     val kind = if (income) CategoryKind.INCOME else CategoryKind.EXPENSE
     val choices = categories.filter { it.kind == kind }
 
+    val dirty = amountText != initialAmountText || note != initialNote || dateText != initialDateText ||
+        categoryId != initialCategoryId || income != initialIncome
+
+    fun requestClose() {
+        if (dirty && !saving) confirmDiscard = true else onDone()
+    }
+
     fun save() {
+        if (saving) return
         val cur = currency ?: return run { error = "Выберите счёт" }
-        val minor = AmountInput.fromText(amountText.replace(',', '.').replace(" ", ""), cur).toMinorOrNull(cur)
+        // U01/U13: тот же строгий разбор, что у фильтра на Android — лишние знаки и мусор не обрезаются молча.
+        val minor = when (val parsed = StrictAmountParser.parse(amountText, cur)) {
+            is AmountParse.Value -> parsed.minor
+            AmountParse.Empty -> null
+            is AmountParse.Invalid -> return run {
+                error = when (parsed.error) {
+                    AmountParseError.TOO_MANY_DECIMALS ->
+                        if (cur.minorUnits == 0) "У ${cur.code.code} нет дробной части" else "У ${cur.code.code} не больше ${cur.minorUnits} знаков после запятой"
+                    AmountParseError.OVERFLOW -> "Слишком большое число"
+                    AmountParseError.NEGATIVE, AmountParseError.NOT_A_NUMBER -> "Введите сумму больше нуля"
+                }
+            }
+        }
         if (minor == null || minor.raw <= 0) return run { error = "Введите сумму больше нуля" }
         val date = runCatching { LocalDate.parse(dateText.trim()) }.getOrNull() ?: return run { error = "Дата в формате ГГГГ-ММ-ДД" }
         val money = Money(minor, cur.code)
         val cat = categoryId?.takeIf { id -> choices.any { it.id == id } }
         val text = note.trim().ifBlank { null }
+        saving = true
         scope.launch {
             runCatching {
                 when {
@@ -125,22 +161,40 @@ fun EntryDialog(c: DesktopContainer, request: EntryRequest, onDone: () -> Unit) 
                     income -> c.txns.addIncome(account.id, money, cat, date, text)
                     else -> c.txns.addExpense(account.id, money, cat, date, text)
                 }
-            }.onSuccess { onDone() }.onFailure { error = it.message ?: "Не удалось сохранить" }
+            }.onSuccess { onDone() }.onFailure { saving = false; error = it.message ?: "Не удалось сохранить" }
         }
     }
 
     val amountFocus = remember { FocusRequester() }
     LaunchedEffect(Unit) { runCatching { amountFocus.requestFocus() } }
 
+    if (confirmDiscard) {
+        AlertDialog(
+            onDismissRequest = { confirmDiscard = false },
+            title = { Text("Закрыть без сохранения?") },
+            text = { Text("Введённое в этом окне не сохранится.") },
+            confirmButton = { TextButton(onClick = { confirmDiscard = false; onDone() }) { Text("Сбросить") } },
+            dismissButton = { TextButton(onClick = { confirmDiscard = false }) { Text("Продолжить ввод") } },
+        )
+        return
+    }
+
     AlertDialog(
-        onDismissRequest = onDone,
+        // Esc и клик мимо окна — «безопасный выход»: изменённую форму не закрывают без вопроса.
+        onDismissRequest = ::requestClose,
         title = { Text(if (editing != null) "Операция" else if (income) "Новый доход" else "Новый расход") },
         text = {
             Column(
                 Modifier.width(560.dp).onPreviewKeyEvent {
                     // Enter сохраняет из любого поля и после выбора категории мышью (фокус уходит с суммы).
-                    // Только нажатие: на отпускание save() второй раз записал бы дубль операции.
-                    if (it.key == Key.Enter) { if (it.type == KeyEventType.KeyDown) save(); true } else false
+                    // Только нажатие: на отпускание save() второй раз записал бы дубль операции; save() сам
+                    // проверяет форму и не пишет невалидное, а повтор во время записи игнорирует.
+                    when (it.key) {
+                        Key.Enter, Key.NumPadEnter -> { if (it.type == KeyEventType.KeyDown) save(); true }
+                        // Esc — безопасный выход: чистая форма закрывается, изменённая спрашивает.
+                        Key.Escape -> { if (it.type == KeyEventType.KeyDown) requestClose(); true }
+                        else -> false
+                    }
                 },
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
@@ -201,7 +255,7 @@ fun EntryDialog(c: DesktopContainer, request: EntryRequest, onDone: () -> Unit) 
                 error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
             }
         },
-        confirmButton = { TextButton(onClick = ::save) { Text("Сохранить") } },
+        confirmButton = { TextButton(onClick = ::save, enabled = !saving) { Text("Сохранить") } },
         dismissButton = {
             Row {
                 if (editing != null) {
@@ -209,7 +263,7 @@ fun EntryDialog(c: DesktopContainer, request: EntryRequest, onDone: () -> Unit) 
                         scope.launch { runCatching { c.txns.deleteById(editing.id) }.onSuccess { onDone() }.onFailure { error = it.message } }
                     }) { Text("Удалить", color = MaterialTheme.colorScheme.error) }
                 }
-                TextButton(onClick = onDone) { Text("Отмена") }
+                TextButton(onClick = ::requestClose) { Text("Отмена") }
             }
         },
     )

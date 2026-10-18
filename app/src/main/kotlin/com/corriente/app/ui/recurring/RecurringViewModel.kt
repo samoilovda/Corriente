@@ -77,12 +77,30 @@ data class RecurringEditor(
         }
 }
 
+/** U12: ближайшая запись правила в учёте — не платёж в банке. */
+data class UpcomingRow(
+    val ruleId: String,
+    val date: LocalDate,
+    val kind: TxnKind,
+    val categoryName: String?,
+    val accountName: String?,
+    val amountText: String,
+    /** Дата уже прошла, воркер запишет при ближайшем запуске. */
+    val pending: Boolean,
+)
+
 data class RecurringUiState(
     val rows: List<RecurringRow> = emptyList(),
+    /** U12: что правила запишут за [UPCOMING_HORIZON_DAYS] дней. */
+    val upcoming: List<UpcomingRow> = emptyList(),
     val accounts: List<Account> = emptyList(),
     val categories: List<Category> = emptyList(),
     val editor: RecurringEditor? = null,
 )
+
+/** U12: горизонт «ближайших» и сколько строк показывать максимум. */
+const val UPCOMING_HORIZON_DAYS = 30L
+private const val UPCOMING_LIMIT = 20
 
 private fun fallbackCurrency(code: String): Currency = Currency(CurrencyCode(code), minorUnits = 2, displayScale = 2, symbol = code)
 
@@ -125,8 +143,25 @@ class RecurringViewModel(
                 lastError = ruleErrors[r.id],
             )
         }
+        val archivedAccounts = allAccounts.filter { it.isArchived }.mapTo(HashSet()) { it.id }
+        val upcoming = com.corriente.data.recurrence.upcomingOccurrences(
+            allRecurrences, today(), UPCOMING_HORIZON_DAYS, isAccountArchived = { it in archivedAccounts },
+        ).take(UPCOMING_LIMIT).map { o ->
+            val r = o.recurrence
+            val currency = byCode[r.amount.currency.code] ?: fallbackCurrency(r.amount.currency.code)
+            UpcomingRow(
+                ruleId = r.id,
+                date = o.date,
+                kind = r.kind,
+                categoryName = r.categoryId?.let { categoryNames[it] },
+                accountName = accountNames[r.accountId],
+                amountText = MoneyFormatter.format(r.amount, currency),
+                pending = o.pending,
+            )
+        }
         RecurringUiState(
             rows = rows,
+            upcoming = upcoming,
             accounts = allAccounts.filterNot { it.isArchived },
             categories = allCategories.filterNot { it.isArchived },
             editor = editor,

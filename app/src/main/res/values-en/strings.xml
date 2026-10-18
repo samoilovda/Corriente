@@ -515,8 +515,8 @@
     <string name="txn_pane_empty_title">Select a transaction</string>
     <string name="txn_pane_empty_body">Open a transaction from the list or add a new one with the "−" / "+" button.</string>
     <string name="accounts_empty_title">No accounts yet</string>
-    <string name="settings_group_data">Data</string>
-    <string name="settings_group_backup">Import &amp; backup</string>
+    <string name="settings_group_data">Reference lists</string>
+    <string name="settings_group_backup">Data and sync</string>
     <string name="settings_group_appearance">Appearance</string>
     <string name="settings_group_security">Security</string>
     <string name="settings_group_about">About</string>
@@ -580,7 +580,7 @@
     <string name="sync_state_joined">Device “%1$s” is connected</string>
     <string name="sync_off">Off</string>
     <string name="sync_never">No exchange yet</string>
-    <string name="sync_last_run">Last exchange: %1$s</string>
+    <string name="sync_last_run">Last exchange with the folder: %1$s</string>
     <string name="sync_error_folder">The shared folder is not accessible — check that it is still there, or pick it again (turn sync off first).</string>
     <string name="sync_error_integrity">Changes from other devices were not applied: the data would have failed the integrity check. Nothing is damaged; try again later or contact the developer.</string>
     <string name="sync_error_other">Exchange failed: %1$s</string>
@@ -597,4 +597,25 @@
     <string name="sync_import_primary_only">With sync on, import works only on the main device</string>
     <string name="sync_restore_warning">Sync is on: the restored data will replace the data on your other devices too.</string>
     <string name="premigration_reason_sync_join">Before joining sync</string>
+    <string name="budgets_month_note">Spending for %1$s. Each currency separately; the overall limit and category limits are separate limits and are not added up.</string>
+    <string name="budgets_spent_left">Spent %1$s · %2$s left</string>
+    <string name="budgets_spent_over">Spent %1$s · %2$s over</string>
+    <string name="recurring_upcoming_title">Next %1$d days</string>
+    <string name="recurring_upcoming_note">These are entries in Corriente, not bank payments: the app adds them on their day.</string>
+    <string name="recurring_upcoming_empty">Nothing planned for the coming days.</string>
+    <string name="recurring_upcoming_pending">%1$s · waiting to be recorded</string>
+    <string name="recurring_rules_title">Rules</string>
+    <string name="report_open_budgets">Budgets: limits and what is left</string>
+    <string name="report_set_budget">Set a monthly budget</string>
+    <string name="settings_group_planning">Planning</string>
+    <string name="start_title">Getting started</string>
+    <string name="start_body">Every step is optional — import and restore are also in Settings.</string>
+    <string name="start_create_account">Create an account</string>
+    <string name="start_import_monefy">Import from Monefy</string>
+    <string name="start_restore">Restore from a backup</string>
+    <string name="start_skip">Skip</string>
+    <string name="sync_join_cancel">Cancel — change nothing</string>
+    <string name="sync_replace_confirm_title">Replace this device’s data?</string>
+    <string name="sync_replace_confirm_text">Accounts and transactions on this device will be deleted and replaced with the data from the shared folder. A copy of the database is saved first. After you confirm, the only way back is restoring that copy.</string>
+    <string name="sync_delivery_note">Corriente wrote its changes to the shared folder. Whether they reached other devices is shown by Syncthing.</string>
 </resources>

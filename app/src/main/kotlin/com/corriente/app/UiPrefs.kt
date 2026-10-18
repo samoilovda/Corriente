@@ -24,10 +24,32 @@ object UiPrefs {
     private const val KEY_LEFT_HANDED = "left_handed"
     private const val KEY_THEME_MODE = "theme_mode"
     private const val KEY_DYNAMIC_COLOR = "dynamic_color"
+    private const val KEY_START_CARD_DISMISSED = "start_card_dismissed"
 
     private var leftHandedFlow: MutableStateFlow<Boolean>? = null
     private var themeModeFlow: MutableStateFlow<ThemeMode>? = null
     private var dynamicColorFlow: MutableStateFlow<Boolean>? = null
+    private var startCardDismissedFlow: MutableStateFlow<Boolean>? = null
+
+    /** U11: стартовая карточка пустой базы скрыта «Пропустить» — на этом устройстве больше не показывается. */
+    fun startCardDismissed(context: Context): StateFlow<Boolean> = startCardDismissedFlow(context)
+
+    fun dismissStartCard(context: Context) {
+        prefs(context).edit().putBoolean(KEY_START_CARD_DISMISSED, true).apply()
+        startCardDismissedFlow(context).value = true
+    }
+
+    /** Тестам: вернуть карточку (значение кэшируется в памяти процесса, правки SharedPreferences мало). */
+    @androidx.annotation.VisibleForTesting
+    fun resetStartCard(context: Context) {
+        prefs(context).edit().remove(KEY_START_CARD_DISMISSED).commit()
+        startCardDismissedFlow(context).value = false
+    }
+
+    @Synchronized
+    private fun startCardDismissedFlow(context: Context): MutableStateFlow<Boolean> =
+        startCardDismissedFlow ?: MutableStateFlow(prefs(context).getBoolean(KEY_START_CARD_DISMISSED, false))
+            .also { startCardDismissedFlow = it }
 
     /** «Вариант для левшей»: кнопки «−»/«+» на главном экране — у левого края, порядок «−», «+». */
     fun leftHanded(context: Context): StateFlow<Boolean> = leftHandedFlow(context)

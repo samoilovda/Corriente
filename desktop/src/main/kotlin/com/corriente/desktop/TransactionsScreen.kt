@@ -19,6 +19,14 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.platform.testTag
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
@@ -58,6 +66,11 @@ fun TransactionsScreen(c: DesktopContainer, onEntry: (EntryRequest) -> Unit) {
     var month by remember { mutableStateOf(YearMonth.now()) }
     var accountId by remember { mutableStateOf<String?>(null) }
     var currency by remember { mutableStateOf<String?>(null) }
+    // U13: поиск — та же область, что на Android (заметка, категория, счёт; TxnRepository.search) и по всей истории.
+    var query by remember { mutableStateOf("") }
+    val found by remember(query) {
+        if (query.isBlank()) kotlinx.coroutines.flow.flowOf(null) else c.txns.search(query.trim())
+    }.collectAsState(null)
 
     val monthTxns by remember(month) { c.txns.observeRange(month.atDay(1), month.atEndOfMonth()) }.collectAsState(emptyList())
     val accounts by c.accounts.observeAll().collectAsState(emptyList())
@@ -78,7 +91,9 @@ fun TransactionsScreen(c: DesktopContainer, onEntry: (EntryRequest) -> Unit) {
 
     val categoryById = categories.associateBy { it.id }
     val accountById = accounts.associateBy { it.id }
-    val visible = monthTxns.filter { t ->
+    val searching = query.isNotBlank()
+    val source = if (searching) found.orEmpty() else monthTxns
+    val visible = source.filter { t ->
         when {
             overview.accountId != null -> when (t) {
                 is Txn.Expense -> t.accountId == overview.accountId
@@ -129,8 +144,38 @@ fun TransactionsScreen(c: DesktopContainer, onEntry: (EntryRequest) -> Unit) {
             }
         }
         VerticalDivider()
+        Column(Modifier.fillMaxSize()) {
+        OutlinedTextField(
+            value = query,
+            onValueChange = { query = it },
+            singleLine = true,
+            label = { Text("Поиск по заметке, категории и счёту") },
+            leadingIcon = { Icon(Icons.Filled.Search, null) },
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp).testTag("search")
+                // Esc в поле поиска очищает запрос, а не закрывает окно.
+                .onPreviewKeyEvent {
+                    if (it.key == Key.Escape && query.isNotEmpty()) {
+                        if (it.type == KeyEventType.KeyDown) query = ""
+                        true
+                    } else {
+                        false
+                    }
+                },
+        )
+        Text(
+            if (searching) {
+                "Найдено во всей истории (${overview.accountName ?: "все счета · ${overview.currencyCode}"}): ${visible.size}"
+            } else {
+                "${MONTHS[month.monthValue - 1]} ${month.year}"
+            },
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = 16.dp),
+        )
         if (visible.isEmpty()) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("В этом месяце операций нет") }
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text(if (searching) "Ничего не найдено" else "В этом месяце операций нет")
+            }
         } else {
             val days = visible.groupBy { it.date }
             LazyColumn(Modifier.fillMaxSize()) {
@@ -148,6 +193,7 @@ fun TransactionsScreen(c: DesktopContainer, onEntry: (EntryRequest) -> Unit) {
                     }
                 }
             }
+        }
         }
     }
 }

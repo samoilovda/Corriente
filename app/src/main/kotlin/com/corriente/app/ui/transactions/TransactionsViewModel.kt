@@ -95,6 +95,8 @@ data class TransactionsUiState(
     val noMatch: Boolean = false,
     /** F2.1: можно подгрузить более старые операции — окно не покрывает всю историю. */
     val canLoadEarlier: Boolean = false,
+    /** U11: в базе нет ни одного счёта (и архивного) — новый пользователь; `null`, пока не загружено. */
+    val noAccountsAtAll: Boolean? = null,
 )
 
 private fun matchesAccount(txn: Txn, accountId: String): Boolean = when (txn) {
@@ -415,6 +417,7 @@ class TransactionsViewModel(
             empty = !anyExist,
             noMatch = anyExist && sections.isEmpty(),
             canLoadEarlier = canLoadEarlier,
+            noAccountsAtAll = allAccounts.isEmpty(),
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), TransactionsUiState())
 

@@ -51,7 +51,13 @@ private sealed interface Detail {
  * (list-detail вручную, без новых зависимостей). Закрытие формы возвращает правой панели подсказку.
  */
 @Composable
-fun TransactionsTwoPane(onCreateAccount: () -> Unit) {
+fun TransactionsTwoPane(
+    onCreateAccount: () -> Unit,
+    onOpenBudgets: () -> Unit = {},
+    onOpenRecurring: () -> Unit = {},
+    onOpenImport: () -> Unit = {},
+    onOpenBackup: () -> Unit = {},
+) {
     var detail by remember { mutableStateOf<Detail?>(null) }
     var counter by remember { mutableIntStateOf(0) }
     fun open(make: (Int) -> Detail) {
@@ -71,6 +77,11 @@ fun TransactionsTwoPane(onCreateAccount: () -> Unit) {
                 onAddExpenseInCategory = { categoryId, accountId ->
                     open { Detail.Entry(it, EntryKind.EXPENSE, categoryId = categoryId, accountId = accountId) }
                 },
+                onOpenBudgets = onOpenBudgets,
+                onOpenRecurring = onOpenRecurring,
+                onCreateAccount = onCreateAccount,
+                onOpenImport = onOpenImport,
+                onOpenBackup = onOpenBackup,
             )
         }
         VerticalDivider(color = MaterialTheme.colorScheme.outlineVariant)

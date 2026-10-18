@@ -53,6 +53,34 @@ class BudgetsViewModelTest {
     @Before fun setUp() = Dispatchers.setMain(dispatcher)
     @After fun tearDown() = Dispatchers.resetMain()
 
+    // U07: в списке бюджетов — факт, остаток/перерасход за текущий месяц, по той же арифметике, что и отчёт.
+    @Test
+    fun `rows show spent and remaining for the current month`() = runTest(dispatcher) {
+        val fakes = Fakes().apply { seed() }
+        val txnDao = com.corriente.app.ui.txnentry.FakeTxnDao()
+        val accountDao = com.corriente.app.ui.accounts.FakeAccountDao()
+        accountDao.insert(com.corriente.data.db.entity.AccountEntity("cash", "Наличные", "RUB", com.corriente.data.db.entity.AccountKind.CASH, 0, 0))
+        val txns = com.corriente.data.repository.TxnRepository(txnDao, accountDao)
+        val rub = com.corriente.money.CurrencyCode("RUB")
+        txns.addExpense("cash", com.corriente.money.Money(com.corriente.money.Minor(120_00), rub), "food", today, null)
+        txns.addExpense("cash", com.corriente.money.Money(com.corriente.money.Minor(999_00), rub), "food", today.minusMonths(1), null)
+        val model = BudgetsViewModel(
+            BudgetRepository(fakes.budgetDao), CategoryRepository(fakes.categoryDao), CurrencyRepository(fakes.currencyDao),
+            today = { today }, txns = txns,
+        )
+        backgroundScope.observe(model)
+        advanceUntilIdle()
+        model.startCreate(); model.setCategory("food"); model.setAmountText("100"); model.save()
+        advanceUntilIdle()
+
+        val progress = model.uiState.value.rows.single().progress!!
+        assertEquals("120.00\u00A0₽", progress.spentText)
+        assertEquals("20.00\u00A0₽", progress.remainingText)
+        assertTrue(progress.isOverBudget)
+        assertEquals(100, progress.percentClamped)
+        assertEquals(java.time.YearMonth.of(2026, 9), model.uiState.value.month)
+    }
+
     @Test
     fun `creating a budget adds it to the list, formatted`() = runTest(dispatcher) {
         val fakes = Fakes().apply { seed() }

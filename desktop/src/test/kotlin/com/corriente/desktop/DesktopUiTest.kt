@@ -5,6 +5,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onFirst
@@ -169,5 +170,65 @@ class DesktopUiTest {
         rule.onNodeWithText("Сохранить").performClick()
         waitForTxns(1)
         assertEquals(12L, (txns().single() as Txn.Expense).amount.amount.raw)
+    }
+
+    // U13: поиск — по всей истории и по той же области, что на Android (заметка/категория/счёт).
+    @Test fun searchFindsOperationsOutsideTheShownMonth() {
+        val id = account().id
+        runBlocking {
+            c.txns.addExpense(id, Money(Minor(300_00), CurrencyCode("RUB")), null, java.time.LocalDate.now().minusMonths(4), "старый чек")
+        }
+        show()
+        rule.waitUntil(5_000) { rule.onAllNodesWithText("−  Расход").fetchSemanticsNodes().isNotEmpty() }
+        rule.onNodeWithText("старый чек", substring = true).assertDoesNotExist()
+        rule.onNodeWithTag("search").performTextInput("СТАРЫЙ")
+        rule.waitUntil(5_000) { rule.onAllNodesWithText("старый чек", substring = true).fetchSemanticsNodes().isNotEmpty() }
+        rule.onNodeWithText("Найдено во всей истории", substring = true).assertIsDisplayed()
+        // Esc в поле поиска очищает запрос.
+        rule.onNodeWithTag("search").performKeyInput { pressKey(Key.Escape) }
+        rule.waitUntil(5_000) { rule.onAllNodesWithText("старый чек", substring = true).fetchSemanticsNodes().isEmpty() }
+    }
+
+    // U13: Esc на изменённой форме спрашивает; «Продолжить ввод» сохраняет набранное, «Сбросить» ничего не пишет.
+    @Test fun escapeOnDirtyFormAsksAndDiscardWritesNothing() {
+        account()
+        show()
+        rule.waitUntil(5_000) { rule.onAllNodesWithText("−  Расход").fetchSemanticsNodes().isNotEmpty() }
+        openExpense()
+        rule.onNodeWithTag("amount").performTextInput("5")
+        rule.onNodeWithTag("amount").performKeyInput { pressKey(Key.Escape) }
+        rule.onNodeWithText("Закрыть без сохранения?").assertIsDisplayed()
+        rule.onNodeWithText("Продолжить ввод").performClick()
+        rule.waitUntilExists("amount")
+        rule.onNodeWithTag("amount").assertTextContains("5")
+        rule.onNodeWithText("Отмена").performClick()
+        rule.onNodeWithText("Сбросить").performClick()
+        rule.waitUntil(5_000) { rule.onAllNodesWithTagCount("amount") == 0 }
+        assertTrue(txns().isEmpty())
+    }
+
+    // U01/U13: лишний знак после запятой — ошибка, а не тихое обрезание; Enter её не обходит.
+    @Test fun excessPrecisionIsAnErrorAndEnterDoesNotSave() {
+        account()
+        show()
+        rule.waitUntil(5_000) { rule.onAllNodesWithText("−  Расход").fetchSemanticsNodes().isNotEmpty() }
+        openExpense()
+        rule.onNodeWithTag("amount").performTextInput("12.505")
+        rule.onNodeWithTag("amount").performKeyInput { pressKey(Key.Enter) }
+        rule.onNodeWithText("У RUB не больше 2 знаков после запятой").assertIsDisplayed()
+        assertTrue(txns().isEmpty())
+    }
+
+    // U13: два Enter подряд — одна операция.
+    @Test fun doubleEnterWritesOneTransaction() {
+        account()
+        show()
+        rule.waitUntil(5_000) { rule.onAllNodesWithText("−  Расход").fetchSemanticsNodes().isNotEmpty() }
+        openExpense()
+        rule.onNodeWithTag("amount").performTextInput("7")
+        rule.onNodeWithTag("amount").performKeyInput { pressKey(Key.Enter); pressKey(Key.Enter) }
+        waitForTxns(1)
+        rule.waitForIdle()
+        assertEquals(1, txns().size)
     }
 }

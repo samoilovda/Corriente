@@ -60,3 +60,22 @@ fun budgetProgress(
             BudgetProgress(budget, spent, remaining, percent)
         }
 }
+
+/**
+ * U07: состояние всех бюджетов за [month] — та же арифметика, что у полос в отчёте (режим «Месяц», расходы):
+ * [categoryReport] за месяц в валюте бюджета → [budgetProgress] по бюджетам, начавшим действовать к концу
+ * месяца. Каждая валюта считается отдельно (I-8); общий бюджет и бюджеты категорий — разные ограничения,
+ * их лимиты здесь не складываются.
+ */
+fun monthBudgetProgress(
+    budgets: List<Budget>,
+    transactions: List<com.corriente.data.model.Txn>,
+    month: java.time.YearMonth,
+): List<BudgetProgress> {
+    val period = month.atDay(1)..month.atEndOfMonth()
+    val active = budgets.filter { !it.startsOn.isAfter(period.endInclusive) }
+    return active.map { it.amount.currency }.distinct().flatMap { currency ->
+        val report = categoryReport(transactions, currency, period, ReportKind.EXPENSE)
+        budgetProgress(active, report, currency)
+    }
+}

@@ -41,6 +41,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.corriente.app.R
@@ -95,7 +97,55 @@ fun RecurringScreen(
                 modifier = Modifier.padding(padding),
             )
         } else {
-            LazyColumn(Modifier.fillMaxSize().padding(padding)) {
+            LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 88.dp)) {
+                // U12: что и когда правила запишут — с явной оговоркой, что это учёт, а не банк.
+                item(key = "upcoming-title") {
+                    Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                        Text(
+                            stringResource(R.string.recurring_upcoming_title, UPCOMING_HORIZON_DAYS.toInt()),
+                            style = MaterialTheme.typography.titleSmall,
+                            modifier = Modifier.semantics { heading() },
+                        )
+                        Text(
+                            stringResource(R.string.recurring_upcoming_note),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        if (state.upcoming.isEmpty()) {
+                            Text(stringResource(R.string.recurring_upcoming_empty), style = MaterialTheme.typography.bodyMedium)
+                        }
+                    }
+                }
+                items(state.upcoming, key = { "u-${it.ruleId}-${it.date}" }) { up ->
+                    ListItem(
+                        overlineContent = {
+                            Text(
+                                if (up.pending) stringResource(R.string.recurring_upcoming_pending, com.corriente.app.ui.common.dayLabel(up.date))
+                                else com.corriente.app.ui.common.dayLabel(up.date),
+                            )
+                        },
+                        headlineContent = {
+                            Text(
+                                listOfNotNull(up.categoryName ?: stringResource(R.string.txn_entry_no_category), up.accountName)
+                                    .joinToString(" · "),
+                            )
+                        },
+                        trailingContent = {
+                            com.corriente.app.ui.common.MoneyText(
+                                up.amountText,
+                                if (up.kind == TxnKind.INCOME) com.corriente.app.ui.common.MoneyKind.INCOME else com.corriente.app.ui.common.MoneyKind.EXPENSE,
+                            )
+                        },
+                        modifier = Modifier.semantics(mergeDescendants = true) {},
+                    )
+                }
+                item(key = "rules-title") {
+                    Text(
+                        stringResource(R.string.recurring_rules_title),
+                        style = MaterialTheme.typography.titleSmall,
+                        modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 4.dp).semantics { heading() },
+                    )
+                }
                 items(state.rows, key = { it.id }) { row ->
                     ListItem(
                         headlineContent = { Text(recurringRowTitle(row)) },

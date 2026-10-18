@@ -165,7 +165,13 @@ fun CorrienteNavHost(deepLinkIntent: Intent? = null, onDeepLinkConsumed: () -> U
         ) {
             composable(CorrienteDestination.TRANSACTIONS.route) {
                 if (twoPane) {
-                    TransactionsTwoPane(onCreateAccount = { navigateTo(CorrienteDestination.ACCOUNTS) })
+                    TransactionsTwoPane(
+                        onCreateAccount = { navigateTo(CorrienteDestination.ACCOUNTS) },
+                        onOpenBudgets = { navController.navigate(BUDGETS_ROUTE) },
+                        onOpenRecurring = { navController.navigate(RECURRING_ROUTE) },
+                        onOpenImport = { navController.navigate(IMPORT_ROUTE) },
+                        onOpenBackup = { navigateTo(CorrienteDestination.SETTINGS) },
+                    )
                     return@composable
                 }
                 TransactionsScreen(
@@ -179,6 +185,11 @@ fun CorrienteNavHost(deepLinkIntent: Intent? = null, onDeepLinkConsumed: () -> U
                         val account = accountId?.let { "&account=$it" }.orEmpty()
                         navController.navigate("$TXN_ENTRY_ROUTE?kind=${EntryKind.EXPENSE.name}&category=$categoryId$account")
                     },
+                    onOpenBudgets = { navController.navigate(BUDGETS_ROUTE) },
+                    onOpenRecurring = { navController.navigate(RECURRING_ROUTE) },
+                    onCreateAccount = { navigateTo(CorrienteDestination.ACCOUNTS) },
+                    onOpenImport = { navController.navigate(IMPORT_ROUTE) },
+                    onOpenBackup = { navigateTo(CorrienteDestination.SETTINGS) },
                 )
             }
             composable(CorrienteDestination.ACCOUNTS.route) {
@@ -200,6 +211,7 @@ fun CorrienteNavHost(deepLinkIntent: Intent? = null, onDeepLinkConsumed: () -> U
                 ReportScreen(
                     onEditTransaction = { id -> navController.navigate("$TXN_EDIT_ROUTE/$id") },
                     onOpenFxReport = { navController.navigate(FX_REPORT_ROUTE) },
+                    onOpenBudgets = { navController.navigate(BUDGETS_ROUTE) },
                 )
             }
             composable(FX_REPORT_ROUTE) {

@@ -117,6 +117,10 @@ fun SettingsScreen(
                     Icons.Outlined.Category, stringResource(R.string.categories_title),
                     onClick = onOpenCategories,
                 )
+            }
+
+            // U11: планирование — отдельная группа, а не «справочник».
+            SettingsGroup(stringResource(R.string.settings_group_planning)) {
                 SettingsItem(
                     Icons.Outlined.Savings, stringResource(R.string.budgets_title),
                     supporting = { Text(stringResource(R.string.budgets_hint)) },

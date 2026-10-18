@@ -1,7 +1,8 @@
 package com.corriente.app.ui.txnentry
 
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
-import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onAllNodesWithContentDescription
+import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextReplacement
@@ -77,7 +78,10 @@ class ArchivedAccountEditInstrumentedTest {
         // молча падает на первый активный счёт.
         val archivedLabel = composeRule.activity.getString(R.string.entry_archived_suffix, "Старая карта")
         // Счета — в меню кошелька на плашке суммы: открываем, проверяем пункт и выбираем его же (закрывает меню).
-        composeRule.onNodeWithContentDescription(composeRule.activity.getString(R.string.txn_entry_account)).performClick()
+        // U03: у таблетки счёта озвучиваются имя и валюта; тот же текст у чипа счёта над суммой — берём первый.
+        val accountCd = composeRule.activity.getString(R.string.txn_entry_account_cd, "Старая карта", "RUB")
+        composeRule.waitUntil(10_000) { composeRule.onAllNodesWithContentDescription(accountCd).fetchSemanticsNodes().isNotEmpty() }
+        composeRule.onAllNodesWithContentDescription(accountCd).onFirst().performClick()
         composeRule.onNodeWithText("$archivedLabel · RUB").assertExists().performClick()
         composeRule.waitForIdle()
 

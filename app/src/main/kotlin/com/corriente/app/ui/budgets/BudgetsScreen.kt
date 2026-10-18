@@ -38,6 +38,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.corriente.app.R
@@ -51,7 +55,7 @@ fun BudgetsScreen(
     onBack: () -> Unit,
     viewModel: BudgetsViewModel = viewModel(
         factory = with(corrienteContainer()) {
-            BudgetsViewModel.factory(budgetRepository, categoryRepository, currencyRepository)
+            BudgetsViewModel.factory(budgetRepository, categoryRepository, currencyRepository, txnRepository)
         },
     ),
 ) {
@@ -86,8 +90,30 @@ fun BudgetsScreen(
                 modifier = Modifier.padding(padding),
             )
         } else {
-            LazyColumn(Modifier.fillMaxSize().padding(padding)) {
-                items(state.rows, key = { it.id }) { row ->
+            LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 88.dp)) {
+                // U07: за какой месяц цифры и что лимиты не складываются — сказано прямо.
+                state.month?.let { month ->
+                    item(key = "month") {
+                        val months = androidx.compose.ui.res.stringArrayResource(R.array.month_names)
+                        Text(
+                            stringResource(R.string.budgets_month_note, "${months[month.monthValue - 1]} ${month.year}"),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                        )
+                    }
+                }
+                state.rows.groupBy { it.currencyCode }.forEach { (code, rowsOfCurrency) ->
+                    item(key = "currency-$code") {
+                        Text(
+                            code,
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(start = 16.dp, top = 12.dp, bottom = 4.dp)
+                                .semantics { heading() },
+                        )
+                    }
+                items(rowsOfCurrency, key = { it.id }) { row ->
                     ListItem(
                         headlineContent = {
                             val name = row.categoryName
@@ -99,7 +125,12 @@ fun BudgetsScreen(
                                 },
                             )
                         },
-                        supportingContent = { Text(stringResource(R.string.budgets_per_month, row.amountText)) },
+                        supportingContent = {
+                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text(stringResource(R.string.budgets_per_month, row.amountText))
+                                row.progress?.let { p -> BudgetProgressLine(p) }
+                            }
+                        },
                         trailingContent = {
                             IconButton(onClick = { pendingDeleteId = row.id }) {
                                 Icon(Icons.Outlined.Delete, contentDescription = stringResource(R.string.delete))
@@ -107,6 +138,7 @@ fun BudgetsScreen(
                         },
                         modifier = Modifier.clickable { viewModel.startEdit(row.id) },
                     )
+                }
                 }
             }
         }
@@ -212,4 +244,24 @@ private fun SimpleDropdown(
             }
         }
     }
+}
+
+/** U07: «потрачено X · осталось Y» или «перерасход Y» — словами, не только цветом полосы. */
+@Composable
+private fun BudgetProgressLine(progress: BudgetRowProgress) {
+    val colors = MaterialTheme.colorScheme
+    Text(
+        if (progress.isOverBudget) {
+            stringResource(R.string.budgets_spent_over, progress.spentText, progress.remainingText)
+        } else {
+            stringResource(R.string.budgets_spent_left, progress.spentText, progress.remainingText)
+        },
+        color = if (progress.isOverBudget) colors.error else colors.onSurfaceVariant,
+        style = MaterialTheme.typography.bodySmall,
+    )
+    LinearProgressIndicator(
+        progress = { progress.percentClamped / 100f },
+        color = if (progress.isOverBudget) colors.error else colors.primary,
+        modifier = Modifier.fillMaxWidth().clearAndSetSemantics { },
+    )
 }

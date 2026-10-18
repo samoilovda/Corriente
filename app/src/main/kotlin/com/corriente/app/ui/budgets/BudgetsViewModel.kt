@@ -35,6 +35,20 @@ data class BudgetRow(
     /** A2.4: категория бюджета в архиве — экран дописывает «(в архиве)», а не подписывает «На всё». */
     val categoryArchived: Boolean = false,
     val amountText: String,
+    /** U07: код валюты — строки группируются по валюте, суммы разных валют не сравниваются и не складываются. */
+    val currencyCode: String = "",
+    /** U07: прогресс за текущий месяц; `null`, если бюджет начнёт действовать позже. */
+    val progress: BudgetRowProgress? = null,
+)
+
+/** U07: факт/лимит/остаток за месяц — тексты уже отформатированы в валюте бюджета. */
+data class BudgetRowProgress(
+    val spentText: String,
+    /** Остаток (≥ 0) или величина перерасхода (тогда [isOverBudget]). */
+    val remainingText: String,
+    val isOverBudget: Boolean,
+    /** 0..100 для полосы; при нулевом лимите — 100, если есть траты. */
+    val percentClamped: Int,
 )
 
 /** Форма создания/редактирования бюджета — значения ровно как их ввёл пользователь. */
@@ -54,6 +68,8 @@ data class BudgetEditor(
 }
 
 data class BudgetsUiState(
+    /** U07: месяц, за который показан прогресс (текущий). */
+    val month: java.time.YearMonth? = null,
     val rows: List<BudgetRow> = emptyList(),
     val expenseCategories: List<Category> = emptyList(),
     val currencyCodes: List<String> = emptyList(),
@@ -83,7 +99,13 @@ class BudgetsViewModel(
     categoryRepository: CategoryRepository,
     private val currencyRepository: CurrencyRepository,
     private val today: () -> LocalDate = LocalDate::now,
+    /** U07: операции месяца для «потрачено/осталось»; `null` — только список лимитов. */
+    txns: com.corriente.data.repository.TxnRepository? = null,
 ) : WritingViewModel() {
+
+    private val month = java.time.YearMonth.from(today())
+    private val monthTxns = txns?.observeRange(month.atDay(1), month.atEndOfMonth())
+        ?: kotlinx.coroutines.flow.flowOf(emptyList())
 
     private val editorState = MutableStateFlow<BudgetEditor?>(null)
 
@@ -92,8 +114,11 @@ class BudgetsViewModel(
         categoryRepository.observeAllForLookup(),
         currencyRepository.observeActive(),
         editorState,
-    ) { allBudgets, allCategories, allCurrencies, editor ->
+        monthTxns,
+    ) { allBudgets, allCategories, allCurrencies, editor, txnsOfMonth ->
         val byCode = allCurrencies.associateBy { it.code.code }
+        val progressById = com.corriente.data.usecase.monthBudgetProgress(allBudgets, txnsOfMonth, month)
+            .associateBy { it.budget.id }
         val namesById = allCategories.associate { it.id to it.name }
         val archivedIds = allCategories.filter { it.isArchived }.mapTo(HashSet()) { it.id }
         val rows = allBudgets
@@ -104,12 +129,22 @@ class BudgetsViewModel(
                     categoryName = b.categoryId?.let { namesById[it] },
                     categoryArchived = b.categoryId in archivedIds,
                     amountText = MoneyFormatter.format(b.amount, currency),
+                    currencyCode = b.amount.currency.code,
+                    progress = progressById[b.id]?.let { p ->
+                        BudgetRowProgress(
+                            spentText = MoneyFormatter.format(p.spent, currency),
+                            remainingText = MoneyFormatter.format(p.remaining.absolute(), currency),
+                            isOverBudget = p.isOverBudget,
+                            percentClamped = p.percent?.coerceIn(0, 100) ?: if (p.spent.isPositive) 100 else 0,
+                        )
+                    },
                 )
             }
             // R6.3: "На всё"/"For everything" — UI-текст ресурса, а не значение для сортировки;
-            // сортируем по сырому имени категории, бюджет без категории — первым.
-            .sortedBy { it.categoryName ?: "" }
+            // сортируем по валюте, затем по сырому имени категории, бюджет без категории — первым.
+            .sortedWith(compareBy<BudgetRow> { it.currencyCode }.thenBy { it.categoryName ?: "" })
         BudgetsUiState(
+            month = month,
             rows = rows,
             expenseCategories = allCategories.filter { it.kind == CategoryKind.EXPENSE && !it.isArchived },
             currencyCodes = allCurrencies.map { it.code.code },
@@ -181,8 +216,9 @@ class BudgetsViewModel(
             budgets: BudgetRepository,
             categories: CategoryRepository,
             currencies: CurrencyRepository,
+            txns: com.corriente.data.repository.TxnRepository,
         ) = viewModelFactory {
-            initializer { BudgetsViewModel(budgets, categories, currencies) }
+            initializer { BudgetsViewModel(budgets, categories, currencies, txns = txns) }
         }
     }
 }

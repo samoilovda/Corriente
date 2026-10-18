@@ -525,8 +525,8 @@
     <string name="txn_pane_empty_title">Выберите операцию</string>
     <string name="txn_pane_empty_body">Откройте операцию из списка слева или добавьте новую кнопкой «−» / «+».</string>
     <string name="accounts_empty_title">Счетов пока нет</string>
-    <string name="settings_group_data">Данные</string>
-    <string name="settings_group_backup">Импорт и бэкап</string>
+    <string name="settings_group_data">Справочники</string>
+    <string name="settings_group_backup">Данные и синхронизация</string>
     <string name="settings_group_appearance">Оформление</string>
     <string name="settings_group_security">Безопасность</string>
     <string name="settings_group_about">О приложении</string>
@@ -590,7 +590,7 @@
     <string name="sync_state_joined">Устройство «%1$s» подключено</string>
     <string name="sync_off">Выключена</string>
     <string name="sync_never">Обмена ещё не было</string>
-    <string name="sync_last_run">Последний обмен: %1$s</string>
+    <string name="sync_last_run">Последний обмен с папкой: %1$s</string>
     <string name="sync_error_folder">Нет доступа к общей папке — проверьте, что она на месте, или выберите заново (сначала отключите синхронизацию).</string>
     <string name="sync_error_integrity">Изменения с других устройств не применены: после них данные не прошли бы проверку целостности. Ничего не испорчено; попробуйте позже или напишите разработчику.</string>
     <string name="sync_error_other">Ошибка обмена: %1$s</string>
@@ -607,4 +607,25 @@
     <string name="sync_import_primary_only">При синхронизации импорт — только на основном устройстве</string>
     <string name="sync_restore_warning">Синхронизация включена: восстановленные данные заменят данные и на других устройствах.</string>
     <string name="premigration_reason_sync_join">Перед подключением к синхронизации</string>
+    <string name="budgets_month_note">Траты за %1$s. Каждая валюта отдельно; общий лимит и лимиты категорий — разные ограничения и не складываются.</string>
+    <string name="budgets_spent_left">Потрачено %1$s · осталось %2$s</string>
+    <string name="budgets_spent_over">Потрачено %1$s · перерасход %2$s</string>
+    <string name="recurring_upcoming_title">Ближайшие %1$d дней</string>
+    <string name="recurring_upcoming_note">Это записи в учёте Corriente, а не платежи в банке: приложение само добавит их в свой день.</string>
+    <string name="recurring_upcoming_empty">В ближайшие дни ничего не запланировано.</string>
+    <string name="recurring_upcoming_pending">%1$s · ждёт записи</string>
+    <string name="recurring_rules_title">Правила</string>
+    <string name="report_open_budgets">Бюджеты: лимиты и остаток</string>
+    <string name="report_set_budget">Задать бюджет на месяц</string>
+    <string name="settings_group_planning">Планирование</string>
+    <string name="start_title">С чего начать</string>
+    <string name="start_body">Любой шаг можно пропустить — вернуться к импорту и восстановлению можно в «Настройках».</string>
+    <string name="start_create_account">Создать счёт</string>
+    <string name="start_import_monefy">Импортировать из Monefy</string>
+    <string name="start_restore">Восстановить из резервной копии</string>
+    <string name="start_skip">Пропустить</string>
+    <string name="sync_join_cancel">Отмена — ничего не менять</string>
+    <string name="sync_replace_confirm_title">Заменить данные этого устройства?</string>
+    <string name="sync_replace_confirm_text">Счета и операции этого устройства будут удалены и заменены данными из общей папки. Перед этим сохранится копия базы. Отменить замену после подтверждения можно только восстановлением этой копии.</string>
+    <string name="sync_delivery_note">Corriente записал изменения в общую папку. Дошли ли они до других устройств, показывает Syncthing.</string>
 </resources>

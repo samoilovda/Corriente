@@ -26,6 +26,8 @@ import androidx.compose.material.icons.outlined.FileDownload
 import androidx.compose.material.icons.outlined.FilterList
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Repeat
+import androidx.compose.material.icons.outlined.Savings
+import androidx.compose.material.icons.outlined.EventRepeat
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.rememberSwipeToDismissBoxState
@@ -110,6 +112,13 @@ fun TransactionsScreen(
     onRepeatTransaction: (id: String, kind: EntryKind) -> Unit = { _, _ -> },
     /** Тап по иконке категории в шапке: ввод расхода в эту категорию (и выбранный в шапке счёт, если он есть). */
     onAddExpenseInCategory: (categoryId: String, accountId: String?) -> Unit = { _, _ -> onAddExpense() },
+    /** U07: планирование — из меню «Операций», не только из настроек. */
+    onOpenBudgets: () -> Unit = {},
+    onOpenRecurring: () -> Unit = {},
+    /** U11: стартовая карточка пустой базы. */
+    onCreateAccount: () -> Unit = {},
+    onOpenImport: () -> Unit = {},
+    onOpenBackup: () -> Unit = {},
     viewModel: TransactionsViewModel = viewModel(
         factory = with(corrienteContainer()) {
             TransactionsViewModel.factory(
@@ -159,6 +168,7 @@ fun TransactionsScreen(
     var showFilters by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val leftHanded by remember(context) { UiPrefs.leftHanded(context) }.collectAsState()
+    val startCardDismissed by remember(context) { UiPrefs.startCardDismissed(context) }.collectAsState()
 
     // R3.3: экспорт списка операций (с наложенными на экране фильтрами) в CSV через SAF.
     val exportCsvLauncher = rememberLauncherForActivityResult(
@@ -220,6 +230,16 @@ fun TransactionsScreen(
                                 text = { Text(stringResource(R.string.transfer_title)) },
                                 leadingIcon = { Icon(Icons.Outlined.SwapHoriz, contentDescription = null) },
                                 onClick = { overflowOpen = false; onAddTransfer() },
+                            )
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.budgets_title)) },
+                                leadingIcon = { Icon(Icons.Outlined.Savings, contentDescription = null) },
+                                onClick = { overflowOpen = false; onOpenBudgets() },
+                            )
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.recurring_title)) },
+                                leadingIcon = { Icon(Icons.Outlined.EventRepeat, contentDescription = null) },
+                                onClick = { overflowOpen = false; onOpenRecurring() },
                             )
                             DropdownMenuItem(
                                 // U01: экспорт — ровно показанный список, не вся история.
@@ -360,6 +380,18 @@ fun TransactionsScreen(
                         HistoryScopeRow(
                             month = header.month,
                             onOnlyMonth = { viewModel.setPeriod(header.month.atDay(1), header.month.atEndOfMonth()) },
+                        )
+                    }
+                }
+                // U11: новая пустая база — необязательный старт. Существующие пользователи (есть хоть один счёт)
+                // его не видят; «Пропустить» убирает карточку насовсем на этом устройстве.
+                if (state.noAccountsAtAll == true && state.empty && !startCardDismissed) {
+                    item(key = "start") {
+                        StartCard(
+                            onCreateAccount = onCreateAccount,
+                            onImport = onOpenImport,
+                            onRestore = onOpenBackup,
+                            onSkip = { UiPrefs.dismissStartCard(context) },
                         )
                     }
                 }
@@ -524,6 +556,31 @@ private fun TxnRowItem(row: TxnRow, modifier: Modifier = Modifier, onClick: () -
 }
 
 private const val UNDO_WINDOW_MS = 5_000L
+
+/** U11: три понятных способа начать; ни один не обязателен. */
+@Composable
+private fun StartCard(onCreateAccount: () -> Unit, onImport: () -> Unit, onRestore: () -> Unit, onSkip: () -> Unit) {
+    androidx.compose.material3.OutlinedCard(Modifier.fillMaxWidth().padding(16.dp)) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(stringResource(R.string.start_title), style = MaterialTheme.typography.titleMedium)
+            Text(
+                stringResource(R.string.start_body),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            androidx.compose.material3.Button(onClick = onCreateAccount, modifier = Modifier.fillMaxWidth()) {
+                Text(stringResource(R.string.start_create_account))
+            }
+            androidx.compose.material3.OutlinedButton(onClick = onImport, modifier = Modifier.fillMaxWidth()) {
+                Text(stringResource(R.string.start_import_monefy))
+            }
+            androidx.compose.material3.OutlinedButton(onClick = onRestore, modifier = Modifier.fillMaxWidth()) {
+                Text(stringResource(R.string.start_restore))
+            }
+            TextButton(onClick = onSkip, modifier = Modifier.align(Alignment.End)) { Text(stringResource(R.string.start_skip)) }
+        }
+    }
+}
 
 @Composable
 private fun HistoryScopeRow(month: java.time.YearMonth, onOnlyMonth: () -> Unit) {

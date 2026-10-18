@@ -76,3 +76,31 @@ const val MAX_CATCH_UP_DATES = 62
  */
 fun recurrenceTxnId(ruleId: String, date: java.time.LocalDate): String =
     java.util.UUID.nameUUIDFromBytes("corriente:recurrence:$ruleId:$date".toByteArray(Charsets.UTF_8)).toString()
+
+/** U12: одна будущая (или ожидающая записи) дата правила — для обзора, в учёт она не пишется. */
+data class UpcomingOccurrence(
+    val recurrence: com.corriente.data.model.Recurrence,
+    val date: java.time.LocalDate,
+    /** Дата уже наступила, но воркер её ещё не записал (устройство было выключено и т.п.). */
+    val pending: Boolean,
+)
+
+/**
+ * U12 — чистая функция: что правила запишут в ближайшие [horizonDays] дней, считая от [today] (дата в часовом
+ * поясе устройства — её передаёт вызывающий). Те же [dueDates]/[advance], что у материализации, — расписание
+ * совпадает с тем, что воркер реально создаст; сама материализация не меняется. Правила на архивных счетах
+ * пропускаются — воркер их тоже не исполняет. [perRuleLimit] ограничивает ежедневные правила.
+ */
+fun upcomingOccurrences(
+    rules: List<com.corriente.data.model.Recurrence>,
+    today: java.time.LocalDate,
+    horizonDays: Long,
+    isAccountArchived: (accountId: String) -> Boolean = { false },
+    perRuleLimit: Int = MAX_CATCH_UP_DATES,
+): List<UpcomingOccurrence> = rules
+    .filterNot { isAccountArchived(it.accountId) }
+    .flatMap { rule ->
+        dueDates(rule.rule, rule.nextRunOn, today.plusDays(horizonDays), perRuleLimit)
+            .map { UpcomingOccurrence(rule, it, pending = it.isBefore(today)) }
+    }
+    .sortedWith(compareBy<UpcomingOccurrence> { it.date }.thenBy { it.recurrence.id })

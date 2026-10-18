@@ -1,6 +1,7 @@
 package com.corriente.app.ui.report
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /** U08: арифметика графиков проверяется отдельно от UI — в том числе на границах Long. */
@@ -15,7 +16,7 @@ class ChartGeometryTest {
     fun `non-positive values take no share and an empty total is all zeros`() {
         assertEquals(listOf(0.25, 0.0, 0.75), ChartGeometry.fractionsOfTotal(listOf(1, -5, 3)))
         assertEquals(listOf(0.0, 0.0), ChartGeometry.fractionsOfTotal(listOf(0, 0)))
-        assertEquals(emptyList<Double>(), ChartGeometry.fractionsOfTotal(emptyList()))
+        assertTrue(ChartGeometry.fractionsOfTotal(emptyList()).isEmpty())
     }
 
     @Test

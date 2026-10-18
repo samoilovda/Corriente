@@ -5,6 +5,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.ui.Alignment
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -61,6 +62,7 @@ fun SyncScreen(onBack: () -> Unit, viewModel: SyncViewModel = viewModel(factory 
     var name by rememberSaveable { mutableStateOf("") }
     var folderError by rememberSaveable { mutableStateOf(false) }
     var confirmDisable by rememberSaveable { mutableStateOf(false) }
+    var confirmReplace by rememberSaveable { mutableStateOf(false) }
 
     val folderPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
         if (uri != null) folderError = !viewModel.setFolder(uri)
@@ -124,17 +126,33 @@ fun SyncScreen(onBack: () -> Unit, viewModel: SyncViewModel = viewModel(factory 
             text = { Text(stringResource(R.string.sync_join_empty_folder)) },
             confirmButton = { TextButton(onClick = viewModel::dismissQuestion) { Text(stringResource(R.string.ok)) } },
         )
-        JoinQuestion.HasLocalData -> AlertDialog(
-            onDismissRequest = viewModel::dismissQuestion,
-            title = { Text(stringResource(R.string.sync_join_has_data_title)) },
-            text = { Text(stringResource(R.string.sync_join_has_data_text)) },
-            confirmButton = {
-                TextButton(onClick = { viewModel.join(name, JoinMode.REPLACE) }) { Text(stringResource(R.string.sync_join_replace)) }
-            },
-            dismissButton = {
-                TextButton(onClick = { viewModel.join(name, JoinMode.MERGE) }) { Text(stringResource(R.string.sync_join_merge)) }
-            },
-        )
+        // U13: три исхода названы прямо, «Отмена» ничего не меняет; «Заменить» — деструктивно, отдельное подтверждение.
+        JoinQuestion.HasLocalData -> if (confirmReplace) {
+            AlertDialog(
+                onDismissRequest = { confirmReplace = false },
+                title = { Text(stringResource(R.string.sync_replace_confirm_title)) },
+                text = { Text(stringResource(R.string.sync_replace_confirm_text)) },
+                confirmButton = {
+                    TextButton(onClick = { confirmReplace = false; viewModel.join(name, JoinMode.REPLACE) }) {
+                        Text(stringResource(R.string.sync_join_replace), color = MaterialTheme.colorScheme.error)
+                    }
+                },
+                dismissButton = { TextButton(onClick = { confirmReplace = false }) { Text(stringResource(R.string.cancel)) } },
+            )
+        } else {
+            AlertDialog(
+                onDismissRequest = viewModel::dismissQuestion,
+                title = { Text(stringResource(R.string.sync_join_has_data_title)) },
+                text = { Text(stringResource(R.string.sync_join_has_data_text)) },
+                confirmButton = {
+                    Column(horizontalAlignment = Alignment.End) {
+                        TextButton(onClick = { viewModel.join(name, JoinMode.MERGE) }) { Text(stringResource(R.string.sync_join_merge)) }
+                        TextButton(onClick = { confirmReplace = true }) { Text(stringResource(R.string.sync_join_replace)) }
+                        TextButton(onClick = viewModel::dismissQuestion) { Text(stringResource(R.string.sync_join_cancel)) }
+                    }
+                },
+            )
+        }
         null -> Unit
     }
 
@@ -201,6 +219,14 @@ private fun EnabledBody(
             style = MaterialTheme.typography.titleSmall,
         )
         Text(syncStatusLine(status), style = MaterialTheme.typography.bodyMedium)
+        // U13: успешная запись в папку — ещё не доставка: её делает Syncthing, и Corriente её не видит.
+        if (status.lastRunAt != null) {
+            Text(
+                stringResource(R.string.sync_delivery_note),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
         status.lastError?.let { error ->
             Text(syncErrorText(error), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium)
         }

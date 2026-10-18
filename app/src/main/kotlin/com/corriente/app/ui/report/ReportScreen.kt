@@ -63,6 +63,8 @@ import java.time.ZoneOffset
 fun ReportScreen(
     onEditTransaction: (String) -> Unit,
     onOpenFxReport: () -> Unit,
+    /** U07: из отчёта — прямо к лимитам. */
+    onOpenBudgets: () -> Unit = {},
     viewModel: ReportViewModel = viewModel(
         factory = with(corrienteContainer()) {
             ReportViewModel.factory(
@@ -169,6 +171,10 @@ fun ReportScreen(
                 Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
                     BudgetProgressBar(bar)
                 }
+            }
+            // U07: полосы бюджета показаны здесь, а сами лимиты — в «Бюджетах»: ссылка, а не поиск по настройкам.
+            TextButton(onClick = onOpenBudgets, modifier = Modifier.padding(horizontal = 4.dp)) {
+                Text(stringResource(if (state.wholeCurrencyBudgetBar != null || state.categoryBudgetBars.isNotEmpty()) R.string.report_open_budgets else R.string.report_set_budget))
             }
             HorizontalDivider()
 
