@@ -45,6 +45,33 @@ object CategoryIconCatalog {
     val keys: Set<String> get() = vectors.keys
 
     fun vector(key: String): ImageVector? = vectors[key]
+
+    /** M-1: подбор подходящей иконки для стандартных категорий, если иконка не была явно выбрана. */
+    fun fallbackVectorForName(name: String): ImageVector? {
+        val lower = name.trim().lowercase()
+        return when {
+            lower.contains("продукт") || lower.contains("grocer") -> vectors["local_grocery_store"]
+            lower.contains("кафе") || lower.contains("кофе") || lower.contains("cafe") || lower.contains("coffee") -> vectors["local_cafe"]
+            lower.contains("ресторан") || lower.contains("еда") || lower.contains("обед") || lower.contains("food") -> vectors["restaurant"]
+            lower.contains("такси") || lower.contains("taxi") -> vectors["local_taxi"]
+            lower.contains("авто") || lower.contains("машин") || lower.contains("car") -> vectors["directions_car"]
+            lower.contains("транспорт") || lower.contains("автобус") || lower.contains("bus") -> vectors["directions_bus"]
+            lower.contains("метро") || lower.contains("subway") -> vectors["subway"]
+            lower.contains("поезд") || lower.contains("train") -> vectors["train"]
+            lower.contains("дом") || lower.contains("квартир") || lower.contains("аренд") || lower.contains("home") || lower.contains("rent") -> vectors["home"]
+            lower.contains("аптек") || lower.contains("здоров") || lower.contains("врач") || lower.contains("health") -> vectors["medication"]
+            lower.contains("спорт") || lower.contains("фитнес") || lower.contains("sport") || lower.contains("gym") -> vectors["fitness_center"]
+            lower.contains("связь") || lower.contains("телефон") || lower.contains("phone") -> vectors["phone_android"]
+            lower.contains("интернет") || lower.contains("wifi") -> vectors["wifi"]
+            lower.contains("зарплат") || lower.contains("salary") -> vectors["payments"]
+            lower.contains("подар") || lower.contains("gift") -> vectors["card_giftcard"]
+            lower.contains("подписк") || lower.contains("subscription") -> vectors["subscriptions"]
+            lower.contains("развлечен") || lower.contains("кино") || lower.contains("movie") -> vectors["movie"]
+            lower.contains("одежд") || lower.contains("обувь") || lower.contains("cloth") -> vectors["checkroom"]
+            lower.contains("питом") || lower.contains("животн") || lower.contains("pet") -> vectors["pets"]
+            else -> null
+        }
+    }
 }
 
 /** Эмодзи для вкладки «Эмодзи» выбора иконки; свой эмодзи можно вписать там же. */
@@ -60,22 +87,26 @@ val CATEGORY_EMOJI: List<String> = listOf(
 )
 
 /**
- * Иконка категории: линейная (`mi:<ключ>`) окрашивается [color]; эмодзи рисуется как есть; без иконки — первая
- * буква названия. Неизвестный ключ (бэкап из более новой версии) — тоже первая буква, а не пустое место.
+ * Иконка категории: линейная (`mi:<ключ>`) окрашивается [color]; эмодзи рисуется как есть; без иконки — автоподбор
+ * иконки по имени либо аккуратный полужирный монограмм-бейдж.
  */
 @Composable
 fun CategoryGlyph(icon: String?, name: String, color: Color, size: Dp = 20.dp, modifier: Modifier = Modifier) {
     val key = materialIconKey(icon)
-    val vector = key?.let(CategoryIconCatalog::vector)
+    val vector = key?.let(CategoryIconCatalog::vector) ?: if (icon.isNullOrBlank()) CategoryIconCatalog.fallbackVectorForName(name) else null
     Box(modifier.size(size + 4.dp), contentAlignment = Alignment.Center) {
         when {
             vector != null -> Icon(vector, contentDescription = null, tint = color, modifier = Modifier.size(size))
             key == null && !icon.isNullOrBlank() -> Text(icon, style = TextStyle(fontSize = (size.value * 0.9f).sp))
             else -> Text(
-                name.trim().take(1).uppercase(),
-                style = TextStyle(fontSize = (size.value * 0.8f).sp),
+                name.trim().take(1).uppercase().ifEmpty { "?" },
+                style = TextStyle(
+                    fontSize = (size.value * 0.75f).sp,
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                ),
                 color = color,
             )
         }
     }
 }
+
