@@ -1,6 +1,10 @@
 package com.corriente.app
 
 import android.content.Context
+import com.corriente.data.quickentry.FrequentEntry
+import com.corriente.data.quickentry.InMemoryPinnedEntries
+import com.corriente.data.quickentry.PinnedEntries
+import com.corriente.data.quickentry.PinnedEntryCodec
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
@@ -25,11 +29,32 @@ object UiPrefs {
     private const val KEY_THEME_MODE = "theme_mode"
     private const val KEY_DYNAMIC_COLOR = "dynamic_color"
     private const val KEY_START_CARD_DISMISSED = "start_card_dismissed"
+    private const val KEY_PINNED_ENTRIES = "pinned_entries"
 
     private var leftHandedFlow: MutableStateFlow<Boolean>? = null
     private var themeModeFlow: MutableStateFlow<ThemeMode>? = null
     private var dynamicColorFlow: MutableStateFlow<Boolean>? = null
     private var startCardDismissedFlow: MutableStateFlow<Boolean>? = null
+    private var pinnedEntries: PinnedEntries? = null
+
+    /** E1: закреплённые шаблоны быстрого ввода — на этом устройстве, вне БД, бэкапа и синхронизации. */
+    @Synchronized
+    fun pinnedEntries(context: Context): PinnedEntries =
+        pinnedEntries ?: PrefsPinnedEntries(prefs(context)).also { pinnedEntries = it }
+
+    private class PrefsPinnedEntries(private val prefs: android.content.SharedPreferences) : PinnedEntries {
+        private val delegate = InMemoryPinnedEntries(
+            prefs.getString(KEY_PINNED_ENTRIES, null).orEmpty().lines().mapNotNull(PinnedEntryCodec::decode),
+        )
+        override val pinned = delegate.pinned
+
+        @Synchronized
+        override fun toggle(entry: FrequentEntry): Boolean {
+            val accepted = delegate.toggle(entry)
+            prefs.edit().putString(KEY_PINNED_ENTRIES, pinned.value.mapNotNull(PinnedEntryCodec::encode).joinToString("\n")).apply()
+            return accepted
+        }
+    }
 
     /** U11: стартовая карточка пустой базы скрыта «Пропустить» — на этом устройстве больше не показывается. */
     fun startCardDismissed(context: Context): StateFlow<Boolean> = startCardDismissedFlow(context)

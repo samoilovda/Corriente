@@ -16,6 +16,11 @@ import com.corriente.data.quickentry.FREQUENT_ENTRIES_WINDOW_DAYS
 import com.corriente.data.quickentry.FREQUENT_ENTRY_SUGGESTIONS_LIMIT
 import com.corriente.data.quickentry.FrequentEntry
 import com.corriente.data.quickentry.FrequentEntryKind
+import com.corriente.data.quickentry.InMemoryPinnedEntries
+import com.corriente.data.quickentry.PINNED_ENTRIES_LIMIT
+import com.corriente.data.quickentry.PinnedEntries
+import com.corriente.data.quickentry.QuickEntrySlot
+import com.corriente.data.quickentry.mergePinnedAndFrequent
 import com.corriente.data.quickentry.frequentEntries
 import com.corriente.data.repository.AccountRepository
 import com.corriente.data.repository.CategoryRepository
@@ -58,6 +63,8 @@ data class FrequentOption(
     val entry: FrequentEntry,
     val label: String,
     val amountText: String,
+    /** E1: закреплён пользователем — показывается первым и не пропадает из строки. */
+    val isPinned: Boolean = false,
 )
 
 data class TxnEntryUiState(
@@ -159,6 +166,8 @@ class TxnEntryViewModel(
      * R5.4) — новой зависимости не требует.
      */
     private val savedStateHandle: SavedStateHandle = SavedStateHandle(),
+    /** E1: закреплённые шаблоны; по умолчанию — в памяти (постоянное хранилище передаёт [factory]). */
+    private val pinnedEntries: PinnedEntries = InMemoryPinnedEntries(),
 ) : WritingViewModel() {
 
     private data class Form(
@@ -353,11 +362,14 @@ class TxnEntryViewModel(
      * вместе с `form`). Только для нового ввода — при редактировании строка «частые» не нужна.
      */
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
-    private val frequent: Flow<List<FrequentEntry>> = if (editingTxnId == null) {
+    private val frequent: Flow<List<QuickEntrySlot>> = if (editingTxnId == null) {
         val now = today()
-        txns.observeRange(now.minusDays(FREQUENT_ENTRIES_WINDOW_DAYS), now)
-            .map { frequentEntries(it, now, FREQUENT_ENTRY_SUGGESTIONS_LIMIT) }
-            .distinctUntilChanged()
+        combine(
+            txns.observeRange(now.minusDays(FREQUENT_ENTRIES_WINDOW_DAYS), now)
+                .map { frequentEntries(it, now, FREQUENT_ENTRY_SUGGESTIONS_LIMIT) }
+                .distinctUntilChanged(),
+            pinnedEntries.pinned,
+        ) { frequentList, pinnedList -> mergePinnedAndFrequent(pinnedList, frequentList) }
     } else {
         kotlinx.coroutines.flow.flowOf(emptyList())
     }
@@ -398,7 +410,7 @@ class TxnEntryViewModel(
         val activeAccountsById = allAccounts.filterNot { it.isArchived }.associateBy { it.id }
         val categoryNamesById = allCategories.associate { it.id to it.name }
         val frequentOptions = frequentList
-            .mapNotNull { entry ->
+            .mapNotNull { (entry, isPinned) ->
                 val account = activeAccountsById[entry.accountId] ?: return@mapNotNull null
                 val currencyMeta = byCode[entry.currencyCode]
                     ?: Currency(CurrencyCode(entry.currencyCode), minorUnits = 2, displayScale = 2, symbol = entry.currencyCode)
@@ -407,6 +419,7 @@ class TxnEntryViewModel(
                     entry = entry,
                     label = categoryName?.let { "$it · ${account.name}" } ?: account.name,
                     amountText = MoneyFormatter.format(Money(Minor(entry.amountMinor), CurrencyCode(entry.currencyCode)), currencyMeta),
+                    isPinned = isPinned,
                 )
             }
         TxnEntryUiState(
@@ -451,6 +464,14 @@ class TxnEntryViewModel(
                 calcOp = null,
             )
         }
+    }
+
+    /**
+     * E1: закрепить/снять шаблон. Лимит [com.corriente.data.quickentry.PINNED_ENTRIES_LIMIT] —
+     * при переполнении показываем сообщение, закрепление не меняется.
+     */
+    fun togglePinned(option: FrequentOption) {
+        if (!pinnedEntries.toggle(option.entry)) postMessage(R.string.txn_entry_pin_limit, PINNED_ENTRIES_LIMIT)
     }
 
     /** F2.8: набор новой цифры после удержанного результата ≤ 0 начинает ввод заново. */
@@ -601,6 +622,7 @@ class TxnEntryViewModel(
             initialCategoryId: String? = null,
             initialAccountId: String? = null,
             repeatTxnId: String? = null,
+            pinnedEntries: PinnedEntries = InMemoryPinnedEntries(),
         ) = viewModelFactory {
             initializer {
                 // R5.4: createSavedStateHandle() — расширение на CreationExtras, доступное здесь
@@ -611,6 +633,7 @@ class TxnEntryViewModel(
                     initialCategoryId = initialCategoryId, initialAccountId = initialAccountId,
                     repeatTxnId = repeatTxnId,
                     savedStateHandle = createSavedStateHandle(),
+                    pinnedEntries = pinnedEntries,
                 )
             }
         }

@@ -77,6 +77,7 @@ class TxnEntryViewModelTest {
         initialCategoryId: String? = null,
         initialAccountId: String? = null,
         repeatTxnId: String? = null,
+        pinned: com.corriente.data.quickentry.PinnedEntries = com.corriente.data.quickentry.InMemoryPinnedEntries(),
     ): TxnEntryViewModel = TxnEntryViewModel(
         txns = TxnRepository(fakes.txnDao, fakes.accountDao),
         accounts = AccountRepository(fakes.accountDao),
@@ -89,6 +90,7 @@ class TxnEntryViewModelTest {
         initialAccountId = initialAccountId,
         repeatTxnId = repeatTxnId,
         savedStateHandle = savedStateHandle,
+        pinnedEntries = pinned,
     )
 
     private fun CoroutineScope.observe(model: TxnEntryViewModel) {
@@ -724,6 +726,47 @@ class TxnEntryViewModelTest {
         assertEquals("acc-rub", model.uiState.value.selectedAccountId)
         assertEquals("cat-food", model.uiState.value.selectedCategoryId)
         assertTrue(model.uiState.value.canSave)
+    }
+
+    // E1: закрепление — шаблон остаётся в строке без повторений в истории, форму заполняет, запись не создаёт.
+    @Test
+    fun `pinned template shows without history, applies to form and unpins`() = runTest(dispatcher) {
+        val fakes = Fakes().apply { seed() }
+        val pinnedEntry = com.corriente.data.quickentry.FrequentEntry(
+            com.corriente.data.quickentry.FrequentEntryKind.EXPENSE, "acc-rub", "cat-food", 150_00, "RUB",
+        )
+        val store = com.corriente.data.quickentry.InMemoryPinnedEntries(listOf(pinnedEntry))
+        val model = vm(fakes, pinned = store)
+        backgroundScope.observe(model)
+        advanceUntilIdle()
+
+        val option = model.uiState.value.frequentOptions.single()
+        assertTrue(option.isPinned)
+        model.applyFrequent(option)
+        advanceUntilIdle()
+        assertEquals("cat-food", model.uiState.value.selectedCategoryId)
+        assertTrue(model.uiState.value.canSave)
+
+        model.togglePinned(option)
+        advanceUntilIdle()
+        assertTrue(store.pinned.value.isEmpty())
+        assertTrue(model.uiState.value.frequentOptions.isEmpty())
+    }
+
+    // E1: шаблон архивного счёта скрыт, но закрепление не теряется.
+    @Test
+    fun `pinned template of a missing account is hidden but kept`() = runTest(dispatcher) {
+        val fakes = Fakes().apply { seed() }
+        val gone = com.corriente.data.quickentry.FrequentEntry(
+            com.corriente.data.quickentry.FrequentEntryKind.EXPENSE, "acc-deleted", null, 100, "RUB",
+        )
+        val store = com.corriente.data.quickentry.InMemoryPinnedEntries(listOf(gone))
+        val model = vm(fakes, pinned = store)
+        backgroundScope.observe(model)
+        advanceUntilIdle()
+
+        assertTrue(model.uiState.value.frequentOptions.isEmpty())
+        assertEquals(listOf(gone), store.pinned.value)
     }
 
     // R2.2: строка «частые» не показывается при редактировании существующей операции.

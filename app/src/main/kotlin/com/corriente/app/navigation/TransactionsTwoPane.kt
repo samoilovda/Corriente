@@ -6,6 +6,8 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
+import androidx.compose.ui.platform.LocalContext
+import com.corriente.app.UiPrefs
 import androidx.compose.material.icons.outlined.ReceiptLong
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.VerticalDivider
@@ -116,6 +118,7 @@ private fun EntryPane(entry: Detail.Entry, onDone: () -> Unit, onCreateAccount: 
                 TxnEntryViewModel.factory(
                     txnRepository, accountRepository, categoryRepository, currencyRepository,
                     entry.editingId, entry.kind, entry.categoryId, entry.accountId, entry.repeatId,
+                    pinnedEntries = UiPrefs.pinnedEntries(LocalContext.current),
                 )
             },
         ),

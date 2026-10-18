@@ -267,6 +267,9 @@
     <string name="transfer_error_restore">Could not restore the transfer</string>
     <string name="txn_entry_account">Account</string>
     <string name="txn_entry_frequent">Frequent</string>
+    <string name="txn_entry_pin_limit">Can\'t pin: up to %1$d templates. Unpin another one first.</string>
+    <string name="txn_entry_pin_toggle">Pin / unpin template</string>
+    <string name="txn_entry_pinned">Pinned</string>
     <string name="txn_entry_category">Category</string>
     <string name="txn_entry_choose_category">Choose category</string>
     <string name="txn_entry_no_category">No category</string>

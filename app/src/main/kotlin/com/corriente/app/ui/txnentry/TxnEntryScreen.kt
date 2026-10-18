@@ -10,6 +10,14 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.ui.platform.LocalContext
+import com.corriente.app.UiPrefs
+import androidx.compose.material.icons.filled.PushPin
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.customActions
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -129,6 +137,7 @@ fun TxnEntryScreen(
             TxnEntryViewModel.factory(
                 txnRepository, accountRepository, categoryRepository, currencyRepository, editingTxnId, initialKind,
                 initialCategoryId, initialAccountId, repeatTxnId,
+                pinnedEntries = UiPrefs.pinnedEntries(LocalContext.current),
             )
         },
     ),
@@ -281,10 +290,32 @@ fun TxnEntryScreen(
                             Spacer(Modifier.height(8.dp))
                             ChipRow(stringResource(R.string.txn_entry_frequent)) {
                                 state.frequentOptions.forEach { option ->
+                                    // E1: долгое нажатие (или действие TalkBack) закрепляет/открепляет шаблон.
+                                    val pinToggle = stringResource(R.string.txn_entry_pin_toggle)
                                     FilterChip(
-                                        selected = false,
+                                        selected = option.isPinned,
                                         onClick = { viewModel.applyFrequent(option) },
                                         label = { Text("${option.label} · ${option.amountText}") },
+                                        leadingIcon = if (option.isPinned) {
+                                            {
+                                                Icon(
+                                                    Icons.Filled.PushPin,
+                                                    contentDescription = stringResource(R.string.txn_entry_pinned),
+                                                    modifier = Modifier.size(FilterChipDefaults.IconSize),
+                                                )
+                                            }
+                                        } else {
+                                            null
+                                        },
+                                        modifier = Modifier
+                                            .pointerInput(option.entry) {
+                                                detectTapGestures(onLongPress = { viewModel.togglePinned(option) })
+                                            }
+                                            .semantics {
+                                                customActions = listOf(
+                                                    CustomAccessibilityAction(pinToggle) { viewModel.togglePinned(option); true },
+                                                )
+                                            },
                                     )
                                 }
                             }

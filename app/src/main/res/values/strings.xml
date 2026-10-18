@@ -267,6 +267,9 @@
     <string name="transfer_error_restore">Не удалось восстановить перевод</string>
     <string name="txn_entry_account">Счёт</string>
     <string name="txn_entry_frequent">Частые</string>
+    <string name="txn_entry_pin_limit">Не удалось закрепить: максимум %1$d шаблонов. Сначала открепите другой.</string>
+    <string name="txn_entry_pin_toggle">Закрепить / открепить шаблон</string>
+    <string name="txn_entry_pinned">Закреплено</string>
     <string name="txn_entry_category">Категория</string>
     <string name="txn_entry_choose_category">Выбрать категорию</string>
     <string name="txn_entry_no_category">Без категории</string>
