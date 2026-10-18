@@ -8,20 +8,37 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
+import com.corriente.app.R
 
 /**
  * T5.3: графики на Compose Canvas. В композиции — только уже посчитанные значения (Long/строки),
- * `Float` появляется исключительно на уровне координат отрисовки (ARCHITECTURE.md §2.1, I-1).
+ * `Float` появляется исключительно на уровне координат отрисовки (ARCHITECTURE.md §2.1, I-1), доли —
+ * через [ChartGeometry] (без переполнения Long).
+ *
+ * U08: сам Canvas скрыт от TalkBack — вместо «график» озвучиваются смысловые узлы: подпись с валютой и
+ * периодом, по одному узлу на столбец/сегмент (их немного — до 7 месяцев и 6 категорий), и есть
+ * видимая текстовая таблица значений.
  */
 
 private val PALETTE = listOf(
@@ -32,27 +49,31 @@ private val PALETTE = listOf(
 private fun sliceColor(argb: Int, index: Int): Color =
     if (argb != 0) Color(argb) else PALETTE[index % PALETTE.size]
 
+/** Сколько категорий в легенде кольца; остальные — строкой «ещё N» (полный список — под графиком в отчёте). */
+private const val LEGEND_LIMIT = 6
+
 @Composable
-fun MonthlyBarChart(bars: List<MonthlyBar>, modifier: Modifier = Modifier) {
+fun MonthlyBarChart(bars: List<MonthlyBar>, currencyCode: String, modifier: Modifier = Modifier) {
     if (bars.isEmpty()) return
     val maxValue = bars.maxOf { it.valueMinor }.coerceAtLeast(1L)
     val barColor = MaterialTheme.colorScheme.primary
     val axisColor = MaterialTheme.colorScheme.outlineVariant
+    var valuesShown by rememberSaveable { mutableStateOf(false) }
 
     Column(modifier.fillMaxWidth().padding(16.dp)) {
         Text(
-            stringResourceMonthly(),
+            stringResource(R.string.report_chart_monthly_in, currencyCode),
             style = MaterialTheme.typography.titleSmall,
-            modifier = Modifier.padding(bottom = 8.dp),
+            modifier = Modifier.padding(bottom = 8.dp).semantics { heading() },
         )
-        Canvas(Modifier.fillMaxWidth().height(140.dp)) {
+        Canvas(Modifier.fillMaxWidth().height(140.dp).clearAndSetSemantics { }) {
             val n = bars.size
             val gap = size.width / (n * 3f)
             val barWidth = (size.width - gap * (n + 1)) / n
             val baseline = size.height
             drawLine(axisColor, Offset(0f, baseline), Offset(size.width, baseline), strokeWidth = 2f)
             bars.forEachIndexed { i, bar ->
-                val h = (bar.valueMinor.toDouble() / maxValue.toDouble() * (size.height - 8f)).toFloat()
+                val h = (ChartGeometry.normalized(bar.valueMinor, 0L, maxValue) * (size.height - 8f)).toFloat()
                 val left = gap + i * (barWidth + gap)
                 drawRect(
                     color = barColor,
@@ -62,7 +83,24 @@ fun MonthlyBarChart(bars: List<MonthlyBar>, modifier: Modifier = Modifier) {
             }
         }
         Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-            bars.forEach { Text(it.label, style = MaterialTheme.typography.labelSmall) }
+            bars.forEach { bar ->
+                Text(
+                    bar.label,
+                    style = MaterialTheme.typography.labelSmall,
+                    modifier = Modifier.clearAndSetSemantics { contentDescription = "${bar.label}: ${bar.amountText}" },
+                )
+            }
+        }
+        TextButton(onClick = { valuesShown = !valuesShown }) {
+            Text(stringResource(if (valuesShown) R.string.report_chart_values_hide else R.string.report_chart_values_show))
+        }
+        if (valuesShown) {
+            bars.forEach { bar ->
+                Row(Modifier.fillMaxWidth().padding(vertical = 2.dp).semantics(mergeDescendants = true) {}) {
+                    Text(bar.label, Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
+                    Text(bar.amountText, style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.End)
+                }
+            }
         }
     }
 }
@@ -72,19 +110,21 @@ fun MonthlyBarChart(bars: List<MonthlyBar>, modifier: Modifier = Modifier) {
  * ([com.corriente.data.usecase.balanceSeries]) — здесь только координаты (`Float`, как и в
  * остальных графиках T5.3). Остаток может уходить в минус (овердрафт/долг) — ноль отмечен
  * отдельной линией, чтобы это было видно, а не терялось в масштабе графика.
+ * U08: [description] — смысловая сводка (начало, конец, минимум, максимум) вместо безымянного Canvas.
  */
 @Composable
-fun AccountBalanceLineChart(points: List<Long>, modifier: Modifier = Modifier) {
+fun AccountBalanceLineChart(points: List<Long>, description: String, modifier: Modifier = Modifier) {
     if (points.size < 2) return
     val min = points.min()
     val max = points.max()
-    val span = (max - min).coerceAtLeast(1L)
     val lineColor = MaterialTheme.colorScheme.primary
     val zeroLineColor = MaterialTheme.colorScheme.outlineVariant
 
-    Canvas(modifier.fillMaxWidth().height(140.dp).padding(vertical = 4.dp)) {
-        fun y(value: Long): Float =
-            size.height - ((value - min).toDouble() / span.toDouble() * size.height).toFloat()
+    Canvas(
+        modifier.fillMaxWidth().height(140.dp).padding(vertical = 4.dp)
+            .clearAndSetSemantics { contentDescription = description },
+    ) {
+        fun y(value: Long): Float = size.height - (ChartGeometry.normalized(value, min, max) * size.height).toFloat()
 
         if (min < 0 && max > 0) {
             val zeroY = y(0L)
@@ -104,22 +144,23 @@ fun AccountBalanceLineChart(points: List<Long>, modifier: Modifier = Modifier) {
 }
 
 @Composable
-fun CategoryDonut(slices: List<CategorySlice>, modifier: Modifier = Modifier) {
+fun CategoryDonut(slices: List<CategorySlice>, currencyCode: String, periodLabel: String, modifier: Modifier = Modifier) {
     val positive = slices.filter { it.valueMinor > 0 }
     if (positive.isEmpty()) return
-    val total = positive.sumOf { it.valueMinor }.toDouble()
+    val fractions = ChartGeometry.fractionsOfTotal(positive.map { it.valueMinor })
+    val noCategory = stringResource(R.string.report_no_category)
 
     Column(modifier.fillMaxWidth().padding(16.dp)) {
         Text(
-            stringResourceStructure(),
+            stringResource(R.string.report_chart_structure_in, currencyCode, periodLabel),
             style = MaterialTheme.typography.titleSmall,
-            modifier = Modifier.padding(bottom = 8.dp),
+            modifier = Modifier.padding(bottom = 8.dp).semantics { heading() },
         )
-        Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-            Canvas(Modifier.size(120.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Canvas(Modifier.size(120.dp).clearAndSetSemantics { }) {
                 var startAngle = -90f
                 positive.forEachIndexed { i, slice ->
-                    val sweep = (slice.valueMinor / total * 360.0).toFloat()
+                    val sweep = (fractions[i] * 360.0).toFloat()
                     // Обводка центрирована на контуре дуги: без отступа в полтолщины кольцо вылезает за холст.
                     val stroke = size.minDimension / 4f
                     drawArc(
@@ -134,33 +175,30 @@ fun CategoryDonut(slices: List<CategorySlice>, modifier: Modifier = Modifier) {
                     startAngle += sweep
                 }
             }
-            Column(Modifier.padding(start = 16.dp)) {
-                positive.take(6).forEachIndexed { i, slice ->
-                    Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                        Canvas(Modifier.size(10.dp).padding(end = 0.dp)) {
+            Column(Modifier.padding(start = 16.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                positive.take(LEGEND_LIMIT).forEachIndexed { i, slice ->
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.semantics(mergeDescendants = true) {},
+                    ) {
+                        Canvas(Modifier.size(10.dp).clearAndSetSemantics { }) {
                             drawCircle(sliceColor(slice.color, i))
                         }
                         Text(
-                            "  ${slice.name ?: stringResourceNoCategory()} — ${slice.amountText}",
+                            "  ${slice.name ?: noCategory} — ${slice.amountText}",
                             style = MaterialTheme.typography.labelSmall,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
+                            maxLines = 2,
                         )
                     }
+                }
+                if (positive.size > LEGEND_LIMIT) {
+                    Text(
+                        stringResource(R.string.report_chart_more, positive.size - LEGEND_LIMIT),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
             }
         }
     }
 }
-
-@Composable
-private fun stringResourceMonthly() =
-    androidx.compose.ui.res.stringResource(com.corriente.app.R.string.report_chart_monthly)
-
-@Composable
-private fun stringResourceStructure() =
-    androidx.compose.ui.res.stringResource(com.corriente.app.R.string.report_chart_structure)
-
-@Composable
-private fun stringResourceNoCategory() =
-    androidx.compose.ui.res.stringResource(com.corriente.app.R.string.report_no_category)

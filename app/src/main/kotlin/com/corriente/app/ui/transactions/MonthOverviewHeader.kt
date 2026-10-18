@@ -50,7 +50,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -74,8 +77,13 @@ private val HEADER_SIZE = ORBIT_RADIUS * 2 + ICON_SIZE + 36.dp
 
 /**
  * Шапка «Операций» в духе Monefy: выбор счёта и месяца, небольшое кольцо расходов с иконками категорий вокруг
- * (тап — ввод расхода в эту категорию), «Баланс» под кольцом. Живёт первым элементом списка и уезжает при прокрутке.
+ * (тап — ввод расхода в эту категорию). Живёт первым элементом списка и уезжает при прокрутке.
+ *
+ * U05/U08: суммы месяца подписаны «Расходы · месяц» / «Доходы · месяц» и показаны целиком под кольцом
+ * (кольцо — дополнение, а не контейнер для обрезанных сумм); баланс подписан отдельно — он за все даты,
+ * а не за выбранный месяц.
  */
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 fun MonthOverviewHeader(
     overview: MonthOverview,
@@ -112,12 +120,16 @@ fun MonthOverviewHeader(
             }
         }
 
+        val months = stringArrayResource(R.array.month_names)
+        val monthLabel = "${months[overview.month.monthValue - 1]} ${overview.month.year}"
+        val ringDescription = stringResource(
+            R.string.overview_ring_cd,
+            monthLabel,
+            overview.icons.filter { it.percent != null }.joinToString { "${it.name} ${it.percent}%" }
+                .ifEmpty { stringResource(R.string.overview_ring_empty) },
+        )
         Box(Modifier.size(HEADER_SIZE), contentAlignment = Alignment.Center) {
-            Ring(overview.slices, Modifier.size(RING_SIZE))
-            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(RING_SIZE - 44.dp)) {
-                CenterAmount(overview.incomeText, com.corriente.app.ui.theme.LocalCorrienteColors.current.income)
-                CenterAmount(overview.expenseText, com.corriente.app.ui.theme.LocalCorrienteColors.current.expense)
-            }
+            Ring(overview.slices, Modifier.size(RING_SIZE).clearAndSetSemantics { contentDescription = ringDescription })
             val n = overview.icons.size
             overview.icons.forEachIndexed { i, icon ->
                 // Равномерно по окружности, начиная сверху и по часовой стрелке.
@@ -134,16 +146,38 @@ fun MonthOverviewHeader(
             }
         }
 
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            MonthAmount(
+                label = stringResource(R.string.overview_expenses_for, monthLabel),
+                amount = overview.expenseText,
+                kind = com.corriente.app.ui.common.MoneyKind.EXPENSE,
+                modifier = Modifier.weight(1f),
+            )
+            MonthAmount(
+                label = stringResource(R.string.overview_income_for, monthLabel),
+                amount = overview.incomeText,
+                kind = com.corriente.app.ui.common.MoneyKind.INCOME,
+                modifier = Modifier.weight(1f),
+            )
+        }
+
         Surface(
             onClick = onBalanceClick,
             shape = MaterialTheme.shapes.medium,
             color = MaterialTheme.colorScheme.surfaceContainerHigh,
             modifier = Modifier.padding(top = 4.dp, bottom = 8.dp),
         ) {
-            Row(Modifier.padding(horizontal = 20.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+            FlowRow(
+                Modifier.padding(horizontal = 20.dp, vertical = 10.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                itemVerticalAlignment = Alignment.CenterVertically,
+            ) {
                 Text(stringResource(R.string.overview_balance), style = MaterialTheme.typography.titleMedium)
                 com.corriente.app.ui.common.MoneyText(
-                    "  ${overview.balanceText}",
+                    overview.balanceText,
                     com.corriente.app.ui.common.MoneyKind.BALANCE,
                     isNegativeBalance = overview.balanceNegative,
                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
@@ -155,15 +189,23 @@ fun MonthOverviewHeader(
     }
 }
 
+/** Сумма месяца с текстовой подписью: смысл не держится на одном цвете, большие суммы переносятся, а не режутся. */
 @Composable
-private fun CenterAmount(text: String, color: Color) {
-    Text(
-        text,
-        color = color,
-        style = MaterialTheme.typography.labelMedium,
-        maxLines = 1,
-        overflow = TextOverflow.Ellipsis,
-    )
+private fun MonthAmount(label: String, amount: String, kind: com.corriente.app.ui.common.MoneyKind, modifier: Modifier) {
+    Column(modifier.semantics(mergeDescendants = true) {}, horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(
+            label,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+        )
+        com.corriente.app.ui.common.MoneyText(
+            amount,
+            kind,
+            style = MaterialTheme.typography.titleSmall,
+            textAlign = TextAlign.Center,
+        )
+    }
 }
 
 @Composable
@@ -171,7 +213,7 @@ private fun Ring(slices: List<OverviewSlice>, modifier: Modifier) {
     val empty = MaterialTheme.colorScheme.surfaceVariant
     val uncategorized = MaterialTheme.colorScheme.outline
     // Float — только координаты отрисовки (I-1); доли считаются из уже посчитанных Long.
-    val total = slices.sumOf { it.valueMinor }.toDouble()
+    val fractions = com.corriente.app.ui.report.ChartGeometry.fractionsOfTotal(slices.map { it.valueMinor })
     // UI-3.1: дуги «вырастают» при каждом новом наборе долей (смена месяца/счёта).
     val reveal = remember(slices) { Animatable(0f) }
     LaunchedEffect(reveal) { reveal.animateTo(1f, tween(durationMillis = 600)) }
@@ -180,13 +222,13 @@ private fun Ring(slices: List<OverviewSlice>, modifier: Modifier) {
         val inset = stroke.width / 2
         val arcSize = androidx.compose.ui.geometry.Size(size.width - stroke.width, size.height - stroke.width)
         val topLeft = androidx.compose.ui.geometry.Offset(inset, inset)
-        if (total <= 0.0) {
+        if (fractions.all { it == 0.0 }) {
             drawArc(empty, 0f, 360f, useCenter = false, topLeft = topLeft, size = arcSize, style = stroke)
             return@Canvas
         }
         var start = -90f
         slices.forEachIndexed { i, slice ->
-            val sweep = (slice.valueMinor / total * 360.0).toFloat() * reveal.value
+            val sweep = (fractions[i] * 360.0).toFloat() * reveal.value
             val color = when {
                 slice.color != 0 -> Color(slice.color)
                 else -> uncategorized

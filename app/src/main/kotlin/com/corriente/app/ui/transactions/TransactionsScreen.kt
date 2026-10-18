@@ -61,7 +61,10 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FabPosition
-import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -243,22 +246,28 @@ fun TransactionsScreen(
             // Правша: «+» доход слева, «−» расход справа (у thumb-зоны). Левша: у левого края, порядок «−», «+».
             // Расход — самый частый сценарий, основная кнопка; «+» вторичного цвета.
             // UI-2.2: «+» — малая кнопка; долгий тап открывает меню «Доход / Перевод».
+            // U09: обе кнопки подписаны словами — значок «+»/«−» без подписи приходилось угадывать.
             val income = @Composable {
                 Box {
                     Surface(
-                        shape = FloatingActionButtonDefaults.smallShape,
+                        shape = FloatingActionButtonDefaults.shape,
                         color = MaterialTheme.colorScheme.secondaryContainer,
                         contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
                         shadowElevation = 3.dp,
-                        modifier = Modifier.size(48.dp).combinedClickable(
+                        modifier = Modifier.heightIn(min = 48.dp).combinedClickable(
                             onClick = onAddIncome,
                             onLongClick = { incomeMenuOpen = true },
                             onLongClickLabel = stringResource(R.string.txn_add_income_more),
                             role = Role.Button,
                         ),
                     ) {
-                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            Icon(Icons.Outlined.Add, contentDescription = stringResource(R.string.txn_add_income))
+                        Row(
+                            Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            Icon(Icons.Outlined.Add, contentDescription = null)
+                            Text(stringResource(R.string.txn_fab_income), style = MaterialTheme.typography.labelLarge)
                         }
                     }
                     DropdownMenu(expanded = incomeMenuOpen, onDismissRequest = { incomeMenuOpen = false }) {
@@ -275,10 +284,14 @@ fun TransactionsScreen(
                     }
                 }
             }
+            val expenseLabel = stringResource(R.string.txn_add_expense)
             val expense = @Composable {
-                FloatingActionButton(onClick = onAddExpense) {
-                    Icon(Icons.Outlined.Remove, contentDescription = stringResource(R.string.txn_add_expense))
-                }
+                ExtendedFloatingActionButton(
+                    onClick = onAddExpense,
+                    icon = { Icon(Icons.Outlined.Remove, contentDescription = null) },
+                    text = { Text(stringResource(R.string.txn_fab_expense)) },
+                    modifier = Modifier.semantics { contentDescription = expenseLabel },
+                )
             }
             AnimatedVisibility(
                 visible = fabVisible,
@@ -337,6 +350,16 @@ fun TransactionsScreen(
                             },
                             onCategoryClick = { id -> onAddExpenseInCategory(id, header.accountId) },
                             onBalanceClick = { scope.launch { listState.animateScrollToItem(1) } },
+                        )
+                    }
+                }
+                // U05: список — вся история, а не только месяц шапки; это сказано прямо, и есть явный переход
+                // к операциям выбранного месяца (обычный фильтр периода, снимается своим чипом).
+                if (header != null && state.filter.from == null && state.filter.to == null) {
+                    item(key = "history-scope") {
+                        HistoryScopeRow(
+                            month = header.month,
+                            onOnlyMonth = { viewModel.setPeriod(header.month.atDay(1), header.month.atEndOfMonth()) },
                         )
                     }
                 }
@@ -501,6 +524,24 @@ private fun TxnRowItem(row: TxnRow, modifier: Modifier = Modifier, onClick: () -
 }
 
 private const val UNDO_WINDOW_MS = 5_000L
+
+@Composable
+private fun HistoryScopeRow(month: java.time.YearMonth, onOnlyMonth: () -> Unit) {
+    val months = androidx.compose.ui.res.stringArrayResource(R.array.month_names)
+    val monthLabel = "${months[month.monthValue - 1]} ${month.year}"
+    Row(
+        Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            stringResource(R.string.overview_history_all),
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.weight(1f),
+        )
+        TextButton(onClick = onOnlyMonth) { Text(stringResource(R.string.overview_only_month, monthLabel)) }
+    }
+}
 
 /**
  * UI-3.2: строка операции со свайпами — влево «удалить» (с отменой в снекбаре), вправо «повторить»

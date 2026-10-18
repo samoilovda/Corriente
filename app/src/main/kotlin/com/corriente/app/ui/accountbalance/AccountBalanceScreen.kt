@@ -107,8 +107,18 @@ fun AccountBalanceScreen(
                     style = MaterialTheme.typography.bodyMedium,
                 )
             } else {
+                val lowest = state.points.minBy { it.valueMinor }
+                val highest = state.points.maxBy { it.valueMinor }
                 AccountBalanceLineChart(
                     points = state.points.map { it.valueMinor },
+                    description = stringResource(
+                        R.string.account_balance_chart_cd,
+                        state.periodLabel,
+                        state.points.first().amountText,
+                        state.points.last().amountText,
+                        lowest.amountText,
+                        highest.amountText,
+                    ),
                     modifier = Modifier.padding(horizontal = 16.dp),
                 )
                 Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.SpaceBetween) {

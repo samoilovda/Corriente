@@ -181,10 +181,10 @@ fun ReportScreen(
             } else {
                 LazyColumn(Modifier.fillMaxSize()) {
                     if (state.monthly.any { it.valueMinor > 0 }) {
-                        item(key = "chart-monthly") { MonthlyBarChart(state.monthly) }
+                        item(key = "chart-monthly") { MonthlyBarChart(state.monthly, state.selectedCurrency.orEmpty()) }
                     }
                     if (state.slices.any { it.valueMinor > 0 }) {
-                        item(key = "chart-structure") { CategoryDonut(state.slices) }
+                        item(key = "chart-structure") { CategoryDonut(state.slices, state.selectedCurrency.orEmpty(), state.periodLabel) }
                         item(key = "chart-divider") { HorizontalDivider() }
                     }
                     items(state.rows, key = { it.categoryId ?: "none" }) { row ->
