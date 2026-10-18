@@ -12,6 +12,7 @@ import androidx.compose.runtime.LaunchedEffect
 import com.corriente.data.usecase.MonthOverview
 import com.corriente.data.usecase.OverviewIcon
 import com.corriente.data.usecase.OverviewSlice
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -47,7 +48,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+
 import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -130,6 +133,25 @@ fun MonthOverviewHeader(
         )
         Box(Modifier.size(HEADER_SIZE), contentAlignment = Alignment.Center) {
             Ring(overview.slices, Modifier.size(RING_SIZE).clearAndSetSemantics { contentDescription = ringDescription })
+            Column(
+                modifier = Modifier.width(RING_SIZE - 36.dp).clearAndSetSemantics {},
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Text(
+                    stringResource(R.string.category_kind_expense),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                )
+                com.corriente.app.ui.common.MoneyText(
+                    overview.expenseText,
+                    com.corriente.app.ui.common.MoneyKind.EXPENSE,
+                    style = MaterialTheme.typography.titleMedium,
+                    deemphasizeFraction = true,
+                    maxLines = 1,
+                    textAlign = TextAlign.Center,
+                )
+            }
             val n = overview.icons.size
             overview.icons.forEachIndexed { i, icon ->
                 // Равномерно по окружности, начиная сверху и по часовой стрелке.
@@ -147,16 +169,16 @@ fun MonthOverviewHeader(
         }
 
         Row(
-            Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            MonthAmount(
+            MonthAmountCard(
                 label = stringResource(R.string.overview_expenses_for, monthLabel),
                 amount = overview.expenseText,
                 kind = com.corriente.app.ui.common.MoneyKind.EXPENSE,
                 modifier = Modifier.weight(1f),
             )
-            MonthAmount(
+            MonthAmountCard(
                 label = stringResource(R.string.overview_income_for, monthLabel),
                 amount = overview.incomeText,
                 kind = com.corriente.app.ui.common.MoneyKind.INCOME,
@@ -168,74 +190,105 @@ fun MonthOverviewHeader(
             onClick = onBalanceClick,
             shape = MaterialTheme.shapes.medium,
             color = MaterialTheme.colorScheme.surfaceContainerHigh,
-            modifier = Modifier.padding(top = 4.dp, bottom = 8.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
         ) {
-            FlowRow(
-                Modifier.padding(horizontal = 20.dp, vertical = 10.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                itemVerticalAlignment = Alignment.CenterVertically,
+            Row(
+                Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(stringResource(R.string.overview_balance), style = MaterialTheme.typography.titleMedium)
+                Text(stringResource(R.string.overview_balance), style = MaterialTheme.typography.titleSmall)
                 com.corriente.app.ui.common.MoneyText(
                     overview.balanceText,
                     com.corriente.app.ui.common.MoneyKind.BALANCE,
                     isNegativeBalance = overview.balanceNegative,
                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
                     color = if (overview.balanceNegative) com.corriente.app.ui.theme.LocalCorrienteColors.current.expense else MaterialTheme.colorScheme.onSurface,
+                    deemphasizeFraction = true,
                 )
             }
         }
-        HorizontalDivider()
     }
 }
 
-/** Сумма месяца с текстовой подписью: смысл не держится на одном цвете, большие суммы переносятся, а не режутся. */
+/** Bento-плитка суммы месяца с текстовой подписью. */
 @Composable
-private fun MonthAmount(label: String, amount: String, kind: com.corriente.app.ui.common.MoneyKind, modifier: Modifier) {
-    Column(modifier.semantics(mergeDescendants = true) {}, horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(
-            label,
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center,
-        )
-        com.corriente.app.ui.common.MoneyText(
-            amount,
-            kind,
-            style = MaterialTheme.typography.titleSmall,
-            textAlign = TextAlign.Center,
-            maxLines = Int.MAX_VALUE,
-        )
+private fun MonthAmountCard(label: String, amount: String, kind: com.corriente.app.ui.common.MoneyKind, modifier: Modifier) {
+    Surface(
+        shape = MaterialTheme.shapes.medium,
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        modifier = modifier,
+    ) {
+        Column(
+            Modifier.padding(horizontal = 12.dp, vertical = 10.dp).semantics(mergeDescendants = true) {},
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text(
+                label,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            com.corriente.app.ui.common.MoneyText(
+                amount,
+                kind,
+                style = MaterialTheme.typography.titleMedium,
+                textAlign = TextAlign.Center,
+                deemphasizeFraction = true,
+                maxLines = 1,
+            )
+        }
     }
 }
 
 @Composable
 private fun Ring(slices: List<OverviewSlice>, modifier: Modifier) {
-    val empty = MaterialTheme.colorScheme.surfaceVariant
+    val trackColor = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.5f)
     val uncategorized = MaterialTheme.colorScheme.outline
     // Float — только координаты отрисовки (I-1); доли считаются из уже посчитанных Long.
     val fractions = com.corriente.app.ui.report.ChartGeometry.fractionsOfTotal(slices.map { it.valueMinor })
     // UI-3.1: дуги «вырастают» при каждом новом наборе долей (смена месяца/счёта).
     val reveal = remember(slices) { Animatable(0f) }
     LaunchedEffect(reveal) { reveal.animateTo(1f, tween(durationMillis = 600)) }
+    val activeCount = fractions.count { it > 0.0 }
+    val gap = if (activeCount > 1) 4f else 0f
+
     Canvas(modifier) {
-        val stroke = Stroke(width = size.minDimension / 6.5f)
-        val inset = stroke.width / 2
-        val arcSize = androidx.compose.ui.geometry.Size(size.width - stroke.width, size.height - stroke.width)
+        val strokeWidth = size.minDimension / 6.5f
+        val stroke = Stroke(width = strokeWidth, cap = if (activeCount > 1) StrokeCap.Round else StrokeCap.Butt)
+        val inset = strokeWidth / 2
+        val arcSize = androidx.compose.ui.geometry.Size(size.width - strokeWidth, size.height - strokeWidth)
         val topLeft = androidx.compose.ui.geometry.Offset(inset, inset)
+
+        drawArc(
+            trackColor,
+            0f,
+            360f,
+            useCenter = false,
+            topLeft = topLeft,
+            size = arcSize,
+            style = Stroke(width = strokeWidth * 0.7f),
+        )
+
         if (fractions.all { it == 0.0 }) {
-            drawArc(empty, 0f, 360f, useCenter = false, topLeft = topLeft, size = arcSize, style = stroke)
             return@Canvas
         }
+
         var start = -90f
         slices.forEachIndexed { i, slice ->
-            val sweep = (fractions[i] * 360.0).toFloat() * reveal.value
-            val color = when {
-                slice.color != 0 -> Color(slice.color)
-                else -> uncategorized
+            val fraction = fractions[i]
+            if (fraction > 0.0) {
+                val fullSweep = (fraction * 360.0).toFloat() * reveal.value
+                val sweep = if (fullSweep > gap && activeCount > 1) fullSweep - gap else fullSweep
+                val color = when {
+                    slice.color != 0 -> Color(slice.color)
+                    else -> uncategorized
+                }
+                drawArc(color, start + (gap / 2f), sweep, useCenter = false, topLeft = topLeft, size = arcSize, style = stroke)
+                start += fullSweep
             }
-            drawArc(color, start, sweep, useCenter = false, topLeft = topLeft, size = arcSize, style = stroke)
-            start += sweep
         }
     }
 }
@@ -249,20 +302,26 @@ private fun CategoryIcon(icon: OverviewIcon, fallback: Color, onClick: () -> Uni
             .semantics { contentDescription = icon.name }
             .clickable(onClick = onClick),
         horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
-        Box(
-            Modifier.size(ICON_SIZE).background(color.copy(alpha = 0.22f), CircleShape),
-            contentAlignment = Alignment.Center,
+        Surface(
+            shape = RoundedCornerShape(14.dp),
+            color = MaterialTheme.colorScheme.surfaceContainerLow,
+            border = BorderStroke(1.dp, color.copy(alpha = 0.35f)),
+            modifier = Modifier.size(ICON_SIZE + 4.dp),
         ) {
-            CategoryGlyph(icon.icon, icon.name, color, size = 20.dp)
+            Box(contentAlignment = Alignment.Center) {
+                CategoryGlyph(icon.icon, icon.name, color, size = 20.dp)
+            }
         }
         Text(
             icon.percent?.let { "$it%" } ?: " ",
-            style = MaterialTheme.typography.labelSmall,
+            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
 }
+
 
 @Composable
 private fun AccountSelector(

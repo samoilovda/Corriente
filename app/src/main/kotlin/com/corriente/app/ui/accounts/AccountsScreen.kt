@@ -67,6 +67,7 @@ import com.corriente.app.corrienteContainer
 import com.corriente.app.ui.categories.CategoryPalette
 import com.corriente.app.ui.common.BackupReminderBanner
 import com.corriente.app.ui.common.rememberMessageSnackbarState
+import com.corriente.app.ui.common.groupItemShape
 import com.corriente.data.db.entity.AccountKind
 import com.corriente.money.CurrencyCode
 import com.corriente.money.MoneyFormatter
@@ -229,18 +230,6 @@ private fun CurrencyTotalCard(card: CurrencyCard) {
     }
 }
 
-/** Скругление строки внутри группы: внешние углы крупные, внутренние мелкие — группа читается как одна плитка. */
-@Composable
-private fun groupItemShape(index: Int, size: Int): androidx.compose.ui.graphics.Shape {
-    val outer = 24.dp
-    val inner = 4.dp
-    return RoundedCornerShape(
-        topStart = if (index == 0) outer else inner,
-        topEnd = if (index == 0) outer else inner,
-        bottomStart = if (index == size - 1) outer else inner,
-        bottomEnd = if (index == size - 1) outer else inner,
-    )
-}
 
 private fun kindIcon(kind: AccountKind): ImageVector = when (kind) {
     AccountKind.CASH -> Icons.Outlined.Payments

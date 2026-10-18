@@ -20,6 +20,13 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.text.style.TextAlign
 import kotlinx.coroutines.launch
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import com.corriente.app.ui.common.groupItemShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.FileDownload
@@ -424,10 +431,14 @@ fun TransactionsScreen(
                 }
                 state.sections.forEach { section ->
                     stickyHeader(key = "h-${section.date}") { DayHeader(section) }
-                    items(section.rows, key = { it.id }) { row ->
+                    itemsIndexed(section.rows, key = { _, it -> it.id }) { index, row ->
+                        val shape = groupItemShape(index, section.rows.size, outer = 18.dp, inner = 4.dp)
                         SwipeableTxnRow(
                             row = row,
-                            modifier = Modifier.animateItem(),
+                            modifier = Modifier
+                                .animateItem()
+                                .padding(horizontal = 12.dp, vertical = 1.dp)
+                                .clip(shape),
                             onClick = {
                                 when {
                                     row.isTransfer -> onEditTransfer(row.id)
@@ -439,7 +450,6 @@ fun TransactionsScreen(
                                 onRepeatTransaction(row.id, if (row.kind == MoneyKind.INCOME) EntryKind.INCOME else EntryKind.EXPENSE)
                             },
                         )
-                        HorizontalDivider()
                     }
                 }
                 if (state.canLoadEarlier) {
@@ -469,14 +479,26 @@ fun TransactionsScreen(
 @Composable
 private fun DayHeader(section: DaySection) {
     Row(
-        Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceContainer)
-            .padding(horizontal = 16.dp, vertical = 8.dp),
+        Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.95f))
+            .padding(horizontal = 20.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(com.corriente.app.ui.common.dayLabel(section.date), Modifier.weight(1f), style = MaterialTheme.typography.titleSmall)
+        Text(
+            com.corriente.app.ui.common.dayLabel(section.date),
+            Modifier.weight(1f),
+            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
+        )
         Column(horizontalAlignment = Alignment.End) {
             section.totals.forEach {
-                com.corriente.app.ui.common.MoneyText(it, com.corriente.app.ui.common.MoneyKind.BALANCE, style = MaterialTheme.typography.bodySmall)
+                com.corriente.app.ui.common.MoneyText(
+                    it,
+                    com.corriente.app.ui.common.MoneyKind.BALANCE,
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    deemphasizeFraction = true,
+                )
             }
         }
     }
@@ -485,75 +507,115 @@ private fun DayHeader(section: DaySection) {
 @Composable
 private fun TxnRowItem(row: TxnRow, modifier: Modifier = Modifier, onClick: () -> Unit) {
     Row(
-        modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 12.dp),
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        if (!row.isTransfer) {
-            val dotColor = if (row.color != 0) {
-                androidx.compose.ui.graphics.Color(row.color)
-            } else {
-                MaterialTheme.colorScheme.surfaceVariant
-            }
-            androidx.compose.foundation.layout.Box(
-                Modifier.size(28.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                androidx.compose.foundation.layout.Box(
+        val badgeColor = if (row.color != 0) {
+            Color(row.color)
+        } else {
+            MaterialTheme.colorScheme.secondary
+        }
+        Box(
+            Modifier.size(42.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (!row.isTransfer) {
+                Box(
                     Modifier
-                        .size(28.dp)
-                        .background(dotColor, androidx.compose.foundation.shape.CircleShape),
+                        .size(42.dp)
+                        .background(badgeColor.copy(alpha = 0.16f), RoundedCornerShape(14.dp)),
                     contentAlignment = Alignment.Center,
                 ) {
-                    if (!row.icon.isNullOrBlank()) {
-                        // Фон — цвет категории, поэтому линейная иконка белая; эмодзи рисуется как есть.
-                        val tint = if (row.color != 0) androidx.compose.ui.graphics.Color.White else MaterialTheme.colorScheme.onSurfaceVariant
-                        CategoryGlyph(row.icon, row.title, tint, size = 16.dp)
-                    }
+                    CategoryGlyph(row.icon, row.title, badgeColor, size = 20.dp)
                 }
-                // R3.0: маркер счёта — маленькая точка поверх иконки категории, чтобы по цвету
-                // было видно, с какого счёта операция, не занимая отдельного столбца в строке.
                 if (row.accountColor != 0) {
-                    androidx.compose.foundation.layout.Box(
+                    Box(
                         Modifier
                             .align(Alignment.BottomEnd)
-                            .size(10.dp)
+                            .size(12.dp)
                             .background(
-                                MaterialTheme.colorScheme.surface,
-                                androidx.compose.foundation.shape.CircleShape,
+                                MaterialTheme.colorScheme.surfaceContainerLow,
+                                CircleShape,
                             ),
                         contentAlignment = Alignment.Center,
                     ) {
-                        androidx.compose.foundation.layout.Box(
+                        Box(
                             Modifier
                                 .size(8.dp)
                                 .background(
-                                    androidx.compose.ui.graphics.Color(row.accountColor),
-                                    androidx.compose.foundation.shape.CircleShape,
+                                    Color(row.accountColor),
+                                    CircleShape,
+                                ),
+                        )
+                    }
+                }
+            } else {
+                Box(
+                    Modifier
+                        .size(42.dp)
+                        .background(MaterialTheme.colorScheme.secondaryContainer, RoundedCornerShape(14.dp)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        Icons.Outlined.SwapHoriz,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                        modifier = Modifier.size(22.dp),
+                    )
+                }
+                if (row.accountColor != 0) {
+                    Box(
+                        Modifier
+                            .align(Alignment.BottomEnd)
+                            .size(12.dp)
+                            .background(
+                                MaterialTheme.colorScheme.surfaceContainerLow,
+                                CircleShape,
+                            ),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Box(
+                            Modifier
+                                .size(8.dp)
+                                .background(
+                                    Color(row.accountColor),
+                                    CircleShape,
                                 ),
                         )
                     }
                 }
             }
-        } else if (row.accountColor != 0) {
-            androidx.compose.foundation.layout.Box(
-                Modifier
-                    .size(10.dp)
-                    .background(
-                        androidx.compose.ui.graphics.Color(row.accountColor),
-                        androidx.compose.foundation.shape.CircleShape,
-                    ),
-            )
         }
         Column(Modifier.weight(1f)) {
-            Text(row.title)
+            Text(
+                row.title,
+                style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
             row.note?.takeIf { it.isNotBlank() }?.let {
-                Text(it, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(
+                    it,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
         }
-        com.corriente.app.ui.common.MoneyText(row.amountText, row.kind)
+        com.corriente.app.ui.common.MoneyText(
+            row.amountText,
+            row.kind,
+            style = MaterialTheme.typography.titleMedium,
+            deemphasizeFraction = true,
+        )
     }
 }
+
 
 private const val UNDO_WINDOW_MS = 5_000L
 
@@ -644,6 +706,6 @@ private fun SwipeableTxnRow(
             }
         },
     ) {
-        Box(Modifier.background(MaterialTheme.colorScheme.surface)) { TxnRowItem(row, onClick = onClick) }
+        Box(Modifier.background(MaterialTheme.colorScheme.surfaceContainerLow)) { TxnRowItem(row, onClick = onClick) }
     }
 }
