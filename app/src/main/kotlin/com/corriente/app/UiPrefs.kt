@@ -24,6 +24,7 @@ enum class ThemeMode {
  */
 object UiPrefs {
 
+    // Имя файла и ключ «для левшей» читает и виджет «−/+» (:widget, QuickAddWidget) — :app ему недоступен.
     private const val PREFS = "ui_prefs"
     private const val KEY_LEFT_HANDED = "left_handed"
     private const val KEY_THEME_MODE = "theme_mode"

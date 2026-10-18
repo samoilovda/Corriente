@@ -543,7 +543,19 @@ class TxnEntryViewModel(
      * до навигации прочь с экрана иначе создавал вторую операцию (тот же класс бага, что
      * [com.corriente.app.quick.QuickEntryViewModel] уже гасит своим `saving`).
      */
-    fun save(): Boolean {
+    fun save(): Boolean = save(uiState.value.selectedCategoryId)
+
+    /**
+     * Тап по категории при уже введённой сумме новой операции — сразу запись, как основная кнопка. Категорию
+     * передаём в запись явно: [uiState] выводится из формы асинхронно и сразу после [selectCategory] её ещё не видит.
+     * @return true, если запись пошла; иначе категория просто выбрана (суммы нет, правка или запись уже в полёте).
+     */
+    fun selectCategoryAndSave(id: String?): Boolean {
+        selectCategory(id)
+        return !isEditing && save(id)
+    }
+
+    private fun save(categoryId: String?): Boolean {
         val state = uiState.value
         if (!state.canSave) return false
         val currency = state.currency ?: return false
@@ -563,11 +575,11 @@ class TxnEntryViewModel(
             onSuccess = { _finished.value = true },
         ) {
             if (editingTxnId != null) {
-                txns.updateEntry(editingTxnId, accountId, money, state.selectedCategoryId, state.date, note)
+                txns.updateEntry(editingTxnId, accountId, money, categoryId, state.date, note)
             } else {
                 when (state.kind) {
-                    EntryKind.EXPENSE -> txns.addExpense(accountId, money, state.selectedCategoryId, state.date, note)
-                    EntryKind.INCOME -> txns.addIncome(accountId, money, state.selectedCategoryId, state.date, note)
+                    EntryKind.EXPENSE -> txns.addExpense(accountId, money, categoryId, state.date, note)
+                    EntryKind.INCOME -> txns.addIncome(accountId, money, categoryId, state.date, note)
                 }
             }
         }

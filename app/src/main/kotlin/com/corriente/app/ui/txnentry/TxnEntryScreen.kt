@@ -1,5 +1,12 @@
 package com.corriente.app.ui.txnentry
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -381,7 +388,7 @@ fun TxnEntryScreen(
                         CategoryField(
                             category = selectedCategory,
                             enabled = interactive,
-                            onClick = { categorySheetOpen = true },
+                            onOpen = { categorySheetOpen = true },
                             modifier = Modifier.weight(1f).fillMaxHeight(),
                         )
                         Button(
@@ -431,7 +438,8 @@ fun TxnEntryScreen(
         )
     }
 
-    // U02: выбор категории только выбирает — и при создании, и при правке.
+    // Новая операция с уже введённой суммой: тап по категории записывает её сразу, как основная кнопка.
+    // Без суммы и при правке — только выбирает (U02).
     if (categorySheetOpen) {
         ModalBottomSheet(onDismissRequest = { categorySheetOpen = false }) {
             Box(Modifier.padding(horizontal = 12.dp).padding(bottom = 24.dp)) {
@@ -441,7 +449,7 @@ fun TxnEntryScreen(
                     selectedId = state.selectedCategoryId,
                     onSelect = { id ->
                         categorySheetOpen = false
-                        viewModel.selectCategory(id)
+                        viewModel.selectCategoryAndSave(id)
                     },
                 )
             }
@@ -471,9 +479,16 @@ fun TxnEntryScreen(
 private val COMPACT_HEIGHT = 480.dp
 private val ROOMY_HEIGHT = 600.dp
 
-/** U02: поле категории — показывает выбор (иконка, цвет, имя) или «Без категории»; тап открывает выбор. */
+/** Насколько кнопка «Категория» поднимается за пальцем; половина этого пути — порог открытия списка. */
+private val CATEGORY_SWIPE_LIFT = 32.dp
+
+/**
+ * U02: поле категории — показывает выбор (иконка, цвет, имя) или «Без категории». Открывает список тапом или
+ * свайпом вверх: при свайпе кнопка тянется за пальцем (не выше [CATEGORY_SWIPE_LIFT]) и, перейдя порог,
+ * открывает лист, который выезжает снизу — из-под самой кнопки.
+ */
 @Composable
-private fun CategoryField(category: Category?, enabled: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
+private fun CategoryField(category: Category?, enabled: Boolean, onOpen: () -> Unit, modifier: Modifier = Modifier) {
     val label = stringResource(R.string.txn_entry_category)
     val value = category?.name ?: stringResource(R.string.txn_entry_no_category)
     val surfaceColor = if (category != null && category.color != 0) {
@@ -481,12 +496,37 @@ private fun CategoryField(category: Category?, enabled: Boolean, onClick: () -> 
     } else {
         MaterialTheme.colorScheme.surfaceContainerHigh
     }
+    val scope = rememberCoroutineScope()
+    val lift = remember { Animatable(0f) }
+    val density = LocalDensity.current
+    val maxLiftPx = with(density) { CATEGORY_SWIPE_LIFT.toPx() }
+    val swipeUp = Modifier.pointerInput(enabled) {
+        if (!enabled) return@pointerInput
+        var dragged = 0f
+        detectVerticalDragGestures(
+            onDragStart = { dragged = 0f },
+            onVerticalDrag = { change, dy ->
+                change.consume()
+                dragged += dy
+                scope.launch { lift.snapTo(dragged.coerceIn(-maxLiftPx, 0f)) }
+            },
+            onDragEnd = {
+                if (dragged <= -maxLiftPx / 2) onOpen()
+                scope.launch { lift.animateTo(0f, spring(dampingRatio = Spring.DampingRatioMediumBouncy)) }
+            },
+            onDragCancel = { scope.launch { lift.animateTo(0f) } },
+        )
+    }
     Surface(
-        onClick = onClick,
+        onClick = onOpen,
         enabled = enabled,
         shape = MaterialTheme.shapes.large,
         color = surfaceColor,
-        modifier = modifier.heightIn(min = 56.dp).semantics { contentDescription = "$label: $value" },
+        modifier = modifier
+            .graphicsLayer { translationY = lift.value }
+            .then(swipeUp)
+            .heightIn(min = 56.dp)
+            .semantics { contentDescription = "$label: $value" },
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),

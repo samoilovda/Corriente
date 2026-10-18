@@ -3,8 +3,12 @@ package com.corriente.widget
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.SharedPreferences
 import android.net.Uri
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -34,6 +38,8 @@ import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextAlign
 import androidx.glance.text.TextStyle
+import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.flow.callbackFlow
 
 /**
  * Виджет быстрого ввода 2×1: только «−» и «+», без балансов. Снимок из DataStore не читает и
@@ -41,8 +47,9 @@ import androidx.glance.text.TextStyle
  * deep link'ом, что и ярлыки на иконке (`corriente://entry?kind=…`, R4.4), т.е. обычный экран
  * ввода операции, а не окно быстрого расхода по категории.
  *
- * Порядок как в Monefy: расход слева, доход справа. На вытянутом по вертикали виджете кнопки
- * встают столбиком.
+ * «−» — под большим пальцем, как кнопки на главном экране приложения: у правшей справа («+», «−»), при
+ * «Варианте для левшей» слева («−», «+»). На вытянутом по вертикали виджете кнопки встают столбиком
+ * в том же порядке.
  */
 class QuickAddWidget : GlanceAppWidget() {
 
@@ -50,8 +57,26 @@ class QuickAddWidget : GlanceAppWidget() {
     override val sizeMode = SizeMode.Exact
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
-        provideContent { QuickAddBody() }
+        provideContent {
+            val leftHanded by remember { leftHandedFlow(context) }.collectAsState(initial = readLeftHanded(context))
+            QuickAddBody(leftHanded)
+        }
     }
+}
+
+// Glance рисует в процессе приложения — его SharedPreferences доступны. Файл и ключ — из UiPrefs (:app).
+// Поток, а не разовое чтение: живой сеанс Glance при updateAll() не перезапускает provideGlance.
+private fun readLeftHanded(context: Context) =
+    context.getSharedPreferences("ui_prefs", Context.MODE_PRIVATE).getBoolean("left_handed", false)
+
+private fun leftHandedFlow(context: Context) = callbackFlow {
+    val prefs = context.getSharedPreferences("ui_prefs", Context.MODE_PRIVATE)
+    val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+        if (key == "left_handed") trySend(readLeftHanded(context))
+    }
+    prefs.registerOnSharedPreferenceChangeListener(listener)
+    send(readLeftHanded(context))
+    awaitClose { prefs.unregisterOnSharedPreferenceChangeListener(listener) }
 }
 
 // Тона income/expense из CorrienteColors (:app, ui/theme/Color.kt) — тема приложения сюда не доступна.
@@ -69,19 +94,18 @@ private fun entryIntent(appPackage: String, kind: String) =
     }
 
 @Composable
-private fun QuickAddBody() {
+private fun QuickAddBody(leftHanded: Boolean) {
     val context = LocalContext.current
     val size = LocalSize.current
     val modifier = GlanceModifier.fillMaxSize().padding(2.dp)
+    val kinds = if (leftHanded) listOf("EXPENSE", "INCOME") else listOf("INCOME", "EXPENSE")
     if (size.height > size.width) {
         Column(modifier = modifier) {
-            QuickAddButton(context, "EXPENSE", GlanceModifier.defaultWeight().fillMaxWidth())
-            QuickAddButton(context, "INCOME", GlanceModifier.defaultWeight().fillMaxWidth())
+            kinds.forEach { QuickAddButton(context, it, GlanceModifier.defaultWeight().fillMaxWidth()) }
         }
     } else {
         Row(modifier = modifier) {
-            QuickAddButton(context, "EXPENSE", GlanceModifier.defaultWeight().fillMaxHeight())
-            QuickAddButton(context, "INCOME", GlanceModifier.defaultWeight().fillMaxHeight())
+            kinds.forEach { QuickAddButton(context, it, GlanceModifier.defaultWeight().fillMaxHeight()) }
         }
     }
 }

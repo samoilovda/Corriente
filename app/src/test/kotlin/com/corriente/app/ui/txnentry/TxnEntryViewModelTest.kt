@@ -401,6 +401,40 @@ class TxnEntryViewModelTest {
         assertEquals("cat-food", fakes.txnDao.rows.value.single().categoryId)
     }
 
+    // Тап по категории в листе при введённой сумме — сразу запись, с этой категорией, даже если uiState ещё не догнал выбор.
+    @Test
+    fun `category tap with an amount saves at once with that category`() = runTest(dispatcher) {
+        val fakes = Fakes().apply { seed() }
+        val model = vm(fakes)
+        backgroundScope.observe(model)
+        advanceUntilIdle()
+        model.pressDigit('4'); model.pressDigit('2')
+        advanceUntilIdle()
+
+        assertTrue(model.selectCategoryAndSave("cat-food"))
+        advanceUntilIdle()
+
+        val row = fakes.txnDao.rows.value.single()
+        assertEquals("cat-food", row.categoryId)
+        assertEquals(4200L, row.amountMinor)
+        assertTrue(model.finished.value)
+    }
+
+    @Test
+    fun `category tap without an amount only selects`() = runTest(dispatcher) {
+        val fakes = Fakes().apply { seed() }
+        val model = vm(fakes)
+        backgroundScope.observe(model)
+        advanceUntilIdle()
+
+        assertFalse(model.selectCategoryAndSave("cat-food"))
+        advanceUntilIdle()
+
+        assertTrue(fakes.txnDao.rows.value.isEmpty())
+        assertEquals("cat-food", model.uiState.value.selectedCategoryId)
+        assertFalse(model.finished.value)
+    }
+
     // U06: «есть изменения» — относительно исходной формы, а не «нажимал ли что-то».
     @Test
     fun `dirty is relative to the initial form`() = runTest(dispatcher) {

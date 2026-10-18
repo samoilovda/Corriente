@@ -7,6 +7,8 @@ import com.corriente.app.backup.ShareBackupCache
 import com.corriente.app.recurring.RecurrenceScheduler
 import com.corriente.app.sync.SyncScheduler
 import com.corriente.app.widget.WidgetUpdater
+import com.corriente.widget.QuickAddWidget
+import androidx.glance.appwidget.updateAll
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -73,6 +75,12 @@ class CorrienteApplication : Application() {
             .map { it.enabled to it.treeUri }
             .distinctUntilChanged()
             .onEach { AutoBackupScheduler.apply(this, container.autoBackupSettings.current()) }
+            .launchIn(appScope)
+
+        // Виджет «−/+» ставит «−» под большой палец — у правого края, у левшей у левого; перерисовываем при
+        // смене настройки (и на старте — на случай, если её меняли до обновления приложения).
+        UiPrefs.leftHanded(this)
+            .onEach { QuickAddWidget().updateAll(this) }
             .launchIn(appScope)
     }
 }
