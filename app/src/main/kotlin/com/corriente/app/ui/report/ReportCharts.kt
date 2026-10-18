@@ -18,15 +18,21 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.corriente.app.R
@@ -63,12 +69,12 @@ internal object ChartGeometry {
     }
 }
 
-private val PALETTE = listOf(
+internal val PALETTE = listOf(
     0xFF4E79A7, 0xFFF28E2B, 0xFFE15759, 0xFF76B7B2, 0xFF59A14F,
     0xFFEDC948, 0xFFB07AA1, 0xFFFF9DA7, 0xFF9C755F, 0xFFBAB0AC,
 ).map { Color(it) }
 
-private fun sliceColor(argb: Int, index: Int): Color =
+internal fun sliceColor(argb: Int, index: Int): Color =
     if (argb != 0) Color(argb) else PALETTE[index % PALETTE.size]
 
 /** Сколько категорий в легенде кольца; остальные — строкой «ещё N» (полный список — под графиком в отчёте). */
@@ -79,6 +85,7 @@ fun MonthlyBarChart(bars: List<MonthlyBar>, currencyCode: String, modifier: Modi
     if (bars.isEmpty()) return
     val maxValue = bars.maxOf { it.valueMinor }.coerceAtLeast(1L)
     val barColor = MaterialTheme.colorScheme.primary
+    val trackColor = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.5f)
     val axisColor = MaterialTheme.colorScheme.outlineVariant
     var valuesShown by rememberSaveable { mutableStateOf(false) }
 
@@ -93,18 +100,35 @@ fun MonthlyBarChart(bars: List<MonthlyBar>, currencyCode: String, modifier: Modi
             val gap = size.width / (n * 3f)
             val barWidth = (size.width - gap * (n + 1)) / n
             val baseline = size.height
+            val cornerRadius = CornerRadius(8.dp.toPx(), 8.dp.toPx())
+            val minBarHeight = 4.dp.toPx()
+            val totalH = size.height - 8.dp.toPx()
+
             drawLine(axisColor, Offset(0f, baseline), Offset(size.width, baseline), strokeWidth = 2f)
             bars.forEachIndexed { i, bar ->
-                val h = (ChartGeometry.normalized(bar.valueMinor, 0L, maxValue) * (size.height - 8f)).toFloat()
                 val left = gap + i * (barWidth + gap)
-                drawRect(
-                    color = barColor,
-                    topLeft = Offset(left, baseline - h),
-                    size = Size(barWidth, h),
+                // Фоновый трек на всю высоту столбца
+                drawRoundRect(
+                    color = trackColor,
+                    topLeft = Offset(left, baseline - totalH),
+                    size = Size(barWidth, totalH),
+                    cornerRadius = cornerRadius,
                 )
+                if (bar.valueMinor > 0) {
+                    val rawH = (ChartGeometry.normalized(bar.valueMinor, 0L, maxValue) * totalH).toFloat()
+                    val h = rawH.coerceAtLeast(minBarHeight)
+                    val isHighlight = i == bars.lastIndex || bar.valueMinor == maxValue
+                    val fillCol = if (isHighlight) barColor else barColor.copy(alpha = 0.55f)
+                    drawRoundRect(
+                        color = fillCol,
+                        topLeft = Offset(left, baseline - h),
+                        size = Size(barWidth, h),
+                        cornerRadius = cornerRadius,
+                    )
+                }
             }
         }
-        Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+        Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.SpaceBetween) {
             bars.forEach { bar ->
                 Text(
                     bar.label,
@@ -146,22 +170,43 @@ fun AccountBalanceLineChart(points: List<Long>, description: String, modifier: M
         modifier.fillMaxWidth().height(140.dp).padding(vertical = 4.dp)
             .clearAndSetSemantics { contentDescription = description },
     ) {
-        fun y(value: Long): Float = size.height - (ChartGeometry.normalized(value, min, max) * size.height).toFloat()
+        val padY = 8.dp.toPx()
+        val availH = size.height - padY * 2f
+        fun y(value: Long): Float = (size.height - padY) - (ChartGeometry.normalized(value, min, max) * availH).toFloat()
 
         if (min < 0 && max > 0) {
             val zeroY = y(0L)
             drawLine(zeroLineColor, Offset(0f, zeroY), Offset(size.width, zeroY), strokeWidth = 2f)
         }
 
-        val stepX = if (points.size > 1) size.width / (points.size - 1) else 0f
-        for (i in 0 until points.size - 1) {
-            drawLine(
-                color = lineColor,
-                start = Offset(i * stepX, y(points[i])),
-                end = Offset((i + 1) * stepX, y(points[i + 1])),
-                strokeWidth = 4f,
-            )
+        val stepX = size.width / (points.size - 1)
+        val strokePath = Path().apply {
+            moveTo(0f, y(points[0]))
+            for (i in 1 until points.size) {
+                lineTo(i * stepX, y(points[i]))
+            }
         }
+        val fillPath = Path().apply {
+            addPath(strokePath)
+            lineTo((points.size - 1) * stepX, size.height)
+            lineTo(0f, size.height)
+            close()
+        }
+        drawPath(
+            fillPath,
+            brush = Brush.verticalGradient(listOf(lineColor.copy(alpha = 0.24f), Color.Transparent)),
+        )
+        drawPath(
+            strokePath,
+            color = lineColor,
+            style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round),
+        )
+        val lastIdx = points.size - 1
+        drawCircle(
+            color = lineColor,
+            radius = 4.dp.toPx(),
+            center = Offset(lastIdx * stepX, y(points[lastIdx])),
+        )
     }
 }
 
@@ -171,6 +216,7 @@ fun CategoryDonut(slices: List<CategorySlice>, currencyCode: String, periodLabel
     if (positive.isEmpty()) return
     val fractions = ChartGeometry.fractionsOfTotal(positive.map { it.valueMinor })
     val noCategory = stringResource(R.string.report_no_category)
+    val trackColor = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.5f)
 
     Column(modifier.fillMaxWidth().padding(16.dp)) {
         Text(
@@ -180,11 +226,26 @@ fun CategoryDonut(slices: List<CategorySlice>, currencyCode: String, periodLabel
         )
         Row(verticalAlignment = Alignment.CenterVertically) {
             Canvas(Modifier.size(120.dp).clearAndSetSemantics { }) {
+                val stroke = size.minDimension / 4f
+                val gapDegrees = if (positive.size > 1) 4f else 0f
+                val totalGaps = gapDegrees * positive.size
+                val usableDegrees = (360f - totalGaps).coerceAtLeast(0f)
+
+                // Фоновый трек кольца
+                drawArc(
+                    color = trackColor,
+                    startAngle = 0f,
+                    sweepAngle = 360f,
+                    useCenter = false,
+                    topLeft = Offset(stroke / 2f, stroke / 2f),
+                    size = Size(size.width - stroke, size.height - stroke),
+                    style = Stroke(width = stroke),
+                )
+
                 var startAngle = -90f
                 positive.forEachIndexed { i, slice ->
-                    val sweep = (fractions[i] * 360.0).toFloat()
-                    // Обводка центрирована на контуре дуги: без отступа в полтолщины кольцо вылезает за холст.
-                    val stroke = size.minDimension / 4f
+                    val rawSweep = (fractions[i] * usableDegrees).toFloat()
+                    val sweep = if (positive.size > 1) (rawSweep - 0.5f).coerceAtLeast(1f) else rawSweep
                     drawArc(
                         color = sliceColor(slice.color, i),
                         startAngle = startAngle,
@@ -192,12 +253,12 @@ fun CategoryDonut(slices: List<CategorySlice>, currencyCode: String, periodLabel
                         useCenter = false,
                         topLeft = Offset(stroke / 2f, stroke / 2f),
                         size = Size(size.width - stroke, size.height - stroke),
-                        style = Stroke(width = stroke),
+                        style = Stroke(width = stroke, cap = StrokeCap.Round),
                     )
-                    startAngle += sweep
+                    startAngle += rawSweep + gapDegrees
                 }
             }
-            Column(Modifier.padding(start = 16.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Column(Modifier.padding(start = 16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 positive.take(LEGEND_LIMIT).forEachIndexed { i, slice ->
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
@@ -208,7 +269,7 @@ fun CategoryDonut(slices: List<CategorySlice>, currencyCode: String, periodLabel
                         }
                         Text(
                             "  ${slice.name ?: noCategory} — ${slice.amountText}",
-                            style = MaterialTheme.typography.labelSmall,
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
                             maxLines = 2,
                         )
                     }

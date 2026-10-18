@@ -5,8 +5,10 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
@@ -89,41 +91,58 @@ fun AccountBalanceScreen(
                 }
             }
 
-            state.currentBalanceText?.let {
-                Row(Modifier.fillMaxWidth().padding(16.dp)) {
-                    Text(
-                        stringResource(R.string.account_balance_current),
-                        Modifier.weight(1f),
-                        style = MaterialTheme.typography.titleMedium,
-                    )
-                    Text(it, style = MaterialTheme.typography.titleMedium)
-                }
-            }
+            state.currentBalanceText?.let { balanceText ->
+                androidx.compose.material3.Surface(
+                    shape = MaterialTheme.shapes.large,
+                    color = MaterialTheme.colorScheme.surfaceContainerLow,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                ) {
+                    Column(Modifier.padding(16.dp)) {
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                stringResource(R.string.account_balance_current),
+                                Modifier.weight(1f),
+                                style = MaterialTheme.typography.titleMedium,
+                            )
+                            com.corriente.app.ui.common.MoneyText(
+                                text = balanceText,
+                                kind = com.corriente.app.ui.common.MoneyKind.BALANCE,
+                                isNegativeBalance = state.points.lastOrNull()?.let { it.valueMinor < 0 } ?: false,
+                                style = MaterialTheme.typography.headlineSmall,
+                                deemphasizeFraction = true,
+                            )
+                        }
 
-            if (state.points.size < 2) {
-                Text(
-                    stringResource(R.string.account_balance_empty),
-                    Modifier.padding(24.dp),
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-            } else {
-                val lowest = state.points.minBy { it.valueMinor }
-                val highest = state.points.maxBy { it.valueMinor }
-                AccountBalanceLineChart(
-                    points = state.points.map { it.valueMinor },
-                    description = stringResource(
-                        R.string.account_balance_chart_cd,
-                        state.periodLabel,
-                        state.points.first().amountText,
-                        state.points.last().amountText,
-                        lowest.amountText,
-                        highest.amountText,
-                    ),
-                    modifier = Modifier.padding(horizontal = 16.dp),
-                )
-                Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text(com.corriente.app.ui.common.shortDateLabel(state.points.first().date), style = MaterialTheme.typography.labelSmall)
-                    Text(com.corriente.app.ui.common.shortDateLabel(state.points.last().date), style = MaterialTheme.typography.labelSmall)
+                        if (state.points.size < 2) {
+                            Text(
+                                stringResource(R.string.account_balance_empty),
+                                Modifier.padding(top = 16.dp),
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
+                        } else {
+                            val lowest = state.points.minBy { it.valueMinor }
+                            val highest = state.points.maxBy { it.valueMinor }
+                            Spacer(Modifier.height(12.dp))
+                            AccountBalanceLineChart(
+                                points = state.points.map { it.valueMinor },
+                                description = stringResource(
+                                    R.string.account_balance_chart_cd,
+                                    state.periodLabel,
+                                    state.points.first().amountText,
+                                    state.points.last().amountText,
+                                    lowest.amountText,
+                                    highest.amountText,
+                                ),
+                            )
+                            Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text(com.corriente.app.ui.common.shortDateLabel(state.points.first().date), style = MaterialTheme.typography.labelSmall)
+                                Text(com.corriente.app.ui.common.shortDateLabel(state.points.last().date), style = MaterialTheme.typography.labelSmall)
+                            }
+                        }
+                    }
                 }
             }
         }

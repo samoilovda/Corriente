@@ -2,17 +2,28 @@ package com.corriente.app.ui.report
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.material3.Surface
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.CurrencyExchange
 import androidx.compose.material.icons.outlined.FileDownload
@@ -160,23 +171,44 @@ fun ReportScreen(
                 }
             }
 
-            state.totalText?.let {
-                Row(Modifier.fillMaxWidth().padding(16.dp)) {
-                    Text(stringResource(R.string.report_total), Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
-                    Text(it, style = MaterialTheme.typography.titleMedium)
+            state.totalText?.let { totalText ->
+                Surface(
+                    shape = MaterialTheme.shapes.large,
+                    color = MaterialTheme.colorScheme.surfaceContainerLow,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
+                ) {
+                    Column(Modifier.padding(16.dp)) {
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                stringResource(R.string.report_total),
+                                Modifier.weight(1f),
+                                style = MaterialTheme.typography.titleMedium,
+                            )
+                            com.corriente.app.ui.common.MoneyText(
+                                text = totalText,
+                                kind = if (state.kind == ReportKind.INCOME) com.corriente.app.ui.common.MoneyKind.INCOME else com.corriente.app.ui.common.MoneyKind.EXPENSE,
+                                style = MaterialTheme.typography.headlineSmall,
+                                deemphasizeFraction = true,
+                            )
+                        }
+                        // R2.3: бюджет «на всё» — общая полоса над списком категорий.
+                        state.wholeCurrencyBudgetBar?.let { bar ->
+                            Spacer(Modifier.height(8.dp))
+                            BudgetProgressBar(bar)
+                        }
+                        // U07: полосы бюджета показаны здесь, а сами лимиты — в «Бюджетах»: ссылка, а не поиск по настройкам.
+                        TextButton(
+                            onClick = onOpenBudgets,
+                            modifier = Modifier.padding(top = 4.dp).align(Alignment.Start),
+                        ) {
+                            Text(stringResource(if (state.wholeCurrencyBudgetBar != null || state.categoryBudgetBars.isNotEmpty()) R.string.report_open_budgets else R.string.report_set_budget))
+                        }
+                    }
                 }
             }
-            // R2.3: бюджет «на всё» — общая полоса над списком категорий.
-            state.wholeCurrencyBudgetBar?.let { bar ->
-                Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
-                    BudgetProgressBar(bar)
-                }
-            }
-            // U07: полосы бюджета показаны здесь, а сами лимиты — в «Бюджетах»: ссылка, а не поиск по настройкам.
-            TextButton(onClick = onOpenBudgets, modifier = Modifier.padding(horizontal = 4.dp)) {
-                Text(stringResource(if (state.wholeCurrencyBudgetBar != null || state.categoryBudgetBars.isNotEmpty()) R.string.report_open_budgets else R.string.report_set_budget))
-            }
-            HorizontalDivider()
 
             if (state.rows.isEmpty()) {
                 com.corriente.app.ui.common.EmptyState(
@@ -187,13 +219,29 @@ fun ReportScreen(
             } else {
                 LazyColumn(Modifier.fillMaxSize()) {
                     if (state.monthly.any { it.valueMinor > 0 }) {
-                        item(key = "chart-monthly") { MonthlyBarChart(state.monthly, state.selectedCurrency.orEmpty()) }
+                        item(key = "chart-monthly") {
+                            Surface(
+                                shape = MaterialTheme.shapes.large,
+                                color = MaterialTheme.colorScheme.surfaceContainerLow,
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
+                            ) {
+                                MonthlyBarChart(state.monthly, state.selectedCurrency.orEmpty())
+                            }
+                        }
                     }
                     if (state.slices.any { it.valueMinor > 0 }) {
-                        item(key = "chart-structure") { CategoryDonut(state.slices, state.selectedCurrency.orEmpty(), state.periodLabel) }
-                        item(key = "chart-divider") { HorizontalDivider() }
+                        item(key = "chart-structure") {
+                            Surface(
+                                shape = MaterialTheme.shapes.large,
+                                color = MaterialTheme.colorScheme.surfaceContainerLow,
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
+                            ) {
+                                CategoryDonut(state.slices, state.selectedCurrency.orEmpty(), state.periodLabel)
+                            }
+                        }
                     }
-                    items(state.rows, key = { it.categoryId ?: "none" }) { row ->
+                    itemsIndexed(state.rows, key = { _, row -> row.categoryId ?: "none" }) { index, row ->
+                        val dotColor = sliceColor(row.color, index)
                         Column(
                             Modifier.fillMaxWidth()
                                 .clickable { viewModel.openDrilldown(row.categoryId) }
@@ -202,26 +250,53 @@ fun ReportScreen(
                             Row(
                                 Modifier.fillMaxWidth(),
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
                             ) {
-                                Text(row.name ?: stringResource(R.string.report_no_category), Modifier.weight(1f))
-                                Text("${row.sharePercent}%", style = MaterialTheme.typography.bodySmall)
+                                Box(
+                                    modifier = Modifier.size(12.dp).background(dotColor, CircleShape),
+                                )
+                                Text(
+                                    row.name ?: stringResource(R.string.report_no_category),
+                                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                                    modifier = Modifier.weight(1f),
+                                )
+                                Text(
+                                    "${row.sharePercent}%",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
                                 com.corriente.app.ui.common.MoneyText(
                                     row.amountText,
                                     if (state.kind == ReportKind.INCOME) com.corriente.app.ui.common.MoneyKind.INCOME else com.corriente.app.ui.common.MoneyKind.EXPENSE,
+                                    deemphasizeFraction = true,
                                 )
                             }
-                            // R3.1: изменение к тому же периоду раньше — «+18 % к прошлому месяцу»,
-                            // прочерк вместо 0 % при отсутствии данных за прошлый период.
-                            row.changeText?.let {
-                                Text(
-                                    it,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
+                            Spacer(Modifier.height(6.dp))
+                            LinearProgressIndicator(
+                                progress = { (row.sharePercent / 100f).coerceIn(0f, 1f) },
+                                modifier = Modifier.fillMaxWidth().height(6.dp).clip(CircleShape),
+                                color = dotColor,
+                                trackColor = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.5f),
+                            )
+                            if (row.changeText != null) {
+                                Spacer(Modifier.height(6.dp))
+                                Surface(
+                                    shape = CircleShape,
+                                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                ) {
+                                    Text(
+                                        row.changeText,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                                    )
+                                }
                             }
                             // R2.3: полоса «потрачено из бюджета» — только когда бюджет задан.
-                            row.categoryId?.let { state.categoryBudgetBars[it] }?.let { bar -> BudgetProgressBar(bar) }
+                            row.categoryId?.let { state.categoryBudgetBars[it] }?.let { bar ->
+                                Spacer(Modifier.height(6.dp))
+                                BudgetProgressBar(bar)
+                            }
                         }
                         HorizontalDivider()
                     }
