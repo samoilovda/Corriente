@@ -4,4 +4,8 @@
     <string name="widget_month_expenses">Expenses this month</string>
     <string name="widget_locked">Unlock your phone to see balances</string>
     <string name="widget_empty">No data yet</string>
+    <string name="quick_add_label">Quick add −/+</string>
+    <string name="quick_add_description">Two buttons: add an expense or an income</string>
+    <string name="quick_add_expense">Add expense</string>
+    <string name="quick_add_income">Add income</string>
 </resources>

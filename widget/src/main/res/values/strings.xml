@@ -4,4 +4,8 @@
     <string name="widget_month_expenses">Расходы за месяц</string>
     <string name="widget_locked">Разблокируйте телефон, чтобы увидеть балансы</string>
     <string name="widget_empty">Пока нет данных</string>
+    <string name="quick_add_label">Быстрый ввод −/+</string>
+    <string name="quick_add_description">Две кнопки: записать расход или доход</string>
+    <string name="quick_add_expense">Записать расход</string>
+    <string name="quick_add_income">Записать доход</string>
 </resources>
