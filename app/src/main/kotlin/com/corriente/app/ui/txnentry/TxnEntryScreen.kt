@@ -14,7 +14,13 @@ import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.ui.platform.LocalContext
 import com.corriente.app.UiPrefs
 import androidx.compose.material.icons.filled.PushPin
-import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.platform.LocalViewConfiguration
+import androidx.compose.ui.composed
+import kotlinx.coroutines.withTimeoutOrNull
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.customActions
@@ -308,9 +314,7 @@ fun TxnEntryScreen(
                                             null
                                         },
                                         modifier = Modifier
-                                            .pointerInput(option.entry) {
-                                                detectTapGestures(onLongPress = { viewModel.togglePinned(option) })
-                                            }
+                                            .longPressInInitialPass { viewModel.togglePinned(option) }
                                             .semantics {
                                                 customActions = listOf(
                                                     CustomAccessibilityAction(pinToggle) { viewModel.togglePinned(option); true },
@@ -781,6 +785,29 @@ private fun Keypad(
                             Text(key, fontSize = keyFont, fontWeight = if (isOp) FontWeight.Medium else FontWeight.Normal)
                         }
                     }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * E1: долгое нажатие поверх чипа. Внутренний `clickable` чипа забирает «нажатие» раньше родителя, поэтому слушаем
+ * в проходе Initial; после срабатывания поглощаем отпускание — иначе чип ещё и применил бы шаблон.
+ */
+private fun Modifier.longPressInInitialPass(onLongPress: () -> Unit): Modifier = composed {
+    val timeout = LocalViewConfiguration.current.longPressTimeoutMillis
+    pointerInput(onLongPress) {
+        awaitEachGesture {
+            awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+            val up = withTimeoutOrNull(timeout) { waitForUpOrCancellation(PointerEventPass.Initial) }
+            if (up == null && currentEvent.changes.any { it.pressed }) {
+                onLongPress()
+                // Поглотить остаток жеста, чтобы чип не посчитал его тапом.
+                while (true) {
+                    val event = awaitPointerEvent(PointerEventPass.Initial)
+                    event.changes.forEach { it.consume() }
+                    if (event.changes.none { it.pressed }) break
                 }
             }
         }
