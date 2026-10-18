@@ -20,7 +20,9 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -211,19 +213,21 @@ private fun CurrencyGroupHeader(title: String) {
 @Composable
 private fun CurrencyTotalCard(card: CurrencyCard) {
     Surface(
-        shape = MaterialTheme.shapes.large,
+        shape = RoundedCornerShape(20.dp),
         color = MaterialTheme.colorScheme.primaryContainer,
         contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
     ) {
-        Column(Modifier.padding(horizontal = 20.dp, vertical = 14.dp)) {
+        Column(Modifier.padding(horizontal = 24.dp, vertical = 18.dp)) {
             Text("${card.code} · ${card.symbol}", style = MaterialTheme.typography.labelLarge)
+            Spacer(Modifier.height(4.dp))
             card.total?.let { total ->
                 com.corriente.app.ui.common.MoneyText(
-                    MoneyFormatter.format(total, card.currency),
-                    com.corriente.app.ui.common.MoneyKind.BALANCE,
+                    text = MoneyFormatter.format(total, card.currency),
+                    kind = com.corriente.app.ui.common.MoneyKind.BALANCE,
                     isNegativeBalance = total.isNegative,
-                    style = MaterialTheme.typography.titleLarge,
+                    style = MaterialTheme.typography.headlineSmall,
                     color = if (total.isNegative) com.corriente.app.ui.theme.LocalCorrienteColors.current.expense else androidx.compose.ui.graphics.Color.Unspecified,
+                    deemphasizeFraction = true,
                 )
             }
         }

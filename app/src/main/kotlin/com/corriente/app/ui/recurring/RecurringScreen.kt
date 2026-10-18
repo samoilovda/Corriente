@@ -22,6 +22,9 @@ import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
@@ -29,6 +32,9 @@ import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.Surface
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -117,27 +123,44 @@ fun RecurringScreen(
                     }
                 }
                 items(state.upcoming, key = { "u-${it.ruleId}-${it.date}" }) { up ->
-                    ListItem(
-                        overlineContent = {
-                            Text(
-                                if (up.pending) stringResource(R.string.recurring_upcoming_pending, com.corriente.app.ui.common.dayLabel(up.date))
-                                else com.corriente.app.ui.common.dayLabel(up.date),
-                            )
-                        },
-                        headlineContent = {
-                            Text(
-                                listOfNotNull(up.categoryName ?: stringResource(R.string.txn_entry_no_category), up.accountName)
-                                    .joinToString(" · "),
-                            )
-                        },
-                        trailingContent = {
+                    Surface(
+                        shape = MaterialTheme.shapes.large,
+                        color = MaterialTheme.colorScheme.surfaceContainerLow,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 4.dp)
+                            .semantics(mergeDescendants = true) {},
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Column(Modifier.weight(1f)) {
+                                Surface(
+                                    shape = CircleShape,
+                                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                    modifier = Modifier.padding(bottom = 6.dp),
+                                ) {
+                                    Text(
+                                        if (up.pending) stringResource(R.string.recurring_upcoming_pending, com.corriente.app.ui.common.dayLabel(up.date))
+                                        else com.corriente.app.ui.common.dayLabel(up.date),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                                    )
+                                }
+                                Text(
+                                    listOfNotNull(up.categoryName ?: stringResource(R.string.txn_entry_no_category), up.accountName)
+                                        .joinToString(" · "),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                )
+                            }
                             com.corriente.app.ui.common.MoneyText(
                                 up.amountText,
                                 if (up.kind == TxnKind.INCOME) com.corriente.app.ui.common.MoneyKind.INCOME else com.corriente.app.ui.common.MoneyKind.EXPENSE,
+                                deemphasizeFraction = true,
                             )
-                        },
-                        modifier = Modifier.semantics(mergeDescendants = true) {},
-                    )
+                        }
+                    }
                 }
                 item(key = "rules-title") {
                     Text(
@@ -147,16 +170,43 @@ fun RecurringScreen(
                     )
                 }
                 items(state.rows, key = { it.id }) { row ->
-                    ListItem(
-                        headlineContent = { Text(recurringRowTitle(row)) },
-                        supportingContent = {
-                            Column {
-                                Text("${row.amountText} — ${recurringRuleText(row.rule)}")
+                    Surface(
+                        shape = MaterialTheme.shapes.large,
+                        color = MaterialTheme.colorScheme.surfaceContainerLow,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 4.dp)
+                            .clickable { viewModel.startEdit(row.id) },
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Column(Modifier.weight(1f)) {
                                 Text(
-                                    stringResource(R.string.recurring_next_run, row.nextRunText),
-                                    style = MaterialTheme.typography.bodySmall,
+                                    text = recurringRowTitle(row),
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.SemiBold,
                                 )
+                                Spacer(Modifier.height(4.dp))
+                                Text(
+                                    "${row.amountText} — ${recurringRuleText(row.rule)}",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                )
+                                Spacer(Modifier.height(6.dp))
+                                Surface(
+                                    shape = CircleShape,
+                                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                ) {
+                                    Text(
+                                        stringResource(R.string.recurring_next_run, row.nextRunText),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                                    )
+                                }
                                 row.lastError?.let { error ->
+                                    Spacer(Modifier.height(4.dp))
                                     Text(
                                         recurringErrorText(error),
                                         style = MaterialTheme.typography.bodySmall,
@@ -164,14 +214,11 @@ fun RecurringScreen(
                                     )
                                 }
                             }
-                        },
-                        trailingContent = {
                             IconButton(onClick = { pendingDeleteId = row.id }) {
                                 Icon(Icons.Outlined.Delete, contentDescription = stringResource(R.string.delete))
                             }
-                        },
-                        modifier = Modifier.clickable { viewModel.startEdit(row.id) },
-                    )
+                        }
+                    }
                 }
             }
         }

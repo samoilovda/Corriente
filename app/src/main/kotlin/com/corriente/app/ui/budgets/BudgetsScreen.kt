@@ -8,6 +8,13 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.Surface
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.outlined.Add
@@ -114,30 +121,51 @@ fun BudgetsScreen(
                         )
                     }
                 items(rowsOfCurrency, key = { it.id }) { row ->
-                    ListItem(
-                        headlineContent = {
-                            val name = row.categoryName
-                            Text(
-                                when {
+                    Surface(
+                        shape = MaterialTheme.shapes.large,
+                        color = MaterialTheme.colorScheme.surfaceContainerLow,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 6.dp)
+                            .clickable { viewModel.startEdit(row.id) },
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                val name = row.categoryName
+                                val categoryTitle = when {
                                     name == null -> stringResource(R.string.budgets_whole_currency)
                                     row.categoryArchived -> stringResource(R.string.entry_archived_suffix, name)
                                     else -> name
-                                },
-                            )
-                        },
-                        supportingContent = {
-                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                Text(stringResource(R.string.budgets_per_month, row.amountText))
-                                row.progress?.let { p -> BudgetProgressLine(p) }
+                                }
+                                Text(
+                                    text = categoryTitle,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.SemiBold,
+                                    modifier = Modifier.weight(1f),
+                                )
+                                Text(
+                                    text = stringResource(R.string.budgets_per_month, row.amountText),
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.SemiBold,
+                                )
+                                IconButton(
+                                    onClick = { pendingDeleteId = row.id },
+                                    modifier = Modifier.padding(start = 4.dp),
+                                ) {
+                                    Icon(Icons.Outlined.Delete, contentDescription = stringResource(R.string.delete))
+                                }
                             }
-                        },
-                        trailingContent = {
-                            IconButton(onClick = { pendingDeleteId = row.id }) {
-                                Icon(Icons.Outlined.Delete, contentDescription = stringResource(R.string.delete))
+                            row.progress?.let { p ->
+                                BudgetProgressLine(p)
                             }
-                        },
-                        modifier = Modifier.clickable { viewModel.startEdit(row.id) },
-                    )
+                        }
+                    }
                 }
                 }
             }
@@ -250,18 +278,25 @@ private fun SimpleDropdown(
 @Composable
 private fun BudgetProgressLine(progress: BudgetRowProgress) {
     val colors = MaterialTheme.colorScheme
-    Text(
-        if (progress.isOverBudget) {
-            stringResource(R.string.budgets_spent_over, progress.spentText, progress.remainingText)
-        } else {
-            stringResource(R.string.budgets_spent_left, progress.spentText, progress.remainingText)
-        },
-        color = if (progress.isOverBudget) colors.error else colors.onSurfaceVariant,
-        style = MaterialTheme.typography.bodySmall,
-    )
-    LinearProgressIndicator(
-        progress = { progress.percentClamped / 100f },
-        color = if (progress.isOverBudget) colors.error else colors.primary,
-        modifier = Modifier.fillMaxWidth().clearAndSetSemantics { },
-    )
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        LinearProgressIndicator(
+            progress = { progress.percentClamped / 100f },
+            color = if (progress.isOverBudget) colors.error else colors.primary,
+            trackColor = colors.surfaceContainerHighest.copy(alpha = 0.5f),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(10.dp)
+                .clip(CircleShape)
+                .clearAndSetSemantics { },
+        )
+        Text(
+            if (progress.isOverBudget) {
+                stringResource(R.string.budgets_spent_over, progress.spentText, progress.remainingText)
+            } else {
+                stringResource(R.string.budgets_spent_left, progress.spentText, progress.remainingText)
+            },
+            color = if (progress.isOverBudget) colors.error else colors.onSurfaceVariant,
+            style = MaterialTheme.typography.labelMedium,
+        )
+    }
 }
