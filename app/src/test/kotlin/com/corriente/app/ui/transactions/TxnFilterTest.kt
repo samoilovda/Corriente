@@ -62,10 +62,30 @@ class TxnFilterTest {
         )
     }
 
+    // U01: порог привязан к валюте — 20.00 USD не попадает под «до 250.00 RUB».
     @Test
-    fun `amount range compares magnitude across currencies`() {
-        assertEquals(listOf("e2", "i1"), ids(TxnFilter(minAmountMinor = 100_000)))
-        assertEquals(listOf("e1", "e3"), ids(TxnFilter(maxAmountMinor = 25_000)))
+    fun `amount range compares magnitude only within its currency`() {
+        assertEquals(listOf("e2", "i1"), ids(TxnFilter(amount = AmountRange("RUB", minMinor = 100_000))))
+        assertEquals(listOf("e1"), ids(TxnFilter(amount = AmountRange("RUB", maxMinor = 25_000))))
+        assertEquals(listOf("e3"), ids(TxnFilter(amount = AmountRange("USD", maxMinor = 25_000))))
+    }
+
+    @Test
+    fun `transfer matches when one side in the range currency fits both bounds`() {
+        val transfer = Txn.Transfer(
+            "t", LocalDate.of(2026, 3, 2), 0, 0, "cash", Money(Minor(500_000), rub), "card", Money(Minor(5_000), usd),
+        )
+        fun matches(range: AmountRange) = buildDaySections(listOf(transfer), TxnFilter(amount = range), accountNames, categoryNames, byCode)
+            .isNotEmpty()
+        assertEquals(true, matches(AmountRange("USD", minMinor = 4_000, maxMinor = 6_000)))
+        // RUB-сторона 5000.00 не подходит под «≤ 60.00» — то, что USD-сторона «50.00» подошла бы, не важно.
+        assertEquals(false, matches(AmountRange("RUB", maxMinor = 6_000)))
+        assertEquals(true, matches(AmountRange("RUB", minMinor = 500_000, maxMinor = 500_000)))
+    }
+
+    @Test
+    fun `long upper bound does not overflow`() {
+        assertEquals(listOf("e1", "e2", "i1"), ids(TxnFilter(amount = AmountRange("RUB", minMinor = 0, maxMinor = Long.MAX_VALUE))))
     }
 
     @Test

@@ -31,8 +31,8 @@ private const val DEFAULT_WINDOW_MONTHS = 3L
 
 /**
  * Фильтры списка операций (T5.2). [query] ищет по заметке и названию категории без учёта
- * регистра. [minAmountMinor]/[maxAmountMinor] сравнивают модуль суммы в минорных единицах
- * (это фильтр, не арифметика — сложения разных валют тут нет, I-8 не нарушается).
+ * регистра. [amount] (U01) сравнивает модуль суммы в минорных единицах только у сторон операции
+ * в валюте порога — это фильтр, не арифметика: сложения и конвертации валют тут нет (I-8).
  */
 data class TxnFilter(
     val accountId: String? = null,
@@ -41,12 +41,11 @@ data class TxnFilter(
     val categoryId: String? = null,
     val from: LocalDate? = null,
     val to: LocalDate? = null,
-    val minAmountMinor: Long? = null,
-    val maxAmountMinor: Long? = null,
+    val amount: AmountRange? = null,
 ) {
     val isActive: Boolean
         get() = accountId != null || currencyCode != null || query.isNotBlank() || categoryId != null ||
-            from != null || to != null || minAmountMinor != null || maxAmountMinor != null
+            from != null || to != null || amount != null
 }
 
 data class TxnRow(
@@ -86,6 +85,10 @@ data class TransactionsUiState(
     val accounts: List<Account> = emptyList(),
     val categories: List<Category> = emptyList(),
     val currencyCodes: List<String> = emptyList(),
+    /** U01: справочник валют — точность (`minorUnits`) порогов суммы и их показ. */
+    val currencies: Map<String, Currency> = emptyMap(),
+    /** U01: валюта каждого счёта (и архивного) — валютный контекст порога суммы. */
+    val accountCurrencies: Map<String, String> = emptyMap(),
     val filter: TxnFilter = TxnFilter(),
     val empty: Boolean = true,
     /** true — есть операции, но под активный фильтр ничего не подошло. */
@@ -114,10 +117,17 @@ private fun categoryIdOf(txn: Txn): String? = when (txn) {
     is Txn.Transfer -> null
 }
 
-private fun amountMagnitudesOf(txn: Txn): List<Long> = when (txn) {
-    is Txn.Expense -> listOf(txn.amount.amount.raw)
-    is Txn.Income -> listOf(txn.amount.amount.raw)
-    is Txn.Transfer -> listOf(txn.fromAmount.amount.raw, txn.toAmount.amount.raw)
+private fun amountSidesOf(txn: Txn): List<Money> = when (txn) {
+    is Txn.Expense -> listOf(txn.amount)
+    is Txn.Income -> listOf(txn.amount)
+    is Txn.Transfer -> listOf(txn.fromAmount, txn.toAmount)
+}
+
+/** U01: обе границы проверяются на одной и той же стороне операции и только в валюте порога. */
+private fun matchesAmount(txn: Txn, range: AmountRange): Boolean = amountSidesOf(txn).any { side ->
+    side.currency.code == range.currencyCode &&
+        (range.minMinor == null || side.amount.raw >= range.minMinor) &&
+        (range.maxMinor == null || side.amount.raw <= range.maxMinor)
 }
 
 private fun accountIdsOf(txn: Txn): List<String> = when (txn) {
@@ -162,9 +172,7 @@ private fun matchesFilter(
     if (filter.from != null && txn.date < filter.from) return false
     if (filter.to != null && txn.date > filter.to) return false
     if (!querySatisfiedExternally && !matchesQuery(txn, filter.query, categoryNames, accountNames)) return false
-    val magnitudes = amountMagnitudesOf(txn)
-    if (filter.minAmountMinor != null && magnitudes.none { it >= filter.minAmountMinor }) return false
-    if (filter.maxAmountMinor != null && magnitudes.none { it <= filter.maxAmountMinor }) return false
+    if (filter.amount != null && !matchesAmount(txn, filter.amount)) return false
     return true
 }
 
@@ -370,10 +378,17 @@ class TransactionsViewModel(
         val (windowStart, windowTxns, isSearch, anyBefore) = source
         val (currentFilter, anyExist) = filterAndAny
         val byCode = allCurrencies.associateBy { it.code.code }
+        val accountCurrencies = allAccounts.associate { it.id to it.currency.code }
+        val accountId = currentFilter.accountId?.takeIf { id -> allAccounts.any { it.id == id } }
         val sanitizedFilter = currentFilter.copy(
-            accountId = currentFilter.accountId?.takeIf { id -> allAccounts.any { it.id == id } },
+            accountId = accountId,
             currencyCode = currentFilter.currencyCode?.takeIf { code -> byCode.containsKey(code) },
             categoryId = currentFilter.categoryId?.takeIf { id -> allCategories.any { it.id == id } },
+            // U01: порог в валюте, которой нет в справочнике или которая расходится с валютой выбранного счёта, не применяется.
+            amount = currentFilter.amount?.takeIf { range ->
+                byCode.containsKey(range.currencyCode) &&
+                    (accountId == null || accountCurrencies[accountId] == range.currencyCode)
+            },
         )
         val sections = buildDaySections(
             txns = windowTxns,
@@ -394,6 +409,8 @@ class TransactionsViewModel(
             accounts = allAccounts.filterNot { it.isArchived },
             categories = allCategories.filterNot { it.isArchived },
             currencyCodes = allAccounts.map { it.currency.code }.distinct().sorted(),
+            currencies = byCode,
+            accountCurrencies = accountCurrencies,
             filter = sanitizedFilter,
             empty = !anyExist,
             noMatch = anyExist && sections.isEmpty(),
@@ -418,18 +435,42 @@ class TransactionsViewModel(
         }
     }
 
-    fun setAccountFilter(accountId: String?) = filter.update { it.copy(accountId = accountId) }
+    /** U01: валюты счетов для сброса порога суммы при смене валютного контекста вне листа фильтров. */
+    private val knownAccounts: StateFlow<List<Account>> =
+        accounts.observeAll().stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
-    fun setCurrencyFilter(code: String?) = filter.update { it.copy(currencyCode = code) }
+    fun setAccountFilter(accountId: String?) = changeCurrencyContext { it.copy(accountId = accountId) }
+
+    fun setCurrencyFilter(code: String?) = changeCurrencyContext { it.copy(currencyCode = code) }
+
+    /**
+     * Счёт или валюта сменились (напр. выбор счёта в шапке): порог суммы в прежней валюте не
+     * переинтерпретируется в новой — сбрасывается с сообщением. Снятие счёта/валюты порог сохраняет.
+     */
+    private fun changeCurrencyContext(change: (TxnFilter) -> TxnFilter) {
+        val accountCurrencies = knownAccounts.value.associate { it.id to it.currency.code }
+        var reset = false
+        filter.update { current ->
+            val next = change(current)
+            val context = effectiveCurrency(next.accountId, next.currencyCode, accountCurrencies)
+            reset = next.amount != null && context != null && context != next.amount.currencyCode
+            if (reset) next.copy(amount = null) else next
+        }
+        if (reset) postMessage(com.corriente.app.R.string.txn_filter_amount_reset)
+    }
+
+    /** U01/U04: лист фильтров применяется целиком — уже проверенный [TxnFilterDraft.validate] фильтр. */
+    fun applyFilter(newFilter: TxnFilter) {
+        filter.value = newFilter
+    }
+
+    fun clearAmountFilter() = filter.update { it.copy(amount = null) }
 
     fun setQuery(query: String) = filter.update { it.copy(query = query) }
 
     fun setCategoryFilter(categoryId: String?) = filter.update { it.copy(categoryId = categoryId) }
 
     fun setPeriod(from: LocalDate?, to: LocalDate?) = filter.update { it.copy(from = from, to = to) }
-
-    fun setAmountRange(minMinor: Long?, maxMinor: Long?) =
-        filter.update { it.copy(minAmountMinor = minMinor, maxAmountMinor = maxMinor) }
 
     fun clearFilters() = filter.update { TxnFilter() }
 

@@ -219,7 +219,17 @@ fun TransactionsScreen(
                                 onClick = { overflowOpen = false; onAddTransfer() },
                             )
                             DropdownMenuItem(
-                                text = { Text(stringResource(R.string.txn_export_csv)) },
+                                // U01: экспорт — ровно показанный список, не вся история.
+                                text = {
+                                    Column {
+                                        Text(stringResource(R.string.txn_export_csv))
+                                        Text(
+                                            stringResource(R.string.txn_export_csv_scope),
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                    }
+                                },
                                 leadingIcon = { Icon(Icons.Outlined.FileDownload, contentDescription = null) },
                                 onClick = { overflowOpen = false; exportCsvLauncher.launch("corriente-transactions.csv") },
                             )
@@ -297,6 +307,15 @@ fun TransactionsScreen(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
                 )
             }
+            ActiveFilterChips(
+                state = state,
+                onRemoveAccount = { viewModel.setAccountFilter(null) },
+                onRemoveCurrency = { viewModel.setCurrencyFilter(null) },
+                onRemoveCategory = { viewModel.setCategoryFilter(null) },
+                onRemovePeriod = { viewModel.setPeriod(null, null) },
+                onRemoveAmount = viewModel::clearAmountFilter,
+                onClearAll = viewModel::clearFilters,
+            )
 
             // Шапка с кольцом — первым элементом списка: уезжает вверх при прокрутке, кнопки «−»/«+» остаются.
             // Пока идёт поиск, она не нужна — показываем только найденное.
@@ -382,146 +401,13 @@ fun TransactionsScreen(
     }
 
     if (showFilters) {
-        FilterSheet(
+        TxnFilterSheet(
             state = state,
-            onAccount = viewModel::setAccountFilter,
-            onCurrency = viewModel::setCurrencyFilter,
-            onCategory = viewModel::setCategoryFilter,
-            onPeriod = viewModel::setPeriod,
-            onAmountRange = viewModel::setAmountRange,
+            today = java.time.LocalDate.now(),
+            onApply = viewModel::applyFilter,
             onClear = viewModel::clearFilters,
             onDismiss = { showFilters = false },
         )
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun FilterSheet(
-    state: TransactionsUiState,
-    onAccount: (String?) -> Unit,
-    onCurrency: (String?) -> Unit,
-    onCategory: (String?) -> Unit,
-    onPeriod: (java.time.LocalDate?, java.time.LocalDate?) -> Unit,
-    onAmountRange: (Long?, Long?) -> Unit,
-    onClear: () -> Unit,
-    onDismiss: () -> Unit,
-) {
-    val sheetState = rememberModalBottomSheetState()
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
-        Column(
-            Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Text(stringResource(R.string.txn_filters), style = MaterialTheme.typography.titleMedium)
-
-            FilterBar(
-                accountLabel = state.accounts.firstOrNull { it.id == state.filter.accountId }?.name
-                    ?: stringResource(R.string.txn_list_all_accounts),
-                accountOptions = state.accounts.map { it.id to it.name },
-                onAccount = onAccount,
-                currencyLabel = state.filter.currencyCode ?: stringResource(R.string.txn_list_all_currencies),
-                currencyOptions = state.currencyCodes,
-                onCurrency = onCurrency,
-            )
-
-            FilterDropdown(
-                label = state.categories.firstOrNull { it.id == state.filter.categoryId }?.name
-                    ?: stringResource(R.string.txn_filter_all_categories),
-                allLabel = stringResource(R.string.txn_filter_all_categories),
-                options = state.categories.map { it.id to it.name },
-                onSelect = onCategory,
-            )
-
-            var from by remember(state.filter.from) { mutableStateOf(state.filter.from?.toString() ?: "") }
-            var to by remember(state.filter.to) { mutableStateOf(state.filter.to?.toString() ?: "") }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(
-                    value = from, onValueChange = { from = it }, singleLine = true, modifier = Modifier.weight(1f),
-                    label = { Text(stringResource(R.string.txn_filter_from)) }, placeholder = { Text("2026-01-01") },
-                )
-                OutlinedTextField(
-                    value = to, onValueChange = { to = it }, singleLine = true, modifier = Modifier.weight(1f),
-                    label = { Text(stringResource(R.string.txn_filter_to)) }, placeholder = { Text("2026-12-31") },
-                )
-            }
-            TextButton(onClick = {
-                onPeriod(parseDateOrNull(from), parseDateOrNull(to))
-            }) { Text(stringResource(R.string.txn_filter_apply_period)) }
-
-            var min by remember(state.filter.minAmountMinor) {
-                mutableStateOf(state.filter.minAmountMinor?.let { (it / 100).toString() } ?: "")
-            }
-            var max by remember(state.filter.maxAmountMinor) {
-                mutableStateOf(state.filter.maxAmountMinor?.let { (it / 100).toString() } ?: "")
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(
-                    value = min, onValueChange = { min = it.filter(Char::isDigit) }, singleLine = true,
-                    modifier = Modifier.weight(1f), label = { Text(stringResource(R.string.txn_filter_amount_min)) },
-                )
-                OutlinedTextField(
-                    value = max, onValueChange = { max = it.filter(Char::isDigit) }, singleLine = true,
-                    modifier = Modifier.weight(1f), label = { Text(stringResource(R.string.txn_filter_amount_max)) },
-                )
-            }
-            TextButton(onClick = {
-                onAmountRange(
-                    min.toLongOrNull()?.let { it * 100 },
-                    max.toLongOrNull()?.let { it * 100 },
-                )
-            }) { Text(stringResource(R.string.txn_filter_apply_amount)) }
-
-            HorizontalDivider()
-            TextButton(onClick = { onClear(); onDismiss() }) {
-                Text(stringResource(R.string.txn_filter_clear))
-            }
-        }
-    }
-}
-
-private fun parseDateOrNull(text: String): java.time.LocalDate? =
-    runCatching { java.time.LocalDate.parse(text.trim()) }.getOrNull()
-
-@Composable
-private fun FilterBar(
-    accountLabel: String,
-    accountOptions: List<Pair<String, String>>,
-    onAccount: (String?) -> Unit,
-    currencyLabel: String,
-    currencyOptions: List<String>,
-    onCurrency: (String?) -> Unit,
-) {
-    Row(
-        Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        FilterDropdown(accountLabel, stringResource(R.string.txn_list_all_accounts), accountOptions, onAccount)
-        FilterDropdown(
-            currencyLabel,
-            stringResource(R.string.txn_list_all_currencies),
-            currencyOptions.map { it to it },
-            onCurrency,
-        )
-    }
-}
-
-@Composable
-private fun FilterDropdown(
-    label: String,
-    allLabel: String,
-    options: List<Pair<String, String>>,
-    onSelect: (String?) -> Unit,
-) {
-    var expanded by remember { mutableStateOf(false) }
-    Column {
-        TextButton(onClick = { expanded = true }) { Text(label) }
-        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            DropdownMenuItem(text = { Text(allLabel) }, onClick = { onSelect(null); expanded = false })
-            options.forEach { (value, text) ->
-                DropdownMenuItem(text = { Text(text) }, onClick = { onSelect(value); expanded = false })
-            }
-        }
     }
 }
 

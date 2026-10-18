@@ -170,6 +170,50 @@ class TransactionsViewModelTest {
         assertEquals(2, vm.uiState.value.sections.single().rows.size)
     }
 
+    // U01: порог суммы в RUB не переинтерпретируется после выбора JPY-счёта; снятие счёта порог сохраняет.
+    @Test
+    fun `switching to an account in another currency clears the amount threshold with a message`() = runTest(dispatcher) {
+        val txnDao = FakeTxnDao()
+        val accountDao = FakeAccountDao()
+        val currencyDao = FakeCurrencyDao(
+            listOf(CurrencyEntity("RUB", 2, 2, "₽", true, 0), CurrencyEntity("JPY", 0, 0, "¥", true, 0)),
+        )
+        accountDao.insert(AccountEntity("cash", "Наличные", "RUB", AccountKind.CASH, 0, 0))
+        accountDao.insert(AccountEntity("yen", "Иены", "JPY", AccountKind.CASH, 0, 0))
+        val txns = TxnRepository(txnDao, accountDao)
+        txns.addExpense("cash", Money(Minor(125_50), rub), null, d1, null)
+        txns.addExpense("cash", Money(Minor(10_00), rub), null, d1, null)
+        txns.addExpense("yen", Money(Minor(125), CurrencyCode("JPY")), null, d1, null)
+        val vm = TransactionsViewModel(
+            txns, AccountRepository(accountDao), CategoryRepository(FakeCategoryDao()),
+            CurrencyRepository(currencyDao), today = { d2 },
+        )
+        backgroundScope.observe(vm)
+        advanceUntilIdle()
+        fun shown() = vm.uiState.value.sections.flatMap { it.rows }.map { it.amountPlain }.sorted()
+
+        val draft = TxnFilterDraft(accountId = "cash", minText = "125.50")
+        vm.applyFilter((draft.validate(vm.uiState.value.filter, vm.uiState.value.accountCurrencies, vm.uiState.value.currencies) as FilterDraftCheck.Valid).filter)
+        advanceUntilIdle()
+        assertEquals(listOf("-125.50"), shown())
+
+        // Ошибочный черновик не применяется — список прежний.
+        val broken = TxnFilterDraft(accountId = "cash", minText = "125.505")
+        assertTrue(broken.validate(vm.uiState.value.filter, vm.uiState.value.accountCurrencies, vm.uiState.value.currencies) is FilterDraftCheck.Invalid)
+        assertEquals(listOf("-125.50"), shown())
+
+        vm.setAccountFilter(null)
+        advanceUntilIdle()
+        assertEquals(AmountRange("RUB", 125_50, null), vm.uiState.value.filter.amount)
+        assertEquals(null, vm.messages.value)
+
+        vm.setAccountFilter("yen")
+        advanceUntilIdle()
+        assertEquals(null, vm.uiState.value.filter.amount)
+        assertEquals(com.corriente.app.R.string.txn_filter_amount_reset, vm.messages.value?.resId)
+        assertEquals(listOf("-125"), shown())
+    }
+
     // UI-3.2: свайп-удаление + «Отменить» возвращает ту же строку (id, createdAt, updatedAt, заметка).
     @Test
     fun `swipe delete then undo restores the identical transaction`() = runTest(dispatcher) {
