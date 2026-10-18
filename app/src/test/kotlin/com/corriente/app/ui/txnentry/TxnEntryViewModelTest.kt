@@ -360,6 +360,93 @@ class TxnEntryViewModelTest {
         assertEquals(1, fakes.txnDao.rows.value.size)
     }
 
+    // U02: два тапа подряд в одном кадре — uiState ещё не пересчитан, но запись всё равно одна.
+    @Test
+    fun `back-to-back saves before uiState catches up write exactly one transaction`() = runTest(dispatcher) {
+        val fakes = Fakes().apply { seed() }
+        val model = vm(fakes)
+        backgroundScope.observe(model)
+        advanceUntilIdle()
+        model.pressDigit('7')
+        advanceUntilIdle()
+
+        assertTrue(model.save())
+        assertFalse(model.save())
+        assertFalse(model.save())
+        advanceUntilIdle()
+
+        assertEquals(1, fakes.txnDao.rows.value.size)
+    }
+
+    // U02: категория → сумма и сумма → категория: выбор категории ничего не записывает сам.
+    @Test
+    fun `choosing a category never saves by itself, only the explicit action does`() = runTest(dispatcher) {
+        val fakes = Fakes().apply { seed() }
+        val model = vm(fakes)
+        backgroundScope.observe(model)
+        advanceUntilIdle()
+
+        model.selectCategory("cat-food")
+        model.pressDigit('5')
+        model.selectCategory(null)
+        model.selectCategory("cat-food")
+        advanceUntilIdle()
+        assertTrue(fakes.txnDao.rows.value.isEmpty())
+
+        assertTrue(model.save())
+        advanceUntilIdle()
+        assertEquals(1, fakes.txnDao.rows.value.size)
+        assertEquals("cat-food", fakes.txnDao.rows.value.single().categoryId)
+    }
+
+    // U06: «есть изменения» — относительно исходной формы, а не «нажимал ли что-то».
+    @Test
+    fun `dirty is relative to the initial form`() = runTest(dispatcher) {
+        val fakes = Fakes().apply { seed() }
+        val model = vm(fakes)
+        backgroundScope.observe(model)
+        advanceUntilIdle()
+        assertFalse(model.uiState.value.dirty)
+
+        model.pressDigit('3')
+        advanceUntilIdle()
+        assertTrue(model.uiState.value.dirty)
+
+        model.pressBackspace()
+        advanceUntilIdle()
+        assertFalse(model.uiState.value.dirty)
+
+        model.setNote("кофе")
+        advanceUntilIdle()
+        assertTrue(model.uiState.value.dirty)
+    }
+
+    @Test
+    fun `prefilled edit form is clean until changed and dirtiness survives process recreation`() = runTest(dispatcher) {
+        val fakes = Fakes().apply { seed() }
+        TxnRepository(fakes.txnDao, fakes.accountDao).addExpense(
+            "acc-rub", com.corriente.money.Money(com.corriente.money.Minor(12_50), com.corriente.money.CurrencyCode("RUB")),
+            "cat-food", today, "обед",
+        )
+        val id = fakes.txnDao.rows.value.single().id
+        val handle = androidx.lifecycle.SavedStateHandle()
+        val model = vm(fakes, editingTxnId = id, savedStateHandle = handle)
+        backgroundScope.observe(model)
+        advanceUntilIdle()
+        assertFalse(model.uiState.value.dirty)
+
+        model.setNote("ужин")
+        advanceUntilIdle()
+        assertTrue(model.uiState.value.dirty)
+
+        // Процесс убит и восстановлен из того же SavedStateHandle: правка всё ещё «несохранённая».
+        val restored = vm(fakes, editingTxnId = id, savedStateHandle = androidx.lifecycle.SavedStateHandle(handle.keys().associateWith { handle.get<Any>(it) }))
+        backgroundScope.observe(restored)
+        advanceUntilIdle()
+        assertEquals("ужин", restored.uiState.value.note)
+        assertTrue(restored.uiState.value.dirty)
+    }
+
     @Test
     fun `saving an income uses the INCOME branch and allows no category`() = runTest(dispatcher) {
         val fakes = Fakes().apply { seed() }

@@ -18,6 +18,7 @@ import com.corriente.data.db.entity.AccountEntity
 import com.corriente.data.db.entity.AccountKind
 import com.corriente.data.db.entity.CategoryEntity
 import com.corriente.data.db.entity.CategoryKind
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Rule
@@ -62,15 +63,19 @@ class TxnEntryFlowInstrumentedTest {
         val expenseCd = composeRule.activity.getString(R.string.txn_add_expense)
         composeRule.onNodeWithContentDescription(expenseCd).performClick()
 
-        // Экран ввода (раскладка как в Monefy): сумма 12.50, затем «Выбрать категорию» → «Еда-тест» — выбор сохраняет.
+        // Экран ввода (раскладка как в Monefy): сумма 12.50, затем поле категории → «Еда-тест» (U02: выбор только
+        // выбирает), затем явное «Добавить расход».
         composeRule.onNodeWithText("1").performClick()
         composeRule.onNodeWithText("2").performClick()
         composeRule.onNodeWithText(".").performClick()
         composeRule.onNodeWithText("5").performClick()
         composeRule.onNodeWithText("0").performClick()
 
-        composeRule.onNodeWithText(composeRule.activity.getString(R.string.txn_entry_choose_category)).performClick()
+        composeRule.onNodeWithText(composeRule.activity.getString(R.string.txn_entry_no_category)).performClick()
         composeRule.onNodeWithText("Еда-тест").performClick()
+        composeRule.waitForIdle()
+        // Выбор категории ничего не записал — экран ввода на месте.
+        composeRule.onNodeWithText(composeRule.activity.getString(R.string.txn_entry_add_expense)).assertExists().performClick()
         composeRule.waitForIdle()
 
         // Назад в списке операций — строка с категорией и суммой должна быть в списке. Сверху теперь шапка с
@@ -83,5 +88,30 @@ class TxnEntryFlowInstrumentedTest {
         // Сумма встречается и в строке операции, и в подытоге дня (единственный расход за день) —
         // поэтому onAllNodesWithText + первый, а не onNodeWithText (тот требует ровно один узел).
         composeRule.onAllNodesWithText("-12.50\u00A0₽").onFirst().assertExists()
+    }
+
+    // U06: изменённая форма не теряется молча — «Назад» спрашивает; «Продолжить ввод» оставляет введённое,
+    // «Сбросить» уходит без записи.
+    @Test
+    fun backOnADirtyFormAsksAndDiscardWritesNothing() {
+        val activity = composeRule.activity
+        composeRule.onNodeWithContentDescription(activity.getString(R.string.txn_add_expense)).performClick()
+        composeRule.onNodeWithText("4").performClick()
+        composeRule.onNodeWithContentDescription(activity.getString(R.string.back)).performClick()
+
+        composeRule.onNodeWithText(activity.getString(R.string.txn_entry_discard_title)).assertExists()
+        composeRule.onNodeWithText(activity.getString(R.string.txn_entry_continue)).performClick()
+        composeRule.onNodeWithText(activity.getString(R.string.txn_entry_add_expense)).assertExists()
+
+        composeRule.onNodeWithContentDescription(activity.getString(R.string.back)).performClick()
+        composeRule.onNodeWithText(activity.getString(R.string.txn_entry_discard_confirm)).performClick()
+        // Экран ввода закрыт (на пустом списке есть своя кнопка «Добавить расход» — проверяем по заголовку).
+        composeRule.waitUntil(10_000) {
+            composeRule.onAllNodesWithText(activity.getString(R.string.txn_entry_title)).fetchSemanticsNodes().isEmpty()
+        }
+        val anyTxn = runBlocking {
+            (activity.applicationContext as CorrienteApplication).container.database.txnDao().observeAnyExist().first()
+        }
+        org.junit.Assert.assertFalse(anyTxn)
     }
 }

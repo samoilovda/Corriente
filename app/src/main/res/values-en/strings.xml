@@ -476,8 +476,23 @@
     <string name="overview_balance">Balance</string>
     <string name="overview_prev_month">Previous month</string>
     <string name="overview_next_month">Next month</string>
-    <string name="txn_entry_add_to_category">Add: %1$s</string>
-    <string name="txn_entry_other_category">Other</string>
+    <string name="txn_entry_add_to_category">Add to “%1$s”</string>
+    <string name="txn_entry_add_expense">Add expense</string>
+    <string name="txn_entry_add_income">Add income</string>
+    <string name="txn_entry_discard_title">Leave without saving?</string>
+    <string name="txn_entry_discard_body">What you entered on this screen will not be saved.</string>
+    <string name="txn_entry_discard_confirm">Discard</string>
+    <string name="txn_entry_continue">Keep editing</string>
+    <string name="txn_entry_account_cd">Account: %1$s, %2$s. Change account</string>
+    <string name="txn_entry_saving">Saving…</string>
+    <string name="txn_entry_category_search">Find category</string>
+    <string name="txn_entry_category_none_found">No categories with this name</string>
+    <string name="calc_key_plus">Plus</string>
+    <string name="calc_key_minus">Minus</string>
+    <string name="calc_key_times">Multiply</string>
+    <string name="calc_key_divide">Divide</string>
+    <string name="calc_key_equals">Equals</string>
+    <string name="calc_key_decimal">Decimal point</string>
     <string-array name="month_names">
         <item>January</item><item>February</item><item>March</item><item>April</item>
         <item>May</item><item>June</item><item>July</item><item>August</item>

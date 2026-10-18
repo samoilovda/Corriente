@@ -79,6 +79,8 @@ data class TxnEntryUiState(
     val saving: Boolean = false,
     /** A0.2: последнее нажатие «+ − × ÷ =» дало результат вне допустимого диапазона — форма не менялась. */
     val calcOverflow: Boolean = false,
+    /** U06: форма отличается от исходной (новой пустой, заполненной из «повторить»/кольца или редактируемой). */
+    val dirty: Boolean = false,
 ) {
     val selectedAccount: AccountOption? get() = accounts.firstOrNull { it.id == selectedAccountId }
     val currency: Currency? get() = selectedAccount?.currency
@@ -186,7 +188,17 @@ class TxnEntryViewModel(
         const val CATEGORY_ID = "txn_entry.category_id"
         const val DATE = "txn_entry.date"
         const val NOTE = "txn_entry.note"
+        /** U06: отпечаток исходной формы — «есть изменения» переживает и пересоздание процесса. */
+        const val INITIAL = "txn_entry.initial"
     }
+
+    /** U06: всё, что вводит пользователь; служебные флаги (saving, calcOverflow) не в счёт. */
+    private fun Form.fingerprint(): String =
+        listOf(kind.name, amount.displayText(), calcAcc, calcOp?.name, selectedAccountId, selectedCategoryId, date, note)
+            .joinToString("\u0000")
+
+    /** U06: отпечаток исходной формы; `null`, пока она не загружена — до этого форма не «грязная». */
+    private val initialFingerprint = MutableStateFlow<String?>(null)
 
     private fun persistForm(f: Form) {
         savedStateHandle[SavedKeys.KIND] = f.kind.name
@@ -291,6 +303,11 @@ class TxnEntryViewModel(
                 }
             }
 
+            // U06: исходное состояние — после всех автоподстановок, до первого действия пользователя.
+            val initial = savedStateHandle.get<String>(SavedKeys.INITIAL) ?: form.value.fingerprint()
+            savedStateHandle[SavedKeys.INITIAL] = initial
+            initialFingerprint.value = initial
+
             // R5.4: каждое изменение формы зеркалится в SavedStateHandle — переживает и
             // сворачивание с пересозданием процесса, и обычный поворот экрана.
             form.collect(::persistForm)
@@ -346,12 +363,12 @@ class TxnEntryViewModel(
     }
 
     val uiState: StateFlow<TxnEntryUiState> = combine(
-        form,
+        combine(form, initialFingerprint) { f, initial -> f to (initial != null && f.fingerprint() != initial) },
         accounts.observeAll(),
         currencies.observeAll(),
         categories.observeAllForLookup(),
         frequent,
-    ) { f, allAccounts, allCurrencies, allCategories, frequentList ->
+    ) { (f, dirty), allAccounts, allCurrencies, allCategories, frequentList ->
         val byCode = allCurrencies.associateBy { it.code.code }
         fun option(account: Account) = AccountOption(
             id = account.id,
@@ -407,6 +424,7 @@ class TxnEntryViewModel(
             frequentOptions = frequentOptions,
             saving = f.saving,
             calcOverflow = f.calcOverflow,
+            dirty = dirty,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), TxnEntryUiState(date = form.value.date))
 
@@ -491,17 +509,8 @@ class TxnEntryViewModel(
         }
     }
 
+    /** U02: выбор категории только меняет поле; запись — отдельным явным действием [save]. */
     fun selectCategory(id: String?) = form.update { it.copy(selectedCategoryId = id) }
-
-    /** Как в Monefy: выбор категории при создании операции сразу сохраняет её (если сумма уже введена). */
-    fun selectCategoryAndSave(id: String?) {
-        selectCategory(id)
-        viewModelScope.launch {
-            // uiState выводится из формы асинхронно — ждём, пока выбор дойдёт до состояния, и только потом сохраняем.
-            val state = kotlinx.coroutines.withTimeoutOrNull(1_000) { uiState.first { it.selectedCategoryId == id } }
-            if (state?.canSave == true) save()
-        }
-    }
 
     fun selectDate(date: LocalDate) = form.update { it.copy(date = date) }
 
@@ -515,12 +524,19 @@ class TxnEntryViewModel(
      */
     fun save(): Boolean {
         val state = uiState.value
-        if (!state.canSave || state.saving) return false
+        if (!state.canSave) return false
         val currency = state.currency ?: return false
         val accountId = state.selectedAccountId ?: return false
         val money = Money(state.resolvedMinor()!!, currency.code)
         val note = state.note.trim().ifBlank { null }
-        form.update { it.copy(saving = true) }
+        // U02: флаг ставится атомарно на самой форме — uiState выводится асинхронно, и второй тап
+        // (или конкурирующий callback) до его пересчёта видел бы ещё saving = false.
+        var claimed = false
+        form.update {
+            claimed = !it.saving
+            if (claimed) it.copy(saving = true) else it
+        }
+        if (!claimed) return false
         launchWrite(
             onError = { form.update { f -> f.copy(saving = false) }; uiMessage(R.string.txn_entry_error_save) },
             onSuccess = { _finished.value = true },

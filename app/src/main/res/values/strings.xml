@@ -486,8 +486,23 @@
     <string name="overview_balance">Баланс</string>
     <string name="overview_prev_month">Предыдущий месяц</string>
     <string name="overview_next_month">Следующий месяц</string>
-    <string name="txn_entry_add_to_category">Добавить: %1$s</string>
-    <string name="txn_entry_other_category">Другая</string>
+    <string name="txn_entry_add_to_category">Добавить в «%1$s»</string>
+    <string name="txn_entry_add_expense">Добавить расход</string>
+    <string name="txn_entry_add_income">Добавить доход</string>
+    <string name="txn_entry_discard_title">Выйти без сохранения?</string>
+    <string name="txn_entry_discard_body">Введённое на этом экране не сохранится.</string>
+    <string name="txn_entry_discard_confirm">Сбросить</string>
+    <string name="txn_entry_continue">Продолжить ввод</string>
+    <string name="txn_entry_account_cd">Счёт: %1$s, %2$s. Сменить счёт</string>
+    <string name="txn_entry_saving">Сохранение…</string>
+    <string name="txn_entry_category_search">Найти категорию</string>
+    <string name="txn_entry_category_none_found">Категорий с таким названием нет</string>
+    <string name="calc_key_plus">Плюс</string>
+    <string name="calc_key_minus">Минус</string>
+    <string name="calc_key_times">Умножить</string>
+    <string name="calc_key_divide">Разделить</string>
+    <string name="calc_key_equals">Равно</string>
+    <string name="calc_key_decimal">Десятичная точка</string>
     <string-array name="month_names">
         <item>Январь</item><item>Февраль</item><item>Март</item><item>Апрель</item>
         <item>Май</item><item>Июнь</item><item>Июль</item><item>Август</item>
