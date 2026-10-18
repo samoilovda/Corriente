@@ -120,14 +120,14 @@ fun TransactionsScreen(c: DesktopContainer, onEntry: (EntryRequest) -> Unit) {
                 IconButton(onClick = { month = month.plusMonths(1) }) { Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, "Следующий месяц") }
             }
             RingWithIcons(overview) { categoryId -> onEntry(EntryRequest.New(income = false, categoryId = categoryId, accountId = overview.accountId)) }
-            Surface(shape = RoundedCornerShape(6.dp), color = MaterialTheme.colorScheme.primaryContainer) {
+            Surface(shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surfaceContainerHigh) {
                 Row(Modifier.padding(horizontal = 20.dp, vertical = 10.dp)) {
-                    Text("Баланс  ", style = MaterialTheme.typography.titleMedium)
+                    Text("Баланс  ", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Text(
                         overview.balanceText,
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold,
-                        color = if (overview.balanceNegative) EXPENSE_COLOR else MaterialTheme.colorScheme.onPrimaryContainer,
+                        color = if (overview.balanceNegative) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
                     )
                 }
             }
@@ -135,11 +135,17 @@ fun TransactionsScreen(c: DesktopContainer, onEntry: (EntryRequest) -> Unit) {
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Button(
                     onClick = { onEntry(EntryRequest.New(income = false, accountId = overview.accountId)) },
-                    colors = ButtonDefaults.buttonColors(containerColor = EXPENSE_COLOR),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary,
+                    ),
                 ) { Text("−  Расход") }
                 Button(
                     onClick = { onEntry(EntryRequest.New(income = true, accountId = overview.accountId)) },
-                    colors = ButtonDefaults.buttonColors(containerColor = INCOME_COLOR),
+                    colors = ButtonDefaults.filledTonalButtonColors(
+                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                    ),
                 ) { Text("+  Доход") }
             }
         }

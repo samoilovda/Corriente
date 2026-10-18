@@ -56,24 +56,43 @@ fun RingWithIcons(overview: MonthOverview, onCategory: (String) -> Unit) {
 
 @Composable
 private fun Ring(slices: List<OverviewSlice>, modifier: Modifier) {
-    val empty = MaterialTheme.colorScheme.surfaceVariant
+    val trackColor = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.5f)
     val uncategorized = MaterialTheme.colorScheme.outline
     // Доли — из уже посчитанных Long; дробные числа здесь — только координаты отрисовки (I-1).
     val total = slices.sumOf { it.valueMinor }.toDouble()
     Canvas(modifier) {
-        val stroke = Stroke(width = size.minDimension / 6.5f)
-        val inset = stroke.width / 2
-        val arcSize = androidx.compose.ui.geometry.Size(size.width - stroke.width, size.height - stroke.width)
+        val strokeWidth = size.minDimension / 6.5f
+        val stroke = Stroke(width = strokeWidth, cap = androidx.compose.ui.graphics.StrokeCap.Round)
+        val inset = strokeWidth / 2f
+        val arcSize = androidx.compose.ui.geometry.Size(size.width - strokeWidth, size.height - strokeWidth)
         val topLeft = androidx.compose.ui.geometry.Offset(inset, inset)
-        if (total <= 0.0) {
-            drawArc(empty, 0f, 360f, useCenter = false, topLeft = topLeft, size = arcSize, style = stroke)
-            return@Canvas
-        }
+
+        // Фоновый трек кольца
+        drawArc(trackColor, 0f, 360f, useCenter = false, topLeft = topLeft, size = arcSize, style = stroke)
+
+        if (total <= 0.0) return@Canvas
+
+        val positiveSlices = slices.filter { it.valueMinor > 0 }
+        if (positiveSlices.isEmpty()) return@Canvas
+
+        val gapDegrees = if (positiveSlices.size > 1) 4f else 0f
+        val totalGaps = gapDegrees * positiveSlices.size
+        val usableDegrees = (360f - totalGaps).coerceAtLeast(0f)
+
         var start = -90f
-        slices.forEachIndexed { i, slice ->
-            val sweep = (slice.valueMinor / total * 360.0).toFloat()
-            drawArc(if (slice.color != 0) categoryColor(slice.color) else uncategorized, start, sweep, false, topLeft, arcSize, style = stroke)
-            start += sweep
+        positiveSlices.forEach { slice ->
+            val rawSweep = (slice.valueMinor / total * usableDegrees).toFloat()
+            val sweep = if (positiveSlices.size > 1) (rawSweep - 0.5f).coerceAtLeast(1f) else rawSweep
+            drawArc(
+                color = if (slice.color != 0) categoryColor(slice.color) else uncategorized,
+                startAngle = start,
+                sweepAngle = sweep,
+                useCenter = false,
+                topLeft = topLeft,
+                size = arcSize,
+                style = stroke,
+            )
+            start += rawSweep + gapDegrees
         }
     }
 }

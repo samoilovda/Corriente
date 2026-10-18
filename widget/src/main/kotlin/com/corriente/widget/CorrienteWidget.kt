@@ -29,6 +29,7 @@ import androidx.glance.layout.height
 import androidx.glance.layout.padding
 import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
+import androidx.glance.text.TextAlign
 import androidx.glance.text.TextStyle
 import com.corriente.data.widget.WidgetSnapshot
 import com.corriente.data.widget.WidgetSnapshotStore
@@ -143,11 +144,19 @@ private fun LargeBody(snapshot: WidgetSnapshot, context: Context) {
                     Text(
                         // Линейная иконка (`mi:…`) в Glance-тексте не рисуется — для неё, как и без иконки, буквы названия.
                         text = category.icon?.takeIf { it.isNotBlank() && com.corriente.data.category.materialIconKey(it) == null }
-                            ?: category.name.take(3),
-                        style = captionStyle(),
+                            ?: category.name.take(8),
+                        style = TextStyle(
+                            color = GlanceTheme.colors.onSecondaryContainer,
+                            fontWeight = FontWeight.Medium,
+                            fontSize = 12.sp,
+                            textAlign = TextAlign.Center,
+                        ),
                         modifier = GlanceModifier
                             .defaultWeight()
-                            .padding(horizontal = 6.dp, vertical = 4.dp)
+                            .padding(horizontal = 3.dp, vertical = 2.dp)
+                            .background(GlanceTheme.colors.secondaryContainer)
+                            .cornerRadius(12.dp)
+                            .padding(horizontal = 6.dp, vertical = 6.dp)
                             .clickable(
                                 actionStartActivity(
                                     quickExpenseIntent(context.packageName, category.id, category.name),
