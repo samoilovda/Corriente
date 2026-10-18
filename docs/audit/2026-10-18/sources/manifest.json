@@ -1,0 +1,21 @@
+{
+  "retrieved_date_client_timezone": "2026-10-18",
+  "sources": [
+    {
+      "file": "competitor-actual.md",
+      "sha256": "fd174335284daa65ef6345dc139649fb3f4926fd57f26b0cbf98f5bfaab4485d"
+    },
+    {
+      "file": "competitor-cashew.md",
+      "sha256": "e94ba8ae671c694e80be3a396805e2f6d1e4f15ba1099333d4853c2e5e592ff5"
+    },
+    {
+      "file": "competitor-ivy.md",
+      "sha256": "70a1e240712cd1b5af47c0453325dbe98e8a8d2ee7e3d0195dbed4741f959e82"
+    },
+    {
+      "file": "competitor-mmex.md",
+      "sha256": "64e583de625960a6049167d3e6d47e7cfb5f05f6bc548a3e68f7d373edacff96"
+    }
+  ]
+}
