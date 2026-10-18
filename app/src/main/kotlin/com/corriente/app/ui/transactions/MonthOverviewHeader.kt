@@ -204,6 +204,7 @@ private fun MonthAmount(label: String, amount: String, kind: com.corriente.app.u
             kind,
             style = MaterialTheme.typography.titleSmall,
             textAlign = TextAlign.Center,
+            maxLines = Int.MAX_VALUE,
         )
     }
 }

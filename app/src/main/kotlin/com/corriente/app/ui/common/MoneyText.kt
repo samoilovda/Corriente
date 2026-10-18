@@ -38,6 +38,8 @@ fun MoneyText(
     style: TextStyle = LocalTextStyle.current,
     color: Color = Color.Unspecified,
     textAlign: TextAlign? = null,
+    /** U05: где важна полная сумма (шапка месяца), разрешаем перенос вместо «…». */
+    maxLines: Int = 1,
 ) {
     val tone = moneyTone(kind, isNegativeBalance)
     val resolved = if (color != Color.Unspecified) {
@@ -56,7 +58,7 @@ fun MoneyText(
         style = style.merge(MoneyTextStyle),
         color = resolved,
         textAlign = textAlign,
-        maxLines = 1,
+        maxLines = maxLines,
         overflow = TextOverflow.Ellipsis,
     )
 }

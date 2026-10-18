@@ -257,29 +257,6 @@ fun TxnEntryScreen(
                             }
                         }
 
-                        AmountBar(
-                            amountText = state.amountText,
-                            account = state.selectedAccount,
-                            isIncome = state.kind == EntryKind.INCOME,
-                            accounts = state.accounts,
-                            selectedAccountId = state.selectedAccountId,
-                            onSelectAccount = viewModel::selectAccount,
-                            onBackspace = viewModel::pressBackspace,
-                        )
-                        if (state.nonPositiveResult || state.calcOverflow) {
-                            Text(
-                                stringResource(
-                                    if (state.calcOverflow) R.string.txn_entry_amount_too_large
-                                    else R.string.txn_entry_amount_must_be_positive,
-                                ),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.error,
-                                textAlign = TextAlign.End,
-                                modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
-                                    .semantics { liveRegion = LiveRegionMode.Polite },
-                            )
-                        }
-
                         Row(
                             Modifier.fillMaxWidth().padding(top = 8.dp),
                             verticalAlignment = Alignment.CenterVertically,
@@ -317,6 +294,31 @@ fun TxnEntryScreen(
                 }
 
                 if (state.loaded && state.accounts.isNotEmpty()) {
+                    // U06: сумма закреплена над клавиатурой — при крупном шрифте прокручивается только верх формы.
+                    AmountBar(
+                        amountText = state.amountText,
+                        account = state.selectedAccount,
+                        isIncome = state.kind == EntryKind.INCOME,
+                        accounts = state.accounts,
+                        selectedAccountId = state.selectedAccountId,
+                        onSelectAccount = viewModel::selectAccount,
+                        onBackspace = viewModel::pressBackspace,
+                    )
+                    if (state.nonPositiveResult || state.calcOverflow) {
+                        Text(
+                            stringResource(
+                                if (state.calcOverflow) R.string.txn_entry_amount_too_large
+                                else R.string.txn_entry_amount_must_be_positive,
+                            ),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error,
+                            textAlign = TextAlign.End,
+                            modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
+                                .semantics { liveRegion = LiveRegionMode.Polite },
+                        )
+                    }
+
+                    Spacer(Modifier.height(8.dp))
                     Keypad(
                         onDigit = viewModel::pressDigit,
                         onDecimalPoint = viewModel::pressDecimalPoint,

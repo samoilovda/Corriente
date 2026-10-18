@@ -99,8 +99,9 @@ class TxnFilterSheetInstrumentedTest {
         composeRule.onNodeWithText(string(R.string.txn_filter_apply)).performScrollTo().performClick()
         composeRule.waitForIdle()
 
+        // Список пересчитывается асинхронно (combine над Flow БД) — ждём результат, а не первый кадр.
+        composeRule.waitUntil(10_000) { composeRule.onAllNodesWithText("мелочь").fetchSemanticsNodes().isEmpty() }
         assertRowShown("крупно")
-        composeRule.onNodeWithText("мелочь").assertDoesNotExist()
         // Порог виден над списком chip-ом с валютой.
         composeRule.onNodeWithText(string(R.string.txn_filter_chip_amount_min, "100.50\u00A0₽"), useUnmergedTree = true)
             .assertExists()
