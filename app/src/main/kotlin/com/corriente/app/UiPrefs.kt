@@ -30,6 +30,7 @@ object UiPrefs {
     private const val KEY_DYNAMIC_COLOR = "dynamic_color"
     private const val KEY_START_CARD_DISMISSED = "start_card_dismissed"
     private const val KEY_PINNED_ENTRIES = "pinned_entries"
+    private const val KEY_KIND_LABELS_SEEN = "kind_labels_seen"
 
     private var leftHandedFlow: MutableStateFlow<Boolean>? = null
     private var themeModeFlow: MutableStateFlow<ThemeMode>? = null
@@ -55,6 +56,21 @@ object UiPrefs {
             return accepted
         }
     }
+
+    /**
+     * Подписи «Расход»/«Доход» на переключателе экрана ввода — только в первый запуск приложения на устройстве:
+     * весь этот процесс показываем слова, со следующего запуска — компактные «−»/«+». Ответ кэшируется на процесс,
+     * поэтому отметка в SharedPreferences не прячет подписи посреди первого же сеанса.
+     */
+    @Synchronized
+    fun showKindLabels(context: Context): Boolean = showKindLabels ?: run {
+        val prefs = prefs(context)
+        val firstLaunch = !prefs.getBoolean(KEY_KIND_LABELS_SEEN, false)
+        if (firstLaunch) prefs.edit().putBoolean(KEY_KIND_LABELS_SEEN, true).apply()
+        firstLaunch.also { showKindLabels = it }
+    }
+
+    private var showKindLabels: Boolean? = null
 
     /** U11: стартовая карточка пустой базы скрыта «Пропустить» — на этом устройстве больше не показывается. */
     fun startCardDismissed(context: Context): StateFlow<Boolean> = startCardDismissedFlow(context)

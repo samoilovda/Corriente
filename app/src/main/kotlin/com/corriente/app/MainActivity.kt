@@ -53,6 +53,9 @@ class MainActivity : FragmentActivity() {
         // A2.8: при пересоздании (поворот, смерть процесса) intent ярлыка всё ещё лежит в getIntent() —
         // повторно его обрабатывать нельзя: стек навигации сбросился бы на экран ярлыка.
         if (savedInstanceState == null) pendingDeepLinkIntent = intent
+        // «Первый запуск» для подписей переключателя расход/доход отмечается здесь, при открытии приложения,
+        // а не при первом заходе на экран ввода.
+        UiPrefs.showKindLabels(this)
         setContent {
             val themeMode by UiPrefs.themeMode(this).collectAsState()
             val dynamicColor by UiPrefs.dynamicColor(this).collectAsState()

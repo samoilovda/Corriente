@@ -13,6 +13,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.ui.platform.LocalContext
 import com.corriente.app.UiPrefs
+import com.corriente.app.ui.theme.LocalCorrienteColors
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -159,6 +160,7 @@ fun TxnEntryScreen(
     var datePickerOpen by remember { mutableStateOf(false) }
     var categorySheetOpen by remember { mutableStateOf(false) }
     var discardDialogOpen by remember { mutableStateOf(false) }
+    val showKindLabels = UiPrefs.showKindLabels(LocalContext.current)
 
     LaunchedEffect(finished) { if (finished) onDone() }
 
@@ -209,20 +211,12 @@ fun TxnEntryScreen(
             Column(outer) {
                 val top = if (compact) Modifier.fillMaxWidth() else Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState())
                 Column(top) {
-                    SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(top = 4.dp)) {
-                        SegmentedButton(
-                            selected = state.kind == EntryKind.EXPENSE,
-                            enabled = !viewModel.isEditing,
-                            onClick = { viewModel.setKind(EntryKind.EXPENSE) },
-                            shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
-                        ) { Text(stringResource(R.string.category_kind_expense)) }
-                        SegmentedButton(
-                            selected = state.kind == EntryKind.INCOME,
-                            enabled = !viewModel.isEditing,
-                            onClick = { viewModel.setKind(EntryKind.INCOME) },
-                            shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
-                        ) { Text(stringResource(R.string.category_kind_income)) }
-                    }
+                    KindToggle(
+                        kind = state.kind,
+                        enabled = !viewModel.isEditing,
+                        showLabels = showKindLabels,
+                        onKind = viewModel::setKind,
+                    )
 
                     if (state.loaded && state.accounts.isEmpty()) {
                         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -880,3 +874,46 @@ private fun Modifier.longPressInInitialPass(onLongPress: () -> Unit): Modifier =
         }
     }
 }
+
+/**
+ * Переключатель расход/доход. В первый запуск ([UiPrefs.showKindLabels]) — во всю ширину со словами, дальше —
+ * компактная пара «−»/«+». Обе кнопки слегка тонированы цветами денег темы: расход красноватый, доход зеленоватый;
+ * выбранная — насыщеннее.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun KindToggle(kind: EntryKind, enabled: Boolean, showLabels: Boolean, onKind: (EntryKind) -> Unit) {
+    val money = LocalCorrienteColors.current
+    val rowModifier = if (showLabels) Modifier.fillMaxWidth() else Modifier.width(COMPACT_TOGGLE_WIDTH)
+    SingleChoiceSegmentedButtonRow(rowModifier.padding(top = 4.dp)) {
+        listOf(EntryKind.EXPENSE, EntryKind.INCOME).forEachIndexed { index, option ->
+            val tone = if (option == EntryKind.EXPENSE) money.expense else money.income
+            val label = stringResource(
+                if (option == EntryKind.EXPENSE) R.string.category_kind_expense else R.string.category_kind_income,
+            )
+            SegmentedButton(
+                selected = kind == option,
+                enabled = enabled,
+                onClick = { onKind(option) },
+                shape = SegmentedButtonDefaults.itemShape(index = index, count = 2),
+                colors = SegmentedButtonDefaults.colors(
+                    activeContainerColor = tone.copy(alpha = 0.22f),
+                    activeContentColor = tone,
+                    inactiveContainerColor = tone.copy(alpha = 0.12f),
+                    inactiveContentColor = tone,
+                ),
+                // Компактно — без галочки выбранного: её место съело бы «−»/«+», выбор и так виден по заливке.
+                icon = { if (showLabels) SegmentedButtonDefaults.Icon(active = kind == option) },
+                modifier = Modifier.semantics { contentDescription = label },
+            ) {
+                if (showLabels) {
+                    Text(label)
+                } else {
+                    Text(if (option == EntryKind.EXPENSE) "−" else "+", style = MaterialTheme.typography.titleLarge)
+                }
+            }
+        }
+    }
+}
+
+private val COMPACT_TOGGLE_WIDTH = 168.dp
