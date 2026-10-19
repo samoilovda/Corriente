@@ -40,6 +40,7 @@ import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -216,15 +217,13 @@ fun TxnEntryScreen(
             val keyHeight = if (maxHeight < ROOMY_HEIGHT) 48.dp else 64.dp
             val outer = if (compact) Modifier.fillMaxSize().verticalScroll(rememberScrollState()) else Modifier.fillMaxSize()
             Column(outer) {
-                val top = if (compact) Modifier.fillMaxWidth() else Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState())
+                // Пока открыт список категорий, верх сжимается до выбора вида/даты/счёта, а всё освободившееся место
+                // отдаётся категориям.
+                val top = when {
+                    compact || categoriesOpen -> Modifier.fillMaxWidth()
+                    else -> Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState())
+                }
                 Column(top) {
-                    KindToggle(
-                        kind = state.kind,
-                        enabled = !viewModel.isEditing,
-                        showLabels = showKindLabels,
-                        onKind = viewModel::setKind,
-                    )
-
                     if (state.loaded && state.accounts.isEmpty()) {
                         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                             Text(stringResource(R.string.txn_entry_no_accounts), style = MaterialTheme.typography.bodyMedium)
@@ -236,7 +235,15 @@ fun TxnEntryScreen(
                         FlowRow(
                             Modifier.fillMaxWidth().padding(vertical = 8.dp),
                             horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+                            verticalArrangement = Arrangement.spacedBy(4.dp),
+                            itemVerticalAlignment = Alignment.CenterVertically,
                         ) {
+                            KindToggle(
+                                kind = state.kind,
+                                enabled = !viewModel.isEditing,
+                                showLabels = showKindLabels,
+                                onKind = viewModel::setKind,
+                            )
                             AssistChip(
                                 onClick = { datePickerOpen = true },
                                 label = { Text(com.corriente.app.ui.common.dayLabel(state.date)) },
@@ -276,6 +283,8 @@ fun TxnEntryScreen(
                             }
                         }
 
+                        AnimatedVisibility(visible = !categoriesOpen) {
+                            Column {
                         Surface(
                             shape = MaterialTheme.shapes.medium,
                             color = MaterialTheme.colorScheme.surfaceContainerLow,
@@ -337,6 +346,8 @@ fun TxnEntryScreen(
                                 }
                             }
                         }
+                            }
+                        }
                         Spacer(Modifier.height(8.dp))
                     }
                 }
@@ -369,6 +380,7 @@ fun TxnEntryScreen(
                     Spacer(Modifier.height(8.dp))
                     // Категории занимают место клавиатуры: она уезжает вверх, панель выезжает снизу.
                     AnimatedContent(
+                        modifier = if (categoriesOpen && !compact) Modifier.weight(1f) else Modifier,
                         targetState = categoriesOpen,
                         transitionSpec = {
                             if (targetState) {
@@ -380,7 +392,9 @@ fun TxnEntryScreen(
                         label = "keypadOrCategories",
                     ) { showCategories ->
                         if (showCategories) {
-                            Column(Modifier.fillMaxWidth().height(keyHeight * 4 + 24.dp)) {
+                            Column(
+                                if (compact) Modifier.fillMaxWidth().height(keyHeight * 4 + 24.dp) else Modifier.fillMaxSize(),
+                            ) {
                                 Box(
                                     Modifier.fillMaxWidth().height(20.dp)
                                         .verticalSwipe(true, CATEGORY_SWIPE_THRESHOLD, onUp = {}, onDown = { categoriesOpen = false }),
@@ -392,7 +406,6 @@ fun TxnEntryScreen(
                                     )
                                 }
                                 CategoryGrid(
-                                    label = stringResource(R.string.txn_entry_category),
                                     categories = state.categories,
                                     selectedId = state.selectedCategoryId,
                                     onSelect = { id ->
@@ -582,7 +595,6 @@ private fun CategoryField(
  */
 @Composable
 private fun CategoryGrid(
-    label: String,
     categories: List<Category>,
     selectedId: String?,
     onSelect: (String?) -> Unit,
@@ -593,8 +605,7 @@ private fun CategoryGrid(
         val needle = query.trim().lowercase()
         if (needle.isEmpty()) categories else categories.filter { it.name.lowercase().contains(needle) }
     }
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(label, style = MaterialTheme.typography.labelMedium)
+    Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         if (categories.size > CATEGORY_SEARCH_THRESHOLD) {
             OutlinedTextField(
                 value = query,
@@ -606,11 +617,11 @@ private fun CategoryGrid(
             )
         }
         LazyVerticalGrid(
-            columns = GridCells.Adaptive(minSize = 88.dp),
-            modifier = Modifier.fillMaxWidth().heightIn(max = 420.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-            contentPadding = PaddingValues(vertical = 4.dp),
+            columns = GridCells.Adaptive(minSize = 76.dp),
+            modifier = Modifier.fillMaxWidth().weight(1f),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+            contentPadding = PaddingValues(vertical = 2.dp),
         ) {
             item(key = "none") {
                 CategoryCell(
@@ -761,7 +772,7 @@ private fun AmountBar(
         color = if (isIncome) colors.tertiaryContainer else colors.primaryContainer,
         contentColor = if (isIncome) colors.onTertiaryContainer else colors.onPrimaryContainer,
         shape = RoundedCornerShape(28.dp),
-        modifier = Modifier.fillMaxWidth().heightIn(min = 88.dp),
+        modifier = Modifier.fillMaxWidth().heightIn(min = 76.dp),
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -945,8 +956,9 @@ private fun Modifier.longPressInInitialPass(onLongPress: () -> Unit): Modifier =
 @Composable
 private fun KindToggle(kind: EntryKind, enabled: Boolean, showLabels: Boolean, onKind: (EntryKind) -> Unit) {
     val money = LocalCorrienteColors.current
-    val rowModifier = if (showLabels) Modifier.fillMaxWidth() else Modifier.width(COMPACT_TOGGLE_WIDTH)
-    SingleChoiceSegmentedButtonRow(rowModifier.padding(top = 4.dp)) {
+    // В одну строку с чипами даты и счёта — той же высоты (32dp), без отдельной полосы над формой.
+    val rowModifier = if (showLabels) Modifier.width(COMPACT_TOGGLE_WIDTH + 40.dp) else Modifier.width(COMPACT_TOGGLE_WIDTH)
+    SingleChoiceSegmentedButtonRow(rowModifier.height(32.dp)) {
         listOf(EntryKind.EXPENSE, EntryKind.INCOME).forEachIndexed { index, option ->
             val tone = if (option == EntryKind.EXPENSE) money.expense else money.income
             val label = stringResource(
@@ -965,16 +977,17 @@ private fun KindToggle(kind: EntryKind, enabled: Boolean, showLabels: Boolean, o
                 ),
                 // Компактно — без галочки выбранного: её место съело бы «−»/«+», выбор и так виден по заливке.
                 icon = { if (showLabels) SegmentedButtonDefaults.Icon(active = kind == option) },
+                contentPadding = PaddingValues(horizontal = 4.dp),
                 modifier = Modifier.semantics { contentDescription = label },
             ) {
                 if (showLabels) {
-                    Text(label)
+                    Text(label, style = MaterialTheme.typography.labelLarge, maxLines = 1)
                 } else {
-                    Text(if (option == EntryKind.EXPENSE) "−" else "+", style = MaterialTheme.typography.titleLarge)
+                    Text(if (option == EntryKind.EXPENSE) "−" else "+", style = MaterialTheme.typography.titleMedium)
                 }
             }
         }
     }
 }
 
-private val COMPACT_TOGGLE_WIDTH = 168.dp
+private val COMPACT_TOGGLE_WIDTH = 88.dp
