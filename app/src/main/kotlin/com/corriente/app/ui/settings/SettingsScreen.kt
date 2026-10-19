@@ -103,7 +103,7 @@ fun SettingsScreen(
         ActivityResultContracts.OpenDocument(),
     ) { uri -> pendingImportUri = uri }
 
-    Scaffold(topBar = { TopAppBar(title = { Text(stringResource(R.string.nav_settings)) }) }) { padding ->
+    Scaffold { padding ->
         Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(bottom = 24.dp)) {
             // R1.5: плашка «Последний бэкап: N дней назад» — сама решает, показываться ли.
             BackupReminderBanner(onClick = onOpenAutoBackup)

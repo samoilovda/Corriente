@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -188,8 +189,6 @@ fun TransactionsScreen(
         }
     }
 
-    // UI-2.1: панель уезжает при прокрутке вниз и возвращается при прокрутке вверх.
-    val topBarScroll = TopAppBarDefaults.enterAlwaysScrollBehavior()
     var overflowOpen by remember { mutableStateOf(false) }
     var incomeMenuOpen by remember { mutableStateOf(false) }
     // UI-2.2: кнопки «−»/«+» прячутся при прокрутке вниз, возвращаются при прокрутке вверх.
@@ -208,68 +207,69 @@ fun TransactionsScreen(
         }
     }
 
+    LaunchedEffect(listState) {
+        com.corriente.app.ui.common.TabReselect.events.collect { route ->
+            if (route == "transactions") listState.animateScrollToItem(0)
+        }
+    }
+
+    // Поиск, фильтр и меню действий — в строке над списком (раньше жили в верхней панели, которой больше нет).
+    val toolActions: @Composable () -> Unit = {
+        IconButton(onClick = {
+            if (searchOpen) viewModel.setQuery("")
+            searchOpen = !searchOpen
+        }) {
+            Icon(Icons.Outlined.Search, contentDescription = stringResource(R.string.txn_search_hint))
+        }
+        IconButton(onClick = { showFilters = true }) {
+            BadgedBox(badge = { if (state.filter.isActive) Badge() }) {
+                Icon(
+                    Icons.Outlined.FilterList,
+                    contentDescription = stringResource(R.string.txn_filters),
+                )
+            }
+        }
+        Box {
+            IconButton(onClick = { overflowOpen = true }) {
+                Icon(Icons.Outlined.MoreVert, contentDescription = stringResource(R.string.more_actions))
+            }
+            DropdownMenu(expanded = overflowOpen, onDismissRequest = { overflowOpen = false }) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.transfer_title)) },
+                    leadingIcon = { Icon(Icons.Outlined.SwapHoriz, contentDescription = null) },
+                    onClick = { overflowOpen = false; onAddTransfer() },
+                )
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.budgets_title)) },
+                    leadingIcon = { Icon(Icons.Outlined.Savings, contentDescription = null) },
+                    onClick = { overflowOpen = false; onOpenBudgets() },
+                )
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.recurring_title)) },
+                    leadingIcon = { Icon(Icons.Outlined.EventRepeat, contentDescription = null) },
+                    onClick = { overflowOpen = false; onOpenRecurring() },
+                )
+                DropdownMenuItem(
+                    // U01: экспорт — ровно показанный список, не вся история.
+                    text = {
+                        Column {
+                            Text(stringResource(R.string.txn_export_csv))
+                            Text(
+                                stringResource(R.string.txn_export_csv_scope),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    },
+                    leadingIcon = { Icon(Icons.Outlined.FileDownload, contentDescription = null) },
+                    onClick = { overflowOpen = false; exportCsvLauncher.launch("corriente-transactions.csv") },
+                )
+            }
+        }
+    }
+
     Scaffold(
-        modifier = Modifier.nestedScroll(topBarScroll.nestedScrollConnection),
         snackbarHost = { SnackbarHost(snackbarState) },
-        topBar = {
-            TopAppBar(
-                scrollBehavior = topBarScroll,
-                title = { Text(stringResource(R.string.nav_transactions)) },
-                actions = {
-                    IconButton(onClick = {
-                        if (searchOpen) viewModel.setQuery("")
-                        searchOpen = !searchOpen
-                    }) {
-                        Icon(Icons.Outlined.Search, contentDescription = stringResource(R.string.txn_search_hint))
-                    }
-                    IconButton(onClick = { showFilters = true }) {
-                        BadgedBox(badge = { if (state.filter.isActive) Badge() }) {
-                            Icon(
-                                Icons.Outlined.FilterList,
-                                contentDescription = stringResource(R.string.txn_filters),
-                            )
-                        }
-                    }
-                    Box {
-                        IconButton(onClick = { overflowOpen = true }) {
-                            Icon(Icons.Outlined.MoreVert, contentDescription = stringResource(R.string.more_actions))
-                        }
-                        DropdownMenu(expanded = overflowOpen, onDismissRequest = { overflowOpen = false }) {
-                            DropdownMenuItem(
-                                text = { Text(stringResource(R.string.transfer_title)) },
-                                leadingIcon = { Icon(Icons.Outlined.SwapHoriz, contentDescription = null) },
-                                onClick = { overflowOpen = false; onAddTransfer() },
-                            )
-                            DropdownMenuItem(
-                                text = { Text(stringResource(R.string.budgets_title)) },
-                                leadingIcon = { Icon(Icons.Outlined.Savings, contentDescription = null) },
-                                onClick = { overflowOpen = false; onOpenBudgets() },
-                            )
-                            DropdownMenuItem(
-                                text = { Text(stringResource(R.string.recurring_title)) },
-                                leadingIcon = { Icon(Icons.Outlined.EventRepeat, contentDescription = null) },
-                                onClick = { overflowOpen = false; onOpenRecurring() },
-                            )
-                            DropdownMenuItem(
-                                // U01: экспорт — ровно показанный список, не вся история.
-                                text = {
-                                    Column {
-                                        Text(stringResource(R.string.txn_export_csv))
-                                        Text(
-                                            stringResource(R.string.txn_export_csv_scope),
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        )
-                                    }
-                                },
-                                leadingIcon = { Icon(Icons.Outlined.FileDownload, contentDescription = null) },
-                                onClick = { overflowOpen = false; exportCsvLauncher.launch("corriente-transactions.csv") },
-                            )
-                        }
-                    }
-                },
-            )
-        },
         floatingActionButtonPosition = if (leftHanded) FabPosition.Start else FabPosition.End,
         floatingActionButton = {
             // Правша: «+» доход слева, «−» расход справа (у thumb-зоны). Левша: у левого края, порядок «−», «+».
@@ -384,11 +384,24 @@ fun TransactionsScreen(
                 }
                 // U05: список — вся история, а не только месяц шапки; это сказано прямо, и есть явный переход
                 // к операциям выбранного месяца (обычный фильтр периода, снимается своим чипом).
-                if (header != null && state.filter.from == null && state.filter.to == null) {
+                if (header != null) {
                     item(key = "history-scope") {
                         HistoryScopeRow(
                             month = header.month,
+                            showScope = state.filter.from == null && state.filter.to == null,
                             onOnlyMonth = { viewModel.setPeriod(header.month.atDay(1), header.month.atEndOfMonth()) },
+                            tools = toolActions,
+                        )
+                    }
+                }
+                // Пока идёт поиск, шапка скрыта — строка с инструментами остаётся, чтобы поиск можно было закрыть.
+                if (header == null && state.filter.query.isNotBlank()) {
+                    item(key = "search-tools") {
+                        HistoryScopeRow(
+                            month = java.time.YearMonth.now(),
+                            showScope = false,
+                            onOnlyMonth = {},
+                            tools = toolActions,
                         )
                     }
                 }
@@ -637,20 +650,36 @@ private fun StartCard(onCreateAccount: () -> Unit, onImport: () -> Unit, onResto
 }
 
 @Composable
-private fun HistoryScopeRow(month: java.time.YearMonth, onOnlyMonth: () -> Unit) {
+private fun HistoryScopeRow(
+    month: java.time.YearMonth,
+    showScope: Boolean,
+    onOnlyMonth: () -> Unit,
+    tools: @Composable () -> Unit,
+) {
     val months = androidx.compose.ui.res.stringArrayResource(R.array.month_names)
     val monthLabel = "${months[month.monthValue - 1]} ${month.year}"
     Row(
-        Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp),
+        Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(
-            stringResource(R.string.overview_history_all),
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.weight(1f),
-        )
-        TextButton(onClick = onOnlyMonth) { Text(stringResource(R.string.overview_only_month, monthLabel)) }
+        if (showScope) {
+            Column(Modifier.weight(1f)) {
+                Text(
+                    stringResource(R.string.overview_history_all),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    stringResource(R.string.overview_only_month, monthLabel),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.clickable(onClick = onOnlyMonth).padding(vertical = 2.dp),
+                )
+            }
+        } else {
+            Spacer(Modifier.weight(1f))
+        }
+        tools()
     }
 }
 

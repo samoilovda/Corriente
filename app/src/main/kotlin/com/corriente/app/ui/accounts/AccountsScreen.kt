@@ -92,7 +92,6 @@ fun AccountsScreen(
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarState) },
-        topBar = { TopAppBar(title = { Text(stringResource(R.string.nav_accounts)) }) },
         floatingActionButton = {
             FloatingActionButton(onClick = viewModel::startCreate) {
                 Icon(Icons.Outlined.Add, contentDescription = stringResource(R.string.accounts_add))

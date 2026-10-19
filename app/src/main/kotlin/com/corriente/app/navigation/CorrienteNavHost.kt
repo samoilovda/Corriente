@@ -130,7 +130,9 @@ fun CorrienteNavHost(deepLinkIntent: Intent? = null, onDeepLinkConsumed: () -> U
                         val selected = currentDestination?.hierarchy?.any { it.route == destination.route } == true
                         NavigationBarItem(
                             selected = selected,
-                            onClick = { navigateTo(destination) },
+                            onClick = {
+                                if (selected) com.corriente.app.ui.common.TabReselect.events.tryEmit(destination.route) else navigateTo(destination)
+                            },
                             icon = { Icon(if (selected) destination.selectedIcon else destination.icon, contentDescription = null) },
                             // T2: подпись в одну строку — иначе на узком экране с крупным шрифтом «Transactions»
                             // переносится по слогам. Если не помещается — уменьшаем шрифт (до 8sp), затем многоточие.

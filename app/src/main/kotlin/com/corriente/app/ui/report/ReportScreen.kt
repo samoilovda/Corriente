@@ -103,24 +103,15 @@ fun ReportScreen(
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarState) },
-        topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.nav_report)) },
-                actions = {
-                    IconButton(onClick = { exportCsvLauncher.launch("corriente-report.csv") }) {
-                        Icon(Icons.Outlined.FileDownload, contentDescription = stringResource(R.string.report_export_csv))
-                    }
-                    IconButton(onClick = onOpenFxReport) {
-                        Icon(Icons.Outlined.CurrencyExchange, contentDescription = stringResource(R.string.report_open_fx))
-                    }
-                },
-            )
-        },
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
             // UI-2.6: «Расход/Доход» — сегментная кнопка на всю ширину, период ниже — чипы: разные по смыслу
             // переключатели выглядят по-разному.
-            SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
+            Row(
+                Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+            SingleChoiceSegmentedButtonRow(Modifier.weight(1f)) {
                 SegmentedButton(
                     selected = state.kind == ReportKind.EXPENSE,
                     onClick = { viewModel.setKind(ReportKind.EXPENSE) },
@@ -131,6 +122,14 @@ fun ReportScreen(
                     onClick = { viewModel.setKind(ReportKind.INCOME) },
                     shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
                 ) { Text(stringResource(R.string.category_kind_income)) }
+            }
+            // Действия отчёта — рядом с переключателем (верхней панели с заголовком больше нет).
+            IconButton(onClick = { exportCsvLauncher.launch("corriente-report.csv") }) {
+                Icon(Icons.Outlined.FileDownload, contentDescription = stringResource(R.string.report_export_csv))
+            }
+            IconButton(onClick = onOpenFxReport) {
+                Icon(Icons.Outlined.CurrencyExchange, contentDescription = stringResource(R.string.report_open_fx))
+            }
             }
 
             ScrollableChips {
