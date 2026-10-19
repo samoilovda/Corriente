@@ -25,7 +25,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.FastOutLinearInEasing
-import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import com.corriente.data.usecase.RingSegment
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -171,19 +171,15 @@ fun MonthOverviewHeader(
         val kind = if (displayIncome) EntryKind.INCOME else EntryKind.EXPENSE
         BoxWithConstraints(
             Modifier.fillMaxWidth().padding(vertical = 8.dp).pointerInput(onShiftMonth) {
-                // Горизонтальный свайп: влево — следующий месяц, вправо — предыдущий (как листание страниц).
-                // Вертикальный — переворот «Расходы» ⇄ «Доходы».
+                // Только горизонталь: влево — следующий месяц, вправо — предыдущий (как листание страниц).
+                // Вертикальный жест остаётся списку — кольцо стоит в его начале, и иначе оно съедало бы прокрутку.
+                // «Расходы» ⇄ «Доходы» переключаются тапом по плиткам под кольцом.
                 var dx = 0f
-                var dy = 0f
-                detectDragGestures(
-                    onDragStart = { dx = 0f; dy = 0f },
-                    onDrag = { change, drag -> change.consume(); dx += drag.x; dy += drag.y },
+                detectHorizontalDragGestures(
+                    onDragStart = { dx = 0f },
+                    onHorizontalDrag = { change, drag -> change.consume(); dx += drag },
                     onDragEnd = {
-                        if (kotlin.math.abs(dx) >= kotlin.math.abs(dy)) {
-                            if (dx <= -swipeThreshold) onShiftMonth(1) else if (dx >= swipeThreshold) onShiftMonth(-1)
-                        } else if (kotlin.math.abs(dy) >= swipeThreshold) {
-                            showIncome = !showIncome
-                        }
+                        if (dx <= -swipeThreshold) onShiftMonth(1) else if (dx >= swipeThreshold) onShiftMonth(-1)
                     },
                 )
             },
