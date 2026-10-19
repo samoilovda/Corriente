@@ -150,7 +150,7 @@ fun AccountsScreen(
                 item(key = "archived-header") {
                     Row(
                         Modifier.fillMaxWidth().clickable { archivedExpanded = !archivedExpanded }
-                            .padding(start = 28.dp, end = 16.dp, top = 20.dp, bottom = 8.dp),
+                            .padding(start = 28.dp, end = 16.dp, top = 12.dp, bottom = 4.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text(
@@ -205,7 +205,7 @@ private fun CurrencyGroupHeader(title: String) {
         title,
         style = MaterialTheme.typography.titleSmall,
         color = MaterialTheme.colorScheme.primary,
-        modifier = Modifier.padding(start = 28.dp, end = 16.dp, top = 20.dp, bottom = 8.dp),
+        modifier = Modifier.padding(start = 28.dp, end = 16.dp, top = 12.dp, bottom = 4.dp),
     )
 }
 
@@ -217,7 +217,7 @@ private fun CurrencyTotalCard(card: CurrencyCard) {
         color = MaterialTheme.colorScheme.primaryContainer,
         contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
     ) {
-        Column(Modifier.padding(horizontal = 24.dp, vertical = 18.dp)) {
+        Column(Modifier.padding(horizontal = 20.dp, vertical = 12.dp)) {
             Text("${card.code} · ${card.symbol}", style = MaterialTheme.typography.labelLarge)
             Spacer(Modifier.height(4.dp))
             card.total?.let { total ->
@@ -263,7 +263,7 @@ private fun AccountListRow(
     ) {
         Row(
             modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)
-                .padding(start = 16.dp, end = 4.dp, top = 12.dp, bottom = 12.dp),
+                .padding(start = 16.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {

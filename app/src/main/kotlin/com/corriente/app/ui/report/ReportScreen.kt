@@ -176,9 +176,9 @@ fun ReportScreen(
                 Surface(
                     shape = MaterialTheme.shapes.large,
                     color = MaterialTheme.colorScheme.surfaceContainerLow,
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
                 ) {
-                    Column(Modifier.padding(16.dp)) {
+                    Column(Modifier.padding(12.dp)) {
                         Row(
                             Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically,
@@ -228,7 +228,7 @@ fun ReportScreen(
                             Surface(
                                 shape = MaterialTheme.shapes.large,
                                 color = MaterialTheme.colorScheme.surfaceContainerLow,
-                                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
                             ) {
                                 MonthlyBarChart(state.monthly, state.selectedCurrency.orEmpty())
                             }
@@ -239,7 +239,7 @@ fun ReportScreen(
                             Surface(
                                 shape = MaterialTheme.shapes.large,
                                 color = MaterialTheme.colorScheme.surfaceContainerLow,
-                                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
                             ) {
                                 CategoryDonut(state.slices, state.selectedCurrency.orEmpty(), state.periodLabel)
                             }
@@ -250,7 +250,7 @@ fun ReportScreen(
                         Column(
                             Modifier.fillMaxWidth()
                                 .clickable { viewModel.openDrilldown(row.categoryId) }
-                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                                .padding(horizontal = 16.dp, vertical = 8.dp),
                         ) {
                             Row(
                                 Modifier.fillMaxWidth(),

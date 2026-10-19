@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.layout.Row
@@ -104,7 +105,7 @@ fun BudgetsScreen(
                             stringResource(R.string.budgets_month_note, "${months[month.monthValue - 1]} ${month.year}"),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
                         )
                     }
                 }
@@ -114,7 +115,7 @@ fun BudgetsScreen(
                             code,
                             style = MaterialTheme.typography.titleSmall,
                             color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.padding(start = 16.dp, top = 12.dp, bottom = 4.dp)
+                            modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 2.dp)
                                 .semantics { heading() },
                         )
                     }
@@ -125,11 +126,11 @@ fun BudgetsScreen(
                         color = MaterialTheme.colorScheme.surfaceContainerLow,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 6.dp),
+                            .padding(horizontal = 16.dp, vertical = 3.dp),
                     ) {
                         Column(
-                            modifier = Modifier.padding(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.padding(start = 14.dp, end = 6.dp, top = 6.dp, bottom = 10.dp),
+                            verticalArrangement = Arrangement.spacedBy(2.dp),
                         ) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
@@ -143,18 +144,18 @@ fun BudgetsScreen(
                                 }
                                 Text(
                                     text = categoryTitle,
-                                    style = MaterialTheme.typography.titleMedium,
+                                    style = MaterialTheme.typography.titleSmall,
                                     fontWeight = FontWeight.SemiBold,
                                     modifier = Modifier.weight(1f),
                                 )
                                 Text(
                                     text = stringResource(R.string.budgets_per_month, row.amountText),
-                                    style = MaterialTheme.typography.titleMedium,
+                                    style = MaterialTheme.typography.titleSmall,
                                     fontWeight = FontWeight.SemiBold,
                                 )
                                 IconButton(
                                     onClick = { pendingDeleteId = row.id },
-                                    modifier = Modifier.padding(start = 4.dp),
+                                    modifier = Modifier.padding(start = 2.dp).size(36.dp),
                                 ) {
                                     Icon(Icons.Outlined.Delete, contentDescription = stringResource(R.string.delete))
                                 }
@@ -276,14 +277,14 @@ private fun SimpleDropdown(
 @Composable
 private fun BudgetProgressLine(progress: BudgetRowProgress) {
     val colors = MaterialTheme.colorScheme
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.padding(end = 8.dp)) {
         LinearProgressIndicator(
             progress = { progress.percentClamped / 100f },
             color = if (progress.isOverBudget) colors.error else colors.primary,
             trackColor = colors.surfaceContainerHighest.copy(alpha = 0.5f),
             modifier = Modifier
                 .fillMaxWidth()
-                .height(10.dp)
+                .height(6.dp)
                 .clip(CircleShape)
                 .clearAndSetSemantics { },
         )
