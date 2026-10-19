@@ -108,4 +108,24 @@ class MonthOverviewTest {
         assertEquals(listOf("taxi"), o.icons.map { it.categoryId })
         assertEquals(listOf(5_00L), o.slices.map { it.valueMinor }) // кольцо по-прежнему по всем тратам
     }
+
+    @Test
+    fun incomeRingGroupsIncomeByCategoryAndAmountsCarryNoCurrencySymbolSeparately() {
+        val salary = cat("salary", 0, kind = CategoryKind.INCOME)
+        val o = buildMonthOverview(
+            month,
+            listOf(
+                Txn.Income("i1", day, 0, 0, "cash", money(3_000_00), "salary"),
+                Txn.Income("i2", day, 0, 0, "cash", money(1_000_00), null),
+                exp("cash", 500_00, "food"),
+            ),
+            accounts, categories + salary, currencies, emptyList(), null, null,
+        )!!
+        assertEquals(listOf(3_000_00L, 1_000_00L), o.incomeSlices.map { it.valueMinor })
+        assertEquals(mapOf("salary" to 75), o.incomeIcons.associate { it.categoryId to it.percent })
+        assertEquals("4\u00A0000.00", o.incomeAmountText)
+        assertEquals("UZS", o.currencySymbol)
+        assertEquals("3\u00A0000.00\u00A0UZS", o.incomeIcons.single().amountText)
+        assertEquals(listOf(500_00L), o.slices.map { it.valueMinor })
+    }
 }

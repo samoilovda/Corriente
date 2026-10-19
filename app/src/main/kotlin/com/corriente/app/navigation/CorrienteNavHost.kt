@@ -181,9 +181,9 @@ fun CorrienteNavHost(deepLinkIntent: Intent? = null, onDeepLinkConsumed: () -> U
                     onEditTransaction = { id -> navController.navigate("$TXN_EDIT_ROUTE/$id") },
                     onEditTransfer = { id -> navController.navigate("$TRANSFER_EDIT_ROUTE/$id") },
                     onRepeatTransaction = { id, kind -> navController.navigate("$TXN_ENTRY_ROUTE?kind=${kind.name}&repeat=$id") },
-                    onAddExpenseInCategory = { categoryId, accountId ->
+                    onAddInCategory = { kind, categoryId, accountId ->
                         val account = accountId?.let { "&account=$it" }.orEmpty()
-                        navController.navigate("$TXN_ENTRY_ROUTE?kind=${EntryKind.EXPENSE.name}&category=$categoryId$account")
+                        navController.navigate("$TXN_ENTRY_ROUTE?kind=${kind.name}&category=$categoryId$account")
                     },
                     onOpenBudgets = { navController.navigate(BUDGETS_ROUTE) },
                     onOpenRecurring = { navController.navigate(RECURRING_ROUTE) },

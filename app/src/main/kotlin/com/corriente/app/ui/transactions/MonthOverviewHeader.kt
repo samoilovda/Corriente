@@ -9,6 +9,15 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.border
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalHapticFeedback
+import kotlinx.coroutines.delay
 import com.corriente.data.usecase.MonthOverview
 import com.corriente.data.usecase.OverviewIcon
 import com.corriente.data.usecase.OverviewSlice
@@ -63,6 +72,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.corriente.app.R
+import com.corriente.app.ui.txnentry.EntryKind
 import com.corriente.app.ui.common.CategoryGlyph
 import kotlin.math.atan2
 import kotlin.math.cos
@@ -95,7 +105,7 @@ fun MonthOverviewHeader(
     onShiftMonth: (Long) -> Unit,
     onSelectAccount: (String) -> Unit,
     onSelectAllAccounts: (String) -> Unit,
-    onCategoryClick: (String) -> Unit,
+    onCategoryClick: (EntryKind, String) -> Unit,
     onBalanceClick: () -> Unit,
 ) {
     Column(Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -125,43 +135,67 @@ fun MonthOverviewHeader(
             }
         }
 
+        // Тап по плитке «Расходы»/«Доходы» переключает кольцо; режим живёт, пока жив экран.
+        var showIncome by rememberSaveable { mutableStateOf(false) }
+        val slices = if (showIncome) overview.incomeSlices else overview.slices
+        val icons = if (showIncome) overview.incomeIcons else overview.icons
         val months = stringArrayResource(R.array.month_names)
         val monthLabel = "${months[overview.month.monthValue - 1]} ${overview.month.year}"
         val ringDescription = stringResource(
             R.string.overview_ring_cd,
             monthLabel,
-            overview.icons.filter { it.percent != null }.joinToString { "${it.name} ${it.percent}%" }
+            icons.filter { it.percent != null }.joinToString { "${it.name} ${it.percent}%" }
                 .ifEmpty { stringResource(R.string.overview_ring_empty) },
         )
-        Box(Modifier.size(HEADER_SIZE), contentAlignment = Alignment.Center) {
-            Ring(overview.slices, overview.icons, Modifier.size(RING_SIZE).clearAndSetSemantics { contentDescription = ringDescription })
+        val swipeThreshold = with(androidx.compose.ui.platform.LocalDensity.current) { 48.dp.toPx() }
+        Box(
+            Modifier.size(HEADER_SIZE).pointerInput(onShiftMonth) {
+                // Свайп влево — следующий месяц, вправо — предыдущий (как листание страниц).
+                var dragged = 0f
+                detectHorizontalDragGestures(
+                    onDragStart = { dragged = 0f },
+                    onHorizontalDrag = { change, dx -> change.consume(); dragged += dx },
+                    onDragEnd = {
+                        if (dragged <= -swipeThreshold) onShiftMonth(1) else if (dragged >= swipeThreshold) onShiftMonth(-1)
+                    },
+                )
+            },
+            contentAlignment = Alignment.Center,
+        ) {
+            Ring(slices, icons, Modifier.size(RING_SIZE).clearAndSetSemantics { contentDescription = ringDescription })
             Column(
                 modifier = Modifier.width(RING_SIZE - 36.dp).clearAndSetSemantics {},
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Text(
-                    stringResource(R.string.category_kind_expense),
+                    stringResource(if (showIncome) R.string.category_kind_income else R.string.category_kind_expense),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                 )
                 com.corriente.app.ui.common.MoneyText(
-                    overview.expenseText,
-                    com.corriente.app.ui.common.MoneyKind.EXPENSE,
+                    if (showIncome) overview.incomeAmountText else overview.expenseAmountText,
+                    if (showIncome) com.corriente.app.ui.common.MoneyKind.INCOME else com.corriente.app.ui.common.MoneyKind.EXPENSE,
                     style = MaterialTheme.typography.titleMedium,
                     deemphasizeFraction = true,
                     maxLines = 1,
                     textAlign = TextAlign.Center,
                 )
+                Text(
+                    overview.currencySymbol,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                )
             }
-            val n = overview.icons.size
-            overview.icons.forEachIndexed { i, icon ->
+            val n = icons.size
+            icons.forEachIndexed { i, icon ->
                 // Равномерно по окружности, начиная сверху и по часовой стрелке.
                 val angle = Math.toRadians(-90.0 + 360.0 * i / n)
                 CategoryIcon(
                     icon = icon,
                     fallback = FALLBACK[i % FALLBACK.size],
-                    onClick = { onCategoryClick(icon.categoryId) },
+                    onClick = { onCategoryClick(if (showIncome) EntryKind.INCOME else EntryKind.EXPENSE, icon.categoryId) },
                     modifier = Modifier.offset(
                         x = ORBIT_RADIUS * cos(angle).toFloat(),
                         y = ORBIT_RADIUS * sin(angle).toFloat() + 7.dp,
@@ -176,14 +210,22 @@ fun MonthOverviewHeader(
         ) {
             MonthAmountCard(
                 label = stringResource(R.string.overview_expenses_for, monthLabel),
-                amount = overview.expenseText,
+                amount = overview.expenseAmountText,
+                currency = overview.currencySymbol,
+                description = overview.expenseText,
                 kind = com.corriente.app.ui.common.MoneyKind.EXPENSE,
+                selected = !showIncome,
+                onClick = { showIncome = false },
                 modifier = Modifier.weight(1f).fillMaxHeight(),
             )
             MonthAmountCard(
                 label = stringResource(R.string.overview_income_for, monthLabel),
-                amount = overview.incomeText,
+                amount = overview.incomeAmountText,
+                currency = overview.currencySymbol,
+                description = overview.incomeText,
                 kind = com.corriente.app.ui.common.MoneyKind.INCOME,
+                selected = showIncome,
+                onClick = { showIncome = true },
                 modifier = Modifier.weight(1f).fillMaxHeight(),
             )
         }
@@ -217,16 +259,27 @@ fun MonthOverviewHeader(
     }
 }
 
-/** Bento-плитка суммы месяца с текстовой подписью. */
+/** Bento-плитка суммы месяца с текстовой подписью; тап выбирает, какое кольцо рисуется (расходы/доходы). */
 @Composable
-private fun MonthAmountCard(label: String, amount: String, kind: com.corriente.app.ui.common.MoneyKind, modifier: Modifier) {
+private fun MonthAmountCard(
+    label: String,
+    amount: String,
+    currency: String,
+    description: String,
+    kind: com.corriente.app.ui.common.MoneyKind,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier,
+) {
     Surface(
+        onClick = onClick,
         shape = MaterialTheme.shapes.medium,
         color = MaterialTheme.colorScheme.surfaceContainerLow,
+        border = if (selected) BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary) else null,
         modifier = modifier,
     ) {
         Column(
-            Modifier.padding(12.dp).semantics(mergeDescendants = true) {},
+            Modifier.padding(12.dp).semantics(mergeDescendants = true) { contentDescription = "$label: $description" },
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
         ) {
@@ -243,6 +296,11 @@ private fun MonthAmountCard(label: String, amount: String, kind: com.corriente.a
                 textAlign = TextAlign.Center,
                 deemphasizeFraction = true,
                 maxLines = 2,
+            )
+            Text(
+                currency,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
     }
@@ -326,16 +384,32 @@ private fun Ring(slices: List<OverviewSlice>, icons: List<OverviewIcon>, modifie
     }
 }
 
+/** Тап — ввод в эту категорию; долгое нажатие — всплывающее окно с названием и суммой за месяц. */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun CategoryIcon(icon: OverviewIcon, fallback: Color, onClick: () -> Unit, modifier: Modifier) {
     val color = if (icon.color != 0) Color(icon.color) else fallback
+    var showHint by remember { mutableStateOf(false) }
+    val haptic = LocalHapticFeedback.current
+    LaunchedEffect(showHint) {
+        if (showHint) {
+            delay(3_000)
+            showHint = false
+        }
+    }
     Column(
         modifier
             .width(ICON_SIZE + 18.dp)
             // Категории без трат за месяц приглушены, чтобы акцент оставался на тех, что в кольце.
             .alpha(if (icon.percent == null) 0.55f else 1f)
-            .semantics { contentDescription = icon.name }
-            .clickable(onClick = onClick),
+            .semantics { contentDescription = icon.amountText?.let { "${icon.name}: $it" } ?: icon.name }
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = {
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    showHint = true
+                },
+            ),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
@@ -347,6 +421,16 @@ private fun CategoryIcon(icon: OverviewIcon, fallback: Color, onClick: () -> Uni
         ) {
             Box(contentAlignment = Alignment.Center) {
                 CategoryGlyph(icon.icon, icon.name, color, size = 20.dp)
+                DropdownMenu(expanded = showHint, onDismissRequest = { showHint = false }) {
+                    Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                        Text(icon.name, style = MaterialTheme.typography.titleSmall)
+                        Text(
+                            icon.amountText ?: "—",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
             }
         }
         Text(

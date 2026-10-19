@@ -22,6 +22,8 @@ data class OverviewIcon(
     val icon: String?,
     val color: Int,
     val percent: Int?,
+    /** Сумма по категории за месяц (для подсказки по долгому нажатию); null, если трат нет. */
+    val amountText: String? = null,
 )
 
 /** Сегмент кольца; [color] == 0 у «Без категории» — экран красит его нейтральным цветом. */
@@ -41,8 +43,15 @@ data class MonthOverview(
     val expenseText: String,
     val balanceText: String,
     val balanceNegative: Boolean,
+    /** Суммы без символа валюты — экран показывает валюту отдельной строкой ([currencySymbol]). */
+    val incomeAmountText: String,
+    val expenseAmountText: String,
+    val currencySymbol: String,
+    /** Кольцо расходов (по умолчанию) и кольцо доходов — переключаются тапом по плитке «Расходы»/«Доходы». */
     val slices: List<OverviewSlice>,
     val icons: List<OverviewIcon>,
+    val incomeSlices: List<OverviewSlice>,
+    val incomeIcons: List<OverviewIcon>,
     /** Варианты выбора в шапке: валюты счетов (для «Все счета») и сами счета. */
     val currencyOptions: List<String>,
     val accountOptions: List<Account>,
@@ -87,34 +96,49 @@ fun buildMonthOverview(
     var income = Money.zero(code)
     var expense = Money.zero(code)
     val byCategory = LinkedHashMap<String?, Money>()
+    val incomeByCategory = LinkedHashMap<String?, Money>()
     monthTxns.forEach { txn ->
         when (txn) {
             is Txn.Expense -> if (inScope(txn.accountId, txn.amount)) {
                 expense += txn.amount
                 byCategory.merge(topLevel(txn.categoryId), txn.amount, Money::plus)
             }
-            is Txn.Income -> if (inScope(txn.accountId, txn.amount)) income += txn.amount
+            is Txn.Income -> if (inScope(txn.accountId, txn.amount)) {
+                income += txn.amount
+                incomeByCategory.merge(topLevel(txn.categoryId), txn.amount, Money::plus)
+            }
             is Txn.Transfer -> Unit
         }
     }
 
-    val spent = byCategory.entries.filter { it.value.amount.raw > 0 }.sortedByDescending { it.value.amount.raw }
-    val shares = largestRemainderShares(spent.map { it.value.amount.raw }, expense.amount.raw)
-    val percentById = spent.mapIndexed { i, e -> e.key to shares[i] }.toMap()
-
-    // Уже потраченное — в первую очередь, остальное добирается по порядку категорий; на экране — порядок категорий.
-    val candidates = categories.filter { it.kind == CategoryKind.EXPENSE && it.parentId == null && !it.isArchived }
-        .sortedWith(compareBy({ it.displayOrder }, { it.name }))
-    val pinnedAlive = pinned.filter { id -> candidates.any { it.id == id } }
-    val chosen = if (pinnedAlive.isNotEmpty()) {
-        pinnedAlive.take(OVERVIEW_MAX_ICONS).toSet()
-    } else {
-        (candidates.filter { it.id in percentById } + candidates.filterNot { it.id in percentById })
-            .take(OVERVIEW_MAX_ICONS).map { it.id }.toSet()
+    // Кольцо и иконки категорий вида [kind]; уже потраченное/полученное — в первую очередь, остальное по порядку.
+    fun ring(
+        byCat: Map<String?, Money>,
+        total: Money,
+        kind: CategoryKind,
+        pins: List<String>,
+    ): Pair<List<OverviewSlice>, List<OverviewIcon>> {
+        val spent = byCat.entries.filter { it.value.amount.raw > 0 }.sortedByDescending { it.value.amount.raw }
+        val shares = largestRemainderShares(spent.map { it.value.amount.raw }, total.amount.raw)
+        val percentById = spent.mapIndexed { i, e -> e.key to shares[i] }.toMap()
+        val amountById = spent.associate { it.key to MoneyFormatter.format(it.value, currency) }
+        val candidates = categories.filter { it.kind == kind && it.parentId == null && !it.isArchived }
+            .sortedWith(compareBy({ it.displayOrder }, { it.name }))
+        val pinnedAlive = pins.filter { id -> candidates.any { it.id == id } }
+        val chosen = if (pinnedAlive.isNotEmpty()) {
+            pinnedAlive.take(OVERVIEW_MAX_ICONS).toSet()
+        } else {
+            (candidates.filter { it.id in percentById } + candidates.filterNot { it.id in percentById })
+                .take(OVERVIEW_MAX_ICONS).map { it.id }.toSet()
+        }
+        val icons = candidates.filter { it.id in chosen }.map {
+            OverviewIcon(it.id, it.name, it.icon, it.color, percentById[it.id], amountById[it.id])
+        }
+        val slices = spent.map { (id, money) -> OverviewSlice(money.amount.raw, id?.let { categoryById[it]?.color } ?: 0, id) }
+        return slices to icons
     }
-    val icons = candidates.filter { it.id in chosen }.map {
-        OverviewIcon(it.id, it.name, it.icon, it.color, percentById[it.id])
-    }
+    val (expenseSlices, expenseIcons) = ring(byCategory, expense, CategoryKind.EXPENSE, pinned)
+    val (incomeSlices, incomeIcons) = ring(incomeByCategory, income, CategoryKind.INCOME, emptyList())
 
     val balance = if (account != null) {
         balances.firstOrNull { it.account.id == account.id }?.balance ?: account.openingBalance
@@ -131,8 +155,13 @@ fun buildMonthOverview(
         expenseText = MoneyFormatter.format(expense, currency),
         balanceText = MoneyFormatter.format(balance, currency),
         balanceNegative = balance.amount.raw < 0,
-        slices = spent.map { (id, money) -> OverviewSlice(money.amount.raw, id?.let { categoryById[it]?.color } ?: 0, id) },
-        icons = icons,
+        incomeAmountText = MoneyFormatter.format(income, currency).removeSuffix("${MoneyFormatter.NBSP}${currency.symbol}"),
+        expenseAmountText = MoneyFormatter.format(expense, currency).removeSuffix("${MoneyFormatter.NBSP}${currency.symbol}"),
+        currencySymbol = currency.symbol,
+        slices = expenseSlices,
+        icons = expenseIcons,
+        incomeSlices = incomeSlices,
+        incomeIcons = incomeIcons,
         currencyOptions = currencyOptions,
         accountOptions = active,
     )

@@ -76,8 +76,8 @@ fun TransactionsTwoPane(
                 onEditTransaction = { id -> open { Detail.Entry(it, editingId = id) } },
                 onEditTransfer = { id -> open { Detail.Transfer(it, editingId = id) } },
                 onRepeatTransaction = { id, kind -> open { Detail.Entry(it, kind = kind, repeatId = id) } },
-                onAddExpenseInCategory = { categoryId, accountId ->
-                    open { Detail.Entry(it, EntryKind.EXPENSE, categoryId = categoryId, accountId = accountId) }
+                onAddInCategory = { kind, categoryId, accountId ->
+                    open { Detail.Entry(it, kind, categoryId = categoryId, accountId = accountId) }
                 },
                 onOpenBudgets = onOpenBudgets,
                 onOpenRecurring = onOpenRecurring,
@@ -119,6 +119,7 @@ private fun EntryPane(entry: Detail.Entry, onDone: () -> Unit, onCreateAccount: 
                     txnRepository, accountRepository, categoryRepository, currencyRepository,
                     entry.editingId, entry.kind, entry.categoryId, entry.accountId, entry.repeatId,
                     pinnedEntries = UiPrefs.pinnedEntries(LocalContext.current),
+                    lastAccount = UiPrefs.lastAccount(LocalContext.current),
                 )
             },
         ),

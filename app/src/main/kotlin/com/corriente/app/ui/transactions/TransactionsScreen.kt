@@ -117,8 +117,10 @@ fun TransactionsScreen(
     onEditTransfer: (String) -> Unit,
     /** UI-3.2: свайп вправо — «Повторить»: ввод с той же категорией/счётом/суммой и сегодняшней датой. */
     onRepeatTransaction: (id: String, kind: EntryKind) -> Unit = { _, _ -> },
-    /** Тап по иконке категории в шапке: ввод расхода в эту категорию (и выбранный в шапке счёт, если он есть). */
-    onAddExpenseInCategory: (categoryId: String, accountId: String?) -> Unit = { _, _ -> onAddExpense() },
+    /** Тап по иконке категории в шапке: ввод расхода (или дохода — на кольце доходов) в эту категорию и выбранный в шапке счёт. */
+    onAddInCategory: (kind: EntryKind, categoryId: String, accountId: String?) -> Unit = { kind, _, _ ->
+        if (kind == EntryKind.INCOME) onAddIncome() else onAddExpense()
+    },
     /** U07: планирование — из меню «Операций», не только из настроек. */
     onOpenBudgets: () -> Unit = {},
     onOpenRecurring: () -> Unit = {},
@@ -375,7 +377,7 @@ fun TransactionsScreen(
                                 viewModel.setAccountFilter(null)
                                 overviewViewModel.setAllAccounts(code)
                             },
-                            onCategoryClick = { id -> onAddExpenseInCategory(id, header.accountId) },
+                            onCategoryClick = { kind, id -> onAddInCategory(kind, id, header.accountId) },
                             onBalanceClick = { scope.launch { listState.animateScrollToItem(1) } },
                         )
                     }
