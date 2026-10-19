@@ -17,6 +17,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Tune
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.text.style.TextAlign
@@ -86,6 +87,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.SnackbarHost
@@ -134,6 +136,7 @@ fun TransactionsScreen(
             TransactionsViewModel.factory(
                 txnRepository, accountRepository, categoryRepository, currencyRepository,
                 ResourceReportTexts(LocalContext.current).csvHeaders,
+                stringResource(R.string.adjust_row_title),
             )
         },
     ),
@@ -162,6 +165,15 @@ fun TransactionsScreen(
         if (hasHeader && !listState.isScrollInProgress) listState.scrollToItem(0)
     }
     LaunchedEffect(overviewMonth) { overviewMonth?.let(viewModel::ensureWindowCovers) }
+    // Экран открыт через полночь/границу месяца — шапка переезжает на сегодняшний месяц.
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) overviewViewModel.refreshToday()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
     val message by viewModel.messages.collectAsState()
     val snackbarState = rememberMessageSnackbarState(message, viewModel::consumeMessage)
     // UI-3.2: «Удалено · Отменить» на 5 секунд; по истечении удаление окончательно.
@@ -175,6 +187,20 @@ fun TransactionsScreen(
         }
         if (result == SnackbarResult.ActionPerformed) viewModel.undoDelete() else viewModel.consumeUndo()
     }
+    // Только что записанная операция из формы: «Записано — Отменить» на 5 секунд.
+    val savedFormat = stringResource(R.string.txn_saved_message, "%s")
+    LaunchedEffect(Unit) {
+        com.corriente.app.ui.common.JustSaved.pending.collect { saved ->
+            if (saved == null) return@collect
+            com.corriente.app.ui.common.JustSaved.pending.value = null
+            scope.launch {
+                val result = withTimeoutOrNull(UNDO_WINDOW_MS) {
+                    snackbarState.showSnackbar(savedFormat.format(saved.text), undoLabel, duration = SnackbarDuration.Indefinite)
+                }
+                if (result == SnackbarResult.ActionPerformed) viewModel.deleteSilently(saved.txnId)
+            }
+        }
+    }
     var showFilters by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val leftHanded by remember(context) { UiPrefs.leftHanded(context) }.collectAsState()
@@ -187,6 +213,32 @@ fun TransactionsScreen(
         if (uri != null) {
             viewModel.exportCsvTo { context.contentResolver.openOutputStream(uri) ?: throw java.io.FileNotFoundException(uri.toString()) }
         }
+    }
+
+    // Тап по корректировке баланса: она не правится, но её можно рассмотреть и удалить.
+    var adjustmentRow by remember { mutableStateOf<TxnRow?>(null) }
+    adjustmentRow?.let { row ->
+        AlertDialog(
+            onDismissRequest = { adjustmentRow = null },
+            title = { Text(stringResource(R.string.adjust_row_title)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("${row.accountName} · ${row.amountText}", style = MaterialTheme.typography.bodyLarge)
+                    row.note?.takeIf { it.isNotBlank() }?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
+                    Text(
+                        stringResource(R.string.adjust_note),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            },
+            confirmButton = { TextButton(onClick = { adjustmentRow = null }) { Text(stringResource(R.string.ok)) } },
+            dismissButton = {
+                TextButton(onClick = { viewModel.deleteTxn(row.id); adjustmentRow = null }) {
+                    Text(stringResource(R.string.txn_entry_delete))
+                }
+            },
+        )
     }
 
     var overflowOpen by remember { mutableStateOf(false) }
@@ -456,6 +508,7 @@ fun TransactionsScreen(
                             onClick = {
                                 when {
                                     row.isTransfer -> onEditTransfer(row.id)
+                                    row.isAdjustment -> adjustmentRow = row
                                     row.editable -> onEditTransaction(row.id)
                                 }
                             },

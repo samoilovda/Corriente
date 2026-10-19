@@ -356,4 +356,40 @@ class AccountsViewModelTest {
 
         assertTrue(txnRepository.observeAll().first().isEmpty())
     }
+
+    @Test
+    fun `adjustment is computed from today's balance, future entries stay out of it`() = runTest(dispatcher) {
+        val (vm, _, _) = build()
+        backgroundScope.observe(vm)
+        backgroundScope.launch { vm.adjust.collect {} }
+        vm.startCreate(); advanceUntilIdle()
+        vm.save(AccountForm("Наличные", CurrencyCode("RUB"), AccountKind.CASH, "10000", includeInTotal = true)); advanceUntilIdle()
+        val account = activeRows(vm).single().account
+        val rubCode = CurrencyCode("RUB")
+        txnRepository.addExpense(account.id, Money(Minor(300_000), rubCode), null, java.time.LocalDate.now().plusDays(1))
+        advanceUntilIdle()
+
+        vm.startAdjust(account.id); advanceUntilIdle()
+        assertEquals(1_000_000L, vm.adjust.value!!.balance.amount.raw)
+        assertEquals(-300_000L, vm.adjust.value!!.upcoming!!.amount.raw)
+        assertTrue(vm.saveAdjust("9500")); advanceUntilIdle()
+
+        val adj = txnRepository.observeAll().first().filterIsInstance<Txn.Adjustment>().single()
+        assertEquals(-50_000L, adj.delta.amount.raw)
+    }
+
+    @Test
+    fun `adjustment rejects text without digits and understands the unicode minus`() = runTest(dispatcher) {
+        val (vm, _, _) = build()
+        backgroundScope.observe(vm)
+        backgroundScope.launch { vm.adjust.collect {} }
+        vm.startCreate(); advanceUntilIdle()
+        vm.save(AccountForm("Наличные", CurrencyCode("RUB"), AccountKind.CASH, "100", includeInTotal = true)); advanceUntilIdle()
+        vm.startAdjust(activeRows(vm).single().account.id); advanceUntilIdle()
+
+        assertFalse(vm.saveAdjust("-"))
+        assertFalse(vm.saveAdjust("abc"))
+        assertEquals(-5_000L, openingBalanceMinor("−50", rub).raw)
+        assertTrue(txnRepository.observeAll().first().isEmpty())
+    }
 }

@@ -36,7 +36,7 @@ import javax.swing.JFileChooser
 
 /**
  * Синхронизация с телефоном через папку Syncthing (docs/SYNC_DESIGN.md). Компьютер обычно подключается к уже начатой
- * на телефоне синхронизации; импорт Monefy — только на телефоне.
+ * на телефоне синхронизации.
  */
 @Composable
 fun SyncScreen(c: DesktopContainer) {

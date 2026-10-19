@@ -626,7 +626,7 @@ WorkManager с `NetworkType.CONNECTED` дотянет курсы, когда с�
   и подписана ею. Сложение сумм в разных валютах невозможно на уровне типов (см. I-2).
 * **I-9.** Никакая производная величина (баланс, итог за период) не хранится как единственный
   источник истины. Если она материализована — это кэш, пересчитываемый в той же транзакции БД.
-* **I-11.** Транзакции с `kind = TRANSFER` не входят ни в доходы, ни в расходы, ни в отчёты по категориям.
+* **I-11.** Транзакции с `kind = TRANSFER` (и `ADJUSTMENT`, см. I-1) не входят ни в доходы, ни в расходы, ни в отчёты по категориям.
 * **I-12.** Курсовая разница и фактический курс обмена вычисляются из двух сумм перевода,
   не вводятся пользователем и не хранятся как независимые значения.
 * **I-14.** Валюта — строка в таблице `currency`, а не enum в коде. Список валют **не ограничен**:
@@ -733,13 +733,13 @@ CREATE UNIQUE INDEX ux_category_name_kind ON category(name, kind) WHERE is_archi
 -- Ядро. Одна строка на операцию, включая переводы (I-10).
 CREATE TABLE txn (
   id              TEXT PRIMARY KEY,
-  kind            TEXT NOT NULL,          -- EXPENSE | INCOME | TRANSFER
+  kind            TEXT NOT NULL,          -- EXPENSE | INCOME | TRANSFER | ADJUSTMENT (схема 9)
   date            TEXT NOT NULL,          -- 'YYYY-MM-DD', локальная дата операции
   created_at      INTEGER NOT NULL,       -- epoch millis, для сортировки внутри дня
   updated_at      INTEGER NOT NULL,
 
   account_id      TEXT NOT NULL REFERENCES account(id),
-  amount_minor    INTEGER NOT NULL,       -- всегда > 0; знак определяется kind (I-1)
+  amount_minor    INTEGER NOT NULL,       -- > 0; знак определяется kind (I-1). Исключение: ADJUSTMENT, там знак в самой сумме, 0 нельзя
   currency_code   TEXT NOT NULL REFERENCES currency(code),  -- == account.currency_code (I-15, I-23)
 
   -- только для kind = TRANSFER:

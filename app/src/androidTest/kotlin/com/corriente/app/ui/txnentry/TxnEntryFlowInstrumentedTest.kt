@@ -63,8 +63,8 @@ class TxnEntryFlowInstrumentedTest {
         val expenseCd = composeRule.activity.getString(R.string.txn_add_expense)
         composeRule.onNodeWithContentDescription(expenseCd).performClick()
 
-        // Экран ввода (раскладка как в Monefy): сумма 12.50, затем поле категории → «Еда-тест» (U02: выбор только
-        // выбирает), затем явное «Добавить расход».
+        // Экран ввода: сумма 12.50, затем поле категории → «Еда-тест». Сумма уже набрана, поэтому тап по категории
+        // сразу записывает операцию (как «Добавить расход») и форма закрывается.
         composeRule.onNodeWithText("1").performClick()
         composeRule.onNodeWithText("2").performClick()
         composeRule.onNodeWithText(".").performClick()
@@ -73,9 +73,6 @@ class TxnEntryFlowInstrumentedTest {
 
         composeRule.onNodeWithText(composeRule.activity.getString(R.string.txn_entry_no_category)).performClick()
         composeRule.onNodeWithText("Еда-тест").performClick()
-        composeRule.waitForIdle()
-        // Выбор категории ничего не записал — экран ввода на месте.
-        composeRule.onNodeWithText(composeRule.activity.getString(R.string.txn_entry_add_expense)).assertExists().performClick()
         composeRule.waitForIdle()
 
         // Назад в списке операций — строка с категорией и суммой должна быть в списке. Сверху теперь шапка с

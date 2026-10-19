@@ -3,6 +3,7 @@ package com.corriente.app.ui.accounts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.lazy.LazyRow
@@ -49,6 +50,8 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -151,6 +154,7 @@ fun AccountsScreen(
                         shape = groupItemShape(index, group.rows.size),
                         onClick = { viewModel.startEdit(row.account) },
                         onOpenBalanceChart = { onOpenAccountBalance(row.account.id) },
+                        onAdjust = { viewModel.startAdjust(row.account.id) },
                     )
                 }
             }
@@ -269,6 +273,7 @@ private fun AccountListRow(
     shape: androidx.compose.ui.graphics.Shape,
     onClick: () -> Unit,
     onOpenBalanceChart: () -> Unit,
+    onAdjust: () -> Unit = {},
 ) {
     Surface(
         shape = shape,
@@ -276,7 +281,13 @@ private fun AccountListRow(
         modifier = modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 1.dp),
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)
+            modifier = Modifier.fillMaxWidth()
+                // Долгое нажатие (или действие TalkBack) — «Корректировка баланса» без захода в редактор.
+                .combinedClickable(
+                    onClick = onClick,
+                    onLongClick = onAdjust,
+                    onLongClickLabel = stringResource(R.string.adjust_action),
+                )
                 .padding(start = 16.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -512,7 +523,8 @@ private fun AdjustBalanceDialog(target: AdjustTarget, onDismiss: () -> Unit, onS
     val text = field.text
     val focus = remember { FocusRequester() }
     LaunchedEffect(Unit) { focus.requestFocus() }
-    val actual = remember(text) { text.takeIf { it.isNotBlank() }?.let { openingBalanceMinor(it, currency) } }
+    val actual = remember(text) { text.takeIf { hasAmountDigits(it) }?.let { openingBalanceMinor(it, currency) } }
+    val signToggle = stringResource(R.string.adjust_sign_toggle)
     val delta = actual?.let { Money(Minor(it.raw - target.balance.amount.raw), currency.code) }
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -529,8 +541,29 @@ private fun AdjustBalanceDialog(target: AdjustTarget, onDismiss: () -> Unit, onS
                     label = { Text(stringResource(R.string.adjust_actual)) },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    // Не на каждой клавиатуре «Decimal» есть минус — знак меняется отдельной кнопкой.
+                    trailingIcon = {
+                        TextButton(
+                            onClick = {
+                                val t = field.text.trim()
+                                val flipped = if (t.startsWith("-") || t.startsWith("−")) t.drop(1) else "-$t"
+                                field = TextFieldValue(flipped, TextRange(flipped.length))
+                            },
+                            modifier = Modifier.semantics { contentDescription = signToggle },
+                        ) { Text("±") }
+                    },
                     modifier = Modifier.fillMaxWidth().focusRequester(focus),
                 )
+                target.upcoming?.let { upcoming ->
+                    Text(
+                        stringResource(
+                            R.string.adjust_upcoming,
+                            (if (upcoming.isNegative) "" else "+") + MoneyFormatter.format(upcoming, currency),
+                        ),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
                 if (delta != null) {
                     Text(
                         if (delta.amount.raw == 0L) {

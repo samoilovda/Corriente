@@ -83,6 +83,9 @@ class FakeTxnDao : TxnDao {
      * подстроку из [likePattern]. Поиск по названию счёта/категории проверяется отдельным
      * `[БД]`-тестом ([com.corriente.data.db.TxnDaoSearchInstrumentedTest]) на настоящем FTS4.
      */
+    override fun observeAdjustments(): Flow<List<TxnEntity>> =
+        rows.map { list -> list.filter { it.kind == TxnKind.ADJUSTMENT } }
+
     override fun search(ftsQuery: String, likePattern: String): Flow<List<TxnEntity>> {
         val needle = likePattern.removePrefix("%").removeSuffix("%")
         return rows.map { list -> list.filter { needle.isNotEmpty() && it.note?.lowercase()?.contains(needle) == true } }

@@ -48,10 +48,11 @@ class MonthOverviewViewModel(
     currencies: CurrencyRepository,
     balances: AccountBalanceUseCase,
     overviewSettings: OverviewCategoriesSettings? = null,
-    today: () -> LocalDate = LocalDate::now,
+    private val today: () -> LocalDate = LocalDate::now,
 ) : ViewModel() {
 
-    private val month = MutableStateFlow(YearMonth.from(today()))
+    private var lastToday = today()
+    private val month = MutableStateFlow(YearMonth.from(lastToday))
     private val accountId = MutableStateFlow<String?>(null)
     private val currency = MutableStateFlow<String?>(null)
 
@@ -69,6 +70,17 @@ class MonthOverviewViewModel(
             buildMonthOverview(m, list, allAccounts, allCategories, allCurrencies, allBalances, selAccount, selCurrency, pins),
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), MonthOverviewUiState())
+
+    /**
+     * Приложение вернулось на передний план: если за это время сменился день (а тем более месяц) и пользователь не
+     * листал месяцы — шапка уходит на новый «сегодня», а не висит на прошлом месяце.
+     */
+    fun refreshToday() {
+        val now = today()
+        if (now == lastToday) return
+        if (month.value == YearMonth.from(lastToday)) month.value = YearMonth.from(now)
+        lastToday = now
+    }
 
     fun shiftMonth(delta: Long) = month.update { it.plusMonths(delta) }
 

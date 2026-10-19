@@ -455,6 +455,20 @@ class TxnEntryViewModel(
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), TxnEntryUiState(date = form.value.date))
 
+    /**
+     * Форму открыли вчера и вернулись сегодня: нетронутая новая операция получает сегодняшнюю дату, а не вчерашнюю.
+     * Тронутую пользователем форму не меняем.
+     */
+    fun refreshToday() {
+        if (editingTxnId != null || repeatTxnId != null || uiState.value.dirty) return
+        val d = today()
+        if (form.value.date == d) return
+        form.update { it.copy(date = d) }
+        val fingerprint = form.value.fingerprint()
+        savedStateHandle[SavedKeys.INITIAL] = fingerprint
+        initialFingerprint.value = fingerprint
+    }
+
     fun setKind(kind: EntryKind) = form.update { it.copy(kind = kind, selectedCategoryId = null) }
 
     /**
@@ -537,9 +551,18 @@ class TxnEntryViewModel(
     }
 
     fun selectAccount(id: String) {
-        val newCurrency = uiState.value.accounts.firstOrNull { it.id == id }?.currency
+        val state = uiState.value
+        val newCurrency = state.accounts.firstOrNull { it.id == id }?.currency
+        val oldCurrency = state.currency
+        // Недосчитанное выражение («100 + 50») не теряем: считаем его в старой валюте и переносим результат.
+        val resolved = if (state.hasPendingCalc && oldCurrency != null) {
+            state.resolvedMinor()?.takeIf { it.raw > 0 }
+        } else {
+            null
+        }
         form.update { f ->
-            val amount = if (newCurrency != null) AmountInput.fromText(f.amount.displayText(), newCurrency) else f.amount
+            val base = if (resolved != null && oldCurrency != null) AmountInput.fromMinor(resolved, oldCurrency) else f.amount
+            val amount = if (newCurrency != null) AmountInput.fromText(base.displayText(), newCurrency) else base
             f.copy(selectedAccountId = id, amount = amount, calcAcc = null, calcOp = null)
         }
     }
@@ -592,11 +615,19 @@ class TxnEntryViewModel(
             },
         ) {
             if (editingTxnId != null) {
-                txns.updateEntry(editingTxnId, accountId, money, categoryId, state.date, note)
+                txns.updateEntry(
+                    editingTxnId, accountId, money, categoryId, state.date, note,
+                    kind = if (state.kind == EntryKind.INCOME) com.corriente.data.db.entity.TxnKind.INCOME else com.corriente.data.db.entity.TxnKind.EXPENSE,
+                )
             } else {
                 when (state.kind) {
                     EntryKind.EXPENSE -> txns.addExpense(accountId, money, categoryId, state.date, note)
                     EntryKind.INCOME -> txns.addIncome(accountId, money, categoryId, state.date, note)
+                }.also { saved ->
+                    // «Записано — Отменить» на экране операций: промах по соседней категории исправляется одним тапом.
+                    val sign = if (state.kind == EntryKind.INCOME) "+" else "−"
+                    com.corriente.app.ui.common.JustSaved.pending.value =
+                        com.corriente.app.ui.common.JustSaved.Entry(saved.id, sign + MoneyFormatter.format(money, currency))
                 }
             }
         }

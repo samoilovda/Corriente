@@ -127,7 +127,8 @@ private fun amountSidesOf(txn: Txn): List<Money> = when (txn) {
     is Txn.Expense -> listOf(txn.amount)
     is Txn.Income -> listOf(txn.amount)
     is Txn.Transfer -> listOf(txn.fromAmount, txn.toAmount)
-    is Txn.Adjustment -> listOf(txn.delta)
+    // Поправка может быть отрицательной, а порог суммы — положительный диапазон: сравниваем модуль.
+    is Txn.Adjustment -> listOf(if (txn.delta.isNegative) -txn.delta else txn.delta)
 }
 
 /** U01: обе границы проверяются на одной и той же стороне операции и только в валюте порога. */
@@ -155,10 +156,12 @@ private fun matchesQuery(
     query: String,
     categoryNames: Map<String, String>,
     accountNames: Map<String, String>,
+    adjustmentLabel: String = "",
 ): Boolean {
     val needle = query.trim().lowercase()
     if (needle.isEmpty()) return true
     val haystack = buildList {
+        if (txn is Txn.Adjustment && adjustmentLabel.isNotEmpty()) add(adjustmentLabel)
         txn.note?.let { add(it) }
         categoryIdOf(txn)?.let { categoryNames[it] }?.let { add(it) }
         accountIdsOf(txn).forEach { accountNames[it]?.let(::add) }
@@ -173,13 +176,14 @@ private fun matchesFilter(
     accountNames: Map<String, String> = emptyMap(),
     /** true — запрос уже применён на уровне БД ([TransactionsViewModel.rangeTxns]), здесь его не проверяем повторно. */
     querySatisfiedExternally: Boolean = false,
+    adjustmentLabel: String = "",
 ): Boolean {
     if (filter.accountId != null && !matchesAccount(txn, filter.accountId)) return false
     if (filter.currencyCode != null && !matchesCurrency(txn, filter.currencyCode)) return false
     if (filter.categoryId != null && categoryIdOf(txn) != filter.categoryId) return false
     if (filter.from != null && txn.date < filter.from) return false
     if (filter.to != null && txn.date > filter.to) return false
-    if (!querySatisfiedExternally && !matchesQuery(txn, filter.query, categoryNames, accountNames)) return false
+    if (!querySatisfiedExternally && !matchesQuery(txn, filter.query, categoryNames, accountNames, adjustmentLabel)) return false
     if (filter.amount != null && !matchesAmount(txn, filter.amount)) return false
     return true
 }
@@ -203,9 +207,11 @@ internal fun buildDaySections(
     accountColors: Map<String, Int> = emptyMap(),
     /** R2.1: true, когда [txns] уже пришли из [com.corriente.data.repository.TxnRepository.search]. */
     querySatisfiedExternally: Boolean = false,
+    /** Подпись корректировки баланса: название строки в списке и CSV, слово для поиска. */
+    adjustmentLabel: String = "",
 ): List<DaySection> {
     val filtered = txns.filter {
-        matchesFilter(it, filter, categoryNames, accountNames, querySatisfiedExternally)
+        matchesFilter(it, filter, categoryNames, accountNames, querySatisfiedExternally, adjustmentLabel)
     }
 
     return filtered.groupBy { it.date }.entries
@@ -215,7 +221,7 @@ internal fun buildDaySections(
                 date = date,
                 totals = dayTotals(dayTxns, currenciesByCode),
                 rows = dayTxns.map { txn ->
-                    row(txn, accountNames, categoryNames, currenciesByCode, categoryIcons, categoryColors, accountColors)
+                    row(txn, accountNames, categoryNames, currenciesByCode, categoryIcons, categoryColors, accountColors, adjustmentLabel)
                 },
             )
         }
@@ -245,6 +251,7 @@ private fun row(
     categoryIcons: Map<String, String?>,
     categoryColors: Map<String, Int>,
     accountColors: Map<String, Int> = emptyMap(),
+    adjustmentLabel: String = "",
 ): TxnRow = when (txn) {
     is Txn.Expense -> {
         val currency = currencyOrFallback(txn.amount.currency, byCode)
@@ -283,7 +290,7 @@ private fun row(
         val currency = currencyOrFallback(txn.delta.currency, byCode)
         TxnRow(
             id = txn.id,
-            title = "", // подпись «Корректировка баланса» подставляет экран (ресурс строки)
+            title = adjustmentLabel,
             note = txn.note,
             amountText = (if (txn.delta.isNegative) "" else "+") + MoneyFormatter.format(txn.delta, currency),
             kind = com.corriente.app.ui.common.MoneyKind.TRANSFER, // нейтральный тон: не доход и не расход
@@ -324,6 +331,7 @@ class TransactionsViewModel(
     currencies: CurrencyRepository,
     io: kotlin.coroutines.CoroutineContext = kotlinx.coroutines.Dispatchers.IO,
     private val csvHeaders: com.corriente.data.export.CsvHeaders = com.corriente.data.export.CsvHeaders.ENGLISH,
+    private val adjustmentLabel: String = "Balance adjustment",
     private val today: () -> LocalDate = LocalDate::now,
 ) : WritingViewModel(io) {
 
@@ -339,6 +347,13 @@ class TransactionsViewModel(
             val existing = txns.getById(id) ?: return@launchWrite
             txns.deleteById(id)
             _pendingUndo.value = existing
+        }
+    }
+
+    /** «Отменить» под «Записано»: операция была только что создана — просто убираем её, без второй плашки отмены. */
+    fun deleteSilently(id: String) {
+        launchWrite(onError = { com.corriente.app.ui.common.uiMessage(com.corriente.app.R.string.txn_entry_error_delete) }) {
+            txns.deleteById(id)
         }
     }
 
@@ -383,7 +398,16 @@ class TransactionsViewModel(
                     // R2.1: поиск уходит в БД по всей истории, а не по подгруженному окну месяцев —
                     // именно это даёт «на 50 000 операций без заметной задержки» (критерий приёмки).
                     filter.map { it.query }.distinctUntilChanged()
-                        .flatMapLatest { q -> txns.search(q).map { TxnSource(null, it, isSearch = true) } }
+                        .flatMapLatest { q ->
+                            // У корректировки нет ни заметки, ни категории: по слову из её подписи её добавляем отдельно.
+                            val withAdjustments = adjustmentLabel.lowercase().contains(q.trim().lowercase()) && q.isNotBlank()
+                            val found = if (withAdjustments) {
+                                combine(txns.search(q), txns.observeAdjustments()) { a, b -> (a + b).distinctBy { it.id } }
+                            } else {
+                                txns.search(q)
+                            }
+                            found.map { TxnSource(null, it, isSearch = true) }
+                        }
                 } else {
                     // A2.7: верхней границы нет — операции с будущей датой (уже учтённые в балансе счёта) видны сверху списка.
                     combine(txns.observeRange(start, OPEN_END), txns.observeAnyBefore(start)) { range, before ->
@@ -424,6 +448,7 @@ class TransactionsViewModel(
             categoryIcons = allCategories.associate { it.id to it.icon },
             categoryColors = allCategories.associate { it.id to it.color },
             accountColors = allAccounts.associate { it.id to it.color },
+            adjustmentLabel = adjustmentLabel,
         )
         // A1.1: «Показать ещё» — только если за границей окна есть операции (запрос в БД). Поиск
         // (R2.1) уже смотрит во всю историю — «показать ещё» ему не нужно.
@@ -534,8 +559,11 @@ class TransactionsViewModel(
             categories: CategoryRepository,
             currencies: CurrencyRepository,
             csvHeaders: com.corriente.data.export.CsvHeaders = com.corriente.data.export.CsvHeaders.ENGLISH,
+            adjustmentLabel: String = "Balance adjustment",
         ) = viewModelFactory {
-            initializer { TransactionsViewModel(txns, accounts, categories, currencies, csvHeaders = csvHeaders) }
+            initializer {
+                TransactionsViewModel(txns, accounts, categories, currencies, csvHeaders = csvHeaders, adjustmentLabel = adjustmentLabel)
+            }
         }
     }
 }

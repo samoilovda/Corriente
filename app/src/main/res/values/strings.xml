@@ -214,7 +214,6 @@
     <string name="txn_entry_pin_toggle">Закрепить / открепить шаблон</string>
     <string name="txn_entry_pinned">Закреплено</string>
     <string name="txn_entry_category">Категория</string>
-    <string name="txn_entry_choose_category">Выбрать категорию</string>
     <string name="txn_entry_no_category">Без категории</string>
     <string name="entry_archived_suffix">%1$s (архив)</string>
     <string name="txn_entry_date">Дата</string>
@@ -518,7 +517,7 @@
     <string name="sync_intro">Данные переносит Syncthing: поставьте его на каждое устройство и расшарьте одну папку между ними. Здесь выберите эту папку. Сам Corriente в интернет не ходит — только читает и пишет файлы в папке.</string>
     <string name="sync_device_name">Имя устройства</string>
     <string name="sync_start_here">Начать синхронизацию с этого устройства</string>
-    <string name="sync_start_here_hint">Для устройства, где уже ведётся учёт (обычно телефон). Оно станет основным: импорт из Monefy — только на нём.</string>
+    <string name="sync_start_here_hint">Для устройства, где уже ведётся учёт (обычно телефон). Оно станет основным.</string>
     <string name="sync_join">Подключиться к синхронизации</string>
     <string name="sync_join_hint">Для второго устройства: данные подтянутся из папки, когда Syncthing её перенесёт.</string>
     <string name="sync_join_empty_folder">В папке пока нет данных синхронизации. Сначала начните синхронизацию на основном устройстве и дождитесь, пока Syncthing перенесёт папку сюда.</string>
@@ -570,7 +569,11 @@
     <string name="overview_add_in_category">Добавить в эту категорию</string>
     <string name="adjust_action">Корректировка баланса</string>
     <string name="adjust_title">Корректировка баланса</string>
-    <string name="adjust_body">Счёт «%1$s»: по записям сейчас %2$s. Укажите, сколько на самом деле.</string>
+    <string name="adjust_body">Счёт «%1$s»: по записям на сегодня %2$s. Укажите, сколько на самом деле.</string>
+    <string name="adjust_upcoming">Позже уже записано: %1$s — в остаток на сегодня не входит.</string>
+    <string name="adjust_sign_toggle">Сменить знак (долг)</string>
+    <string name="txn_saved_message">Записано: %1$s</string>
+    <string name="txn_entry_new_category">Новая категория</string>
     <string name="adjust_actual">Фактический остаток</string>
     <string name="adjust_difference">Разница: %1$s</string>
     <string name="adjust_no_difference">Остаток совпадает</string>

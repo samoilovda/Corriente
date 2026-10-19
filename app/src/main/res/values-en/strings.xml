@@ -214,7 +214,6 @@
     <string name="txn_entry_pin_toggle">Pin / unpin template</string>
     <string name="txn_entry_pinned">Pinned</string>
     <string name="txn_entry_category">Category</string>
-    <string name="txn_entry_choose_category">Choose category</string>
     <string name="txn_entry_no_category">No category</string>
     <string name="entry_archived_suffix">%1$s (archived)</string>
     <string name="txn_entry_date">Date</string>
@@ -510,7 +509,7 @@
     <string name="sync_intro">Syncthing moves the data: install it on every device and share one folder between them, then pick that folder here. Corriente itself never goes online — it only reads and writes files in the folder.</string>
     <string name="sync_device_name">Device name</string>
     <string name="sync_start_here">Start syncing from this device</string>
-    <string name="sync_start_here_hint">For the device you already track money on (usually the phone). It becomes the main device: Monefy import works only there.</string>
+    <string name="sync_start_here_hint">For the device you already track money on (usually the phone). It becomes the main device.</string>
     <string name="sync_join">Join sync</string>
     <string name="sync_join_hint">For another device: data arrives from the folder once Syncthing has copied it.</string>
     <string name="sync_join_empty_folder">There is no sync data in the folder yet. Start syncing on the main device first and wait until Syncthing copies the folder here.</string>
@@ -562,7 +561,11 @@
     <string name="overview_add_in_category">Add to this category</string>
     <string name="adjust_action">Adjust balance</string>
     <string name="adjust_title">Balance adjustment</string>
-    <string name="adjust_body">Account “%1$s”: the records say %2$s right now. Enter what it really is.</string>
+    <string name="adjust_body">Account “%1$s”: the records say %2$s as of today. Enter what it really is.</string>
+    <string name="adjust_upcoming">Already recorded for later: %1$s — not part of today’s balance.</string>
+    <string name="adjust_sign_toggle">Flip sign (debt)</string>
+    <string name="txn_saved_message">Saved: %1$s</string>
+    <string name="txn_entry_new_category">New category</string>
     <string name="adjust_actual">Actual balance</string>
     <string name="adjust_difference">Difference: %1$s</string>
     <string name="adjust_no_difference">Balance matches</string>

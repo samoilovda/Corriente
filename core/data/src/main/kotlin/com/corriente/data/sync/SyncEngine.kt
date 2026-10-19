@@ -56,8 +56,7 @@ class SyncEngine(
 
     /**
      * Включает синхронизацию. [baseline] — выложить все текущие строки (устройство, с которого синхронизация начинается):
-     * иначе данные, появившиеся до включения, никогда не попали бы в журнал (§6). [primary] — основное устройство (импорт
-     * Monefy разрешён только на нём, §10).
+     * иначе данные, появившиеся до включения, никогда не попали бы в журнал (§6). [primary] — основное устройство (§10).
      */
     suspend fun enable(name: String, primary: Boolean, baseline: Boolean) = db.writeTransaction {
         if (settings.get(KEY_DEVICE_ID) == null) set(KEY_DEVICE_ID, UUID.randomUUID().toString())

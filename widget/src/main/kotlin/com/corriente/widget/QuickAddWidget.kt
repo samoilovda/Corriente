@@ -97,10 +97,11 @@ class QuickAddExpenseWidget : GlanceAppWidget() {
 
 /**
  * Подгонка под HyperOS (Xiaomi): рамка виджета там стоит ~7 dp выше центра ячейки, в которой иконки приложений
- * центрируются ровно. Сдвигаем содержимое вниз: верхний отступ вдвое больше смещения. Для других лончеров
- * значение может понадобиться другое — позже, по реальным устройствам.
+ * центрируются ровно. Сдвигаем содержимое вниз: верхний отступ вдвое больше смещения. На остальных
+ * устройствах сдвига нет (иначе содержимое сидело бы ниже центра и в 1×1 могло обрезаться).
  */
-private val HYPEROS_TOP_SHIFT = 12.dp
+private val HYPEROS_TOP_SHIFT: androidx.compose.ui.unit.Dp =
+    if (android.os.Build.MANUFACTURER.lowercase() in setOf("xiaomi", "redmi", "poco")) 12.dp else 0.dp
 
 // Тона income/expense из CorrienteColors (:app, ui/theme/Color.kt) — тема приложения сюда не доступна.
 private val ExpenseContainer = ColorProvider(day = Color(0xFFFFDAD6), night = Color(0xFF5C1D18))

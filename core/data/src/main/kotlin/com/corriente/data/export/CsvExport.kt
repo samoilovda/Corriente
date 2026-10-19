@@ -69,7 +69,7 @@ object CsvExport {
      */
     fun encodeForFile(csv: String): ByteArray = byteArrayOf(0xEF.toByte(), 0xBB.toByte(), 0xBF.toByte()) + csv.toByteArray(Charsets.UTF_8)
 
-    /** UTF-8 (с BOM, см. [encodeForFile]) — читается и `MonefyCsvParser`-ом [com.corriente.data.imports.MonefyCsvParser] на импорте. */
+    /** UTF-8 (с BOM, см. [encodeForFile]). */
     fun writeReportCsv(rows: List<ReportCsvRow>, out: OutputStream, headers: CsvHeaders = CsvHeaders.ENGLISH) {
         out.write(encodeForFile(reportCsv(rows, headers)))
     }

@@ -16,6 +16,8 @@ import com.corriente.data.repository.CurrencyRepository
 import com.corriente.data.repository.TxnRepository
 import java.time.LocalDate
 import com.corriente.data.usecase.AccountBalanceUseCase
+import com.corriente.data.usecase.accountBalance
+import kotlinx.coroutines.flow.first
 import com.corriente.data.usecase.totalsByCurrency
 import com.corriente.money.AmountInput
 import com.corriente.money.Currency
@@ -93,8 +95,9 @@ private fun Account.toRow(currenciesByCode: Map<String, Currency>): AccountRow =
  * всегда неотрицателен.
  */
 internal fun openingBalanceMinor(text: String, currency: Currency): Minor {
-    val negative = text.trimStart().startsWith("-")
-    val magnitude = AmountInput.fromText(text, currency).toMinorOrNull(currency)?.raw ?: 0L
+    val normalized = text.trim().replace('−', '-').replace('–', '-')
+    val negative = normalized.startsWith("-")
+    val magnitude = AmountInput.fromText(normalized, currency).toMinorOrNull(currency)?.raw ?: 0L
     return Minor(if (negative) -magnitude else magnitude)
 }
 
@@ -114,8 +117,14 @@ internal fun openingBalanceText(minor: Minor, currency: Currency): String {
     return if (negative) "-$body" else body
 }
 
-/** Корректировка баланса, которую сейчас вводит пользователь: счёт, его валюта и текущий расчётный остаток. */
-data class AdjustTarget(val account: Account, val currency: Currency, val balance: Money)
+/** Поле суммы осмысленно, только если в нём есть цифра: «-», «abc» не должны превращаться в тихий ноль. */
+internal fun hasAmountDigits(text: String): Boolean = text.any { it in '0'..'9' }
+
+/**
+ * Корректировка баланса, которую сейчас вводит пользователь: счёт, его валюта и расчётный остаток **на сегодня**
+ * ([balance]). Операции с будущей датой в нём не учтены — их сумма в [upcoming] (иначе поправка «съела» бы их).
+ */
+data class AdjustTarget(val account: Account, val currency: Currency, val balance: Money, val upcoming: Money? = null)
 
 class AccountsViewModel(
     private val accounts: AccountRepository,
@@ -195,8 +204,20 @@ class AccountsViewModel(
     /** Открыть «Корректировку баланса» для счёта; остаток берётся из уже посчитанных балансов. */
     fun startAdjust(accountId: String) {
         val row = uiState.value.groups.flatMap { it.rows }.firstOrNull { it.account.id == accountId } ?: return
-        val balance = row.balance ?: return
-        _adjust.value = AdjustTarget(row.account, row.currency, balance)
+        val total = row.balance ?: return
+        val repo = txns
+        viewModelScope.launch {
+            // Остаток на сегодня = полный остаток минус движения с датой позже сегодняшней.
+            val future = if (repo == null) {
+                emptyList()
+            } else {
+                repo.observeRange(today().plusDays(1), LocalDate.of(9999, 12, 31)).first()
+            }
+            val zeroBased = row.account.copy(openingBalance = Money(Minor(0), row.account.currency))
+            val upcoming = accountBalance(zeroBased, future)
+            val balance = if (upcoming.amount.raw == 0L) total else total - upcoming
+            _adjust.value = AdjustTarget(row.account, row.currency, balance, upcoming.takeIf { it.amount.raw != 0L })
+        }
     }
 
     fun closeAdjust() {
@@ -211,7 +232,7 @@ class AccountsViewModel(
     fun saveAdjust(actualText: String): Boolean {
         val target = _adjust.value ?: return false
         val repo = txns ?: return false
-        if (actualText.isBlank()) return false
+        if (!hasAmountDigits(actualText)) return false
         val actual = openingBalanceMinor(actualText, target.currency)
         val delta = Math.subtractExact(actual.raw, target.balance.amount.raw) // I-3
         if (delta == 0L) {

@@ -57,6 +57,10 @@ interface TxnDao {
     @Query("SELECT * FROM txn WHERE kind = 'TRANSFER' AND currency_code != to_currency_code ORDER BY date DESC, created_at DESC")
     fun observeCrossCurrencyTransfers(): Flow<List<TxnEntity>>
 
+    /** Корректировки баланса — поиск по слову «корректировка» (у них нет ни заметки, ни категории). */
+    @Query("SELECT * FROM txn WHERE kind = 'ADJUSTMENT' ORDER BY date DESC, created_at DESC")
+    fun observeAdjustments(): Flow<List<TxnEntity>>
+
     @Query("SELECT * FROM txn ORDER BY date DESC, created_at DESC")
     fun observeAll(): Flow<List<TxnEntity>>
 

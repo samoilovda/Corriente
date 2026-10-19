@@ -37,7 +37,7 @@ class RecurrenceRepository(private val dao: RecurrenceDao, private val txnDao: T
         rule: RecurrenceRule,
         startsOn: LocalDate,
     ): Recurrence {
-        require(kind != TxnKind.TRANSFER) { "Recurring transfers are not supported" }
+        require(kind == TxnKind.EXPENSE || kind == TxnKind.INCOME) { "Only expense/income can recur" }
         require(amount.amount.raw > 0) { "Recurrence amount must be positive" }
         val recurrence = Recurrence(
             id = UUID.randomUUID().toString(),

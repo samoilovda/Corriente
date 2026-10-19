@@ -159,7 +159,9 @@ fun CorrienteNavHost(deepLinkIntent: Intent? = null, onDeepLinkConsumed: () -> U
                         val selected = currentDestination?.hierarchy?.any { it.route == destination.route } == true
                         NavigationRailItem(
                             selected = selected,
-                            onClick = { navigateTo(destination) },
+                            onClick = {
+                                if (selected) com.corriente.app.ui.common.TabReselect.events.tryEmit(destination.route) else navigateTo(destination)
+                            },
                             icon = { Icon(if (selected) destination.selectedIcon else destination.icon, contentDescription = null) },
                             label = { Text(stringResource(destination.labelRes), maxLines = 1) },
                         )
@@ -306,6 +308,7 @@ fun CorrienteNavHost(deepLinkIntent: Intent? = null, onDeepLinkConsumed: () -> U
             ) { entry ->
                 TxnEntryScreen(
                     onDone = { navController.popBackStack() },
+                    onCreateCategory = { navController.navigate(CATEGORIES_ROUTE) },
                     onCreateAccount = {
                         // Сначала убираем экран ввода из стека, потом уходим на «Счета» тем же
                         // манёвром, что и нижняя навигация. Иначе экран ввода остаётся под

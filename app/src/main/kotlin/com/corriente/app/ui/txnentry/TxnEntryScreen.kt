@@ -118,9 +118,11 @@ import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -148,6 +150,8 @@ import java.time.ZoneOffset
 fun TxnEntryScreen(
     onDone: () -> Unit,
     onCreateAccount: () -> Unit = {},
+    /** Если задано — в панели категорий последней ячейкой «+ Категория» (переход к справочнику, назад — в форму). */
+    onCreateCategory: (() -> Unit)? = null,
     editingTxnId: String? = null,
     initialKind: EntryKind = EntryKind.EXPENSE,
     initialCategoryId: String? = null,
@@ -175,6 +179,14 @@ fun TxnEntryScreen(
     val showKindLabels = UiPrefs.showKindLabels(LocalContext.current)
 
     LaunchedEffect(finished) { if (finished) onDone() }
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) viewModel.refreshToday()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     // U06: один путь выхода для стрелки, системного «Назад» и жеста. Есть изменения — спрашиваем.
     val guardExit = state.dirty && !finished && pendingUndo == null && !state.saving
@@ -245,7 +257,7 @@ fun TxnEntryScreen(
                         ) {
                             KindToggle(
                                 kind = state.kind,
-                                enabled = !viewModel.isEditing,
+                                enabled = true,
                                 showLabels = showKindLabels,
                                 onKind = viewModel::setKind,
                             )
@@ -433,6 +445,7 @@ fun TxnEntryScreen(
                                 }
                                 CategoryGrid(
                                     categories = state.categories,
+                                    onCreateCategory = onCreateCategory,
                                     selectedId = state.selectedCategoryId,
                                     onSelect = { id ->
                                         categoriesOpen = false
@@ -543,6 +556,9 @@ private val ROOMY_HEIGHT = 600.dp
 /** Путь свайпа по кнопке «Категория», после которого панель категорий открывается (вверх) или закрывается (вниз). */
 private val CATEGORY_SWIPE_THRESHOLD = 24.dp
 
+/** На клавиатуре порог больше: при быстром наборе палец сносит вбок и вверх, это не должно открывать категории. */
+private val KEYPAD_SWIPE_THRESHOLD = 56.dp
+
 /** Вертикальный свайп: вверх — [onUp], вниз — [onDown]; короткие движения игнорируются. */
 private fun Modifier.verticalSwipe(enabled: Boolean, threshold: Dp, onUp: () -> Unit, onDown: () -> Unit): Modifier =
     pointerInput(enabled) {
@@ -625,6 +641,7 @@ private fun CategoryGrid(
     categories: List<Category>,
     selectedId: String?,
     onSelect: (String?) -> Unit,
+    onCreateCategory: (() -> Unit)? = null,
 ) {
     val archivedFmt = stringResource(R.string.entry_archived_suffix, "%s")
     var query by remember { mutableStateOf("") }
@@ -669,6 +686,13 @@ private fun CategoryGrid(
                     selected = selectedId == category.id,
                     onClick = { onSelect(category.id) },
                 )
+            }
+        }
+        if (onCreateCategory != null && query.isBlank()) {
+            TextButton(onClick = onCreateCategory, modifier = Modifier.fillMaxWidth()) {
+                Icon(Icons.Outlined.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(6.dp))
+                Text(stringResource(R.string.txn_entry_new_category))
             }
         }
         if (shown.isEmpty() && query.isNotBlank()) {
@@ -896,7 +920,7 @@ private fun Keypad(
     val keyFont = with(LocalDensity.current) { (keyHeight.value * 0.44f / fontScale).sp }
     // Свайп вверх по клавиатуре открывает категории (клавиатура уезжает вверх).
     Column(
-        Modifier.verticalSwipe(true, CATEGORY_SWIPE_THRESHOLD, onUp = onSwipeUp, onDown = {}),
+        Modifier.verticalSwipe(true, KEYPAD_SWIPE_THRESHOLD, onUp = onSwipeUp, onDown = {}),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         rows.forEach { row ->
