@@ -79,6 +79,22 @@ private fun leftHandedFlow(context: Context) = callbackFlow {
     awaitClose { prefs.unregisterOnSharedPreferenceChangeListener(listener) }
 }
 
+/** Одиночная кнопка 1×1: «+» (доход). */
+class QuickAddIncomeWidget : GlanceAppWidget() {
+    override val sizeMode = SizeMode.Exact
+    override suspend fun provideGlance(context: Context, id: GlanceId) {
+        provideContent { QuickAddButton(context, "INCOME", GlanceModifier.fillMaxSize()) }
+    }
+}
+
+/** Одиночная кнопка 1×1: «−» (расход). */
+class QuickAddExpenseWidget : GlanceAppWidget() {
+    override val sizeMode = SizeMode.Exact
+    override suspend fun provideGlance(context: Context, id: GlanceId) {
+        provideContent { QuickAddButton(context, "EXPENSE", GlanceModifier.fillMaxSize()) }
+    }
+}
+
 // Тона income/expense из CorrienteColors (:app, ui/theme/Color.kt) — тема приложения сюда не доступна.
 private val ExpenseContainer = ColorProvider(day = Color(0xFFFFDAD6), night = Color(0xFF5C1D18))
 private val OnExpenseContainer = ColorProvider(day = Color(0xFFB3261E), night = Color(0xFFFFB4AB))
@@ -97,7 +113,7 @@ private fun entryIntent(appPackage: String, kind: String) =
 private fun QuickAddBody(leftHanded: Boolean) {
     val context = LocalContext.current
     val size = LocalSize.current
-    val modifier = GlanceModifier.fillMaxSize().padding(2.dp)
+    val modifier = GlanceModifier.fillMaxSize()
     val kinds = if (leftHanded) listOf("EXPENSE", "INCOME") else listOf("INCOME", "EXPENSE")
     if (size.height > size.width) {
         Column(modifier = modifier) {
@@ -114,9 +130,9 @@ private fun QuickAddBody(leftHanded: Boolean) {
 private fun QuickAddButton(context: Context, kind: String, slot: GlanceModifier) {
     val expense = kind == "EXPENSE"
     // Как в CorrienteWidget: внешний Box даёт реальный зазор между залитыми кнопками.
-    // `slot` — вес плюс растяжение по поперечной оси; fillMaxSize() здесь перебил бы вес (в Glance
-    // последний модификатор ширины/высоты выигрывает) и первая кнопка заняла бы весь виджет.
-    Box(modifier = slot.padding(3.dp)) {
+    // `slot` — вес плюс растяжение по поперечной оси (у 1×1 — fillMaxSize); собственный fillMaxSize() здесь
+    // перебил бы вес (в Glance последний модификатор ширины/высоты выигрывает) и первая кнопка заняла бы весь виджет.
+    Box(modifier = slot.padding(4.dp)) {
         Box(
             contentAlignment = Alignment.Center,
             modifier = GlanceModifier

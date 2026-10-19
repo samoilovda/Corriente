@@ -8,4 +8,6 @@
     <string name="quick_add_description">Две кнопки: записать расход или доход</string>
     <string name="quick_add_expense">Записать расход</string>
     <string name="quick_add_income">Записать доход</string>
+    <string name="quick_add_income_label">Доход «+»</string>
+    <string name="quick_add_expense_label">Расход «−»</string>
 </resources>
