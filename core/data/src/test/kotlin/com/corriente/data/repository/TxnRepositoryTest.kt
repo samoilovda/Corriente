@@ -81,6 +81,27 @@ class TxnRepositoryTest {
         assertTrue(error is IllegalArgumentException)
     }
 
+    @Test
+    fun `updateEntry can flip an expense into an income, and refuses adjustments and foreign kinds`() = runTest {
+        val (repo, dao, accounts) = setup()
+        accounts.add("acc", "RUB")
+        val created = repo.addExpense("acc", Money(Minor(500_00), rub), null, day, null)
+
+        repo.updateEntry(created.id, "acc", Money(Minor(500_00), rub), null, day, null, kind = TxnKind.INCOME)
+        assertEquals(TxnKind.INCOME, dao.getById(created.id)!!.kind)
+
+        val badKind = runCatching {
+            repo.updateEntry(created.id, "acc", Money(Minor(500_00), rub), null, day, null, kind = TxnKind.TRANSFER)
+        }.exceptionOrNull()
+        assertTrue(badKind is IllegalArgumentException)
+
+        val adjustment = repo.addAdjustment("acc", Money(Minor(-100_00), rub), day)
+        val onAdjustment = runCatching {
+            repo.updateEntry(adjustment.id, "acc", Money(Minor(100_00), rub), null, day, null)
+        }.exceptionOrNull()
+        assertTrue(onAdjustment is IllegalArgumentException)
+    }
+
     // T2.1 / I-7а: перевод — одна строка с двумя суммами; они и есть источник истины.
     @Test
     fun `addTransfer stores both amounts on a single transfer row`() = runTest {

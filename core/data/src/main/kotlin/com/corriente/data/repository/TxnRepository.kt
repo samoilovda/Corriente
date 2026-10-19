@@ -72,6 +72,8 @@ class TxnRepository(
      * попадать — вызывающий (`TransactionsViewModel`) переключается на неё только когда есть
      * непустой текст запроса.
      */
+    fun observeAdjustments(): Flow<List<Txn>> = txnDao.observeAdjustments().map { list -> list.map { it.toDomain() } }
+
     fun search(query: String): Flow<List<Txn>> =
         txnDao.search(buildFtsPrefixQuery(query), buildLikePattern(query)).map { list -> list.map { it.toDomain() } }
 
@@ -215,7 +217,7 @@ class TxnRepository(
     /**
      * Правка расхода/дохода (T1.6): сумма, категория, дата, заметка, счёт. Валюта суммы обязана
      * совпадать с валютой нового счёта (I-15) — при смене счёта на другую валюту вызывающий
-     * обязан заново ввести сумму. Перевод этим методом не редактируется (T2.x).
+     * обязан заново ввести сумму. Перевод и корректировка этим методом не редактируются.
      */
     suspend fun updateEntry(
         id: String,
@@ -224,10 +226,15 @@ class TxnRepository(
         categoryId: String?,
         date: LocalDate,
         note: String?,
+        /** Расход ⇄ доход: «записал не тем видом» исправляется правкой. null — вид не меняется. */
+        kind: TxnKind? = null,
     ): Txn {
         val existing = requireNotNull(txnDao.getById(id)) { "Transaction $id not found" }
-        require(existing.kind != TxnKind.TRANSFER) { "Transfers are not editable here" }
+        require(existing.kind == TxnKind.EXPENSE || existing.kind == TxnKind.INCOME) { "Only expense/income are editable here" }
+        require(kind == null || kind == TxnKind.EXPENSE || kind == TxnKind.INCOME) { "Entry kind must be expense or income" }
+        val newKind = kind ?: existing.kind
         val updated = existing.copy(
+            kind = newKind,
             accountId = accountId,
             amountMinor = amount.amount.raw,
             currencyCode = amount.currency.code,
@@ -237,7 +244,7 @@ class TxnRepository(
             updatedAt = System.currentTimeMillis(),
         )
         // Вид категории проверяем только если её меняют: старые операции с «чужой» категорией (до A2.5) можно править.
-        validate(updated, checkCategoryKind = existing.categoryId != categoryId)
+        validate(updated, checkCategoryKind = existing.categoryId != categoryId || newKind != existing.kind)
         txnDao.update(updated)
         return updated.toDomain()
     }
