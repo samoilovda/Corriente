@@ -110,7 +110,7 @@ fun EntryDialog(c: DesktopContainer, request: EntryRequest, onDone: () -> Unit) 
             val money = when (editing) {
                 is Txn.Expense -> editing.amount
                 is Txn.Income -> editing.amount
-                is Txn.Transfer -> null
+                is Txn.Transfer, is Txn.Adjustment -> null
             }
             val currency = money?.let { currencyOf(it.currency, currencies.associateBy { c -> c.code.code }) }
             if (money != null && currency != null) {

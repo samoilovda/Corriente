@@ -71,6 +71,8 @@ data class TxnRow(
     val currencyCode: String = "",
     /** UI-1.3: тип суммы — от него зависит цвет в списке. */
     val kind: com.corriente.app.ui.common.MoneyKind = com.corriente.app.ui.common.MoneyKind.EXPENSE,
+    /** Корректировка баланса: своя иконка и подпись, не открывается для правки (удаляется свайпом). */
+    val isAdjustment: Boolean = false,
 )
 
 /** Итог дня считается по каждой валюте отдельно (I-8) — сложение разных валют невозможно. */
@@ -103,12 +105,14 @@ private fun matchesAccount(txn: Txn, accountId: String): Boolean = when (txn) {
     is Txn.Expense -> txn.accountId == accountId
     is Txn.Income -> txn.accountId == accountId
     is Txn.Transfer -> txn.fromAccountId == accountId || txn.toAccountId == accountId
+    is Txn.Adjustment -> txn.accountId == accountId
 }
 
 private fun currenciesOf(txn: Txn): List<String> = when (txn) {
     is Txn.Expense -> listOf(txn.amount.currency.code)
     is Txn.Income -> listOf(txn.amount.currency.code)
     is Txn.Transfer -> listOf(txn.fromAmount.currency.code, txn.toAmount.currency.code)
+    is Txn.Adjustment -> listOf(txn.delta.currency.code)
 }
 
 private fun matchesCurrency(txn: Txn, code: String): Boolean = code in currenciesOf(txn)
@@ -116,13 +120,14 @@ private fun matchesCurrency(txn: Txn, code: String): Boolean = code in currencie
 private fun categoryIdOf(txn: Txn): String? = when (txn) {
     is Txn.Expense -> txn.categoryId
     is Txn.Income -> txn.categoryId
-    is Txn.Transfer -> null
+    is Txn.Transfer, is Txn.Adjustment -> null
 }
 
 private fun amountSidesOf(txn: Txn): List<Money> = when (txn) {
     is Txn.Expense -> listOf(txn.amount)
     is Txn.Income -> listOf(txn.amount)
     is Txn.Transfer -> listOf(txn.fromAmount, txn.toAmount)
+    is Txn.Adjustment -> listOf(txn.delta)
 }
 
 /** U01: обе границы проверяются на одной и той же стороне операции и только в валюте порога. */
@@ -136,6 +141,7 @@ private fun accountIdsOf(txn: Txn): List<String> = when (txn) {
     is Txn.Expense -> listOf(txn.accountId)
     is Txn.Income -> listOf(txn.accountId)
     is Txn.Transfer -> listOf(txn.fromAccountId, txn.toAccountId)
+    is Txn.Adjustment -> listOf(txn.accountId)
 }
 
 /**
@@ -223,7 +229,7 @@ private fun dayTotals(dayTxns: List<Txn>, byCode: Map<String, Currency>): List<S
         when (txn) {
             is Txn.Expense -> nets.merge(txn.amount.currency, -txn.amount, Money::plus)
             is Txn.Income -> nets.merge(txn.amount.currency, txn.amount, Money::plus)
-            is Txn.Transfer -> Unit
+            is Txn.Transfer, is Txn.Adjustment -> Unit // итог дня — доходы и расходы; поправка баланса в него не входит
         }
     }
     return nets.entries.sortedBy { it.key.code }.map { (code, net) ->
@@ -269,6 +275,22 @@ private fun row(
             editable = true,
             icon = txn.categoryId?.let { categoryIcons[it] },
             color = txn.categoryId?.let { categoryColors[it] } ?: 0,
+            accountColor = accountColors[txn.accountId] ?: 0,
+            accountName = accountNames[txn.accountId] ?: "",
+        )
+    }
+    is Txn.Adjustment -> {
+        val currency = currencyOrFallback(txn.delta.currency, byCode)
+        TxnRow(
+            id = txn.id,
+            title = "", // подпись «Корректировка баланса» подставляет экран (ресурс строки)
+            note = txn.note,
+            amountText = (if (txn.delta.isNegative) "" else "+") + MoneyFormatter.format(txn.delta, currency),
+            kind = com.corriente.app.ui.common.MoneyKind.TRANSFER, // нейтральный тон: не доход и не расход
+            amountPlain = MoneyFormatter.formatPlain(txn.delta, currency),
+            currencyCode = currency.code.code,
+            editable = false,
+            isAdjustment = true,
             accountColor = accountColors[txn.accountId] ?: 0,
             accountName = accountNames[txn.accountId] ?: "",
         )

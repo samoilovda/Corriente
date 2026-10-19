@@ -185,7 +185,7 @@ class ReportViewModel(
                 when (it) {
                     is Txn.Expense -> it.amount.currency.code
                     is Txn.Income -> it.amount.currency.code
-                    is Txn.Transfer -> null
+                    is Txn.Transfer, is Txn.Adjustment -> null
                 }
             }
             .groupingBy { it }.eachCount().entries.sortedByDescending { it.value }.map { it.key }
@@ -262,6 +262,7 @@ class ReportViewModel(
                         is Txn.Expense -> txn.amount
                         is Txn.Income -> txn.amount
                         is Txn.Transfer -> txn.fromAmount
+                        is Txn.Adjustment -> txn.delta
                     }
                     TxnBrief(txn.id, txn.date, MoneyFormatter.format(amount, currency), txn.note)
                 }

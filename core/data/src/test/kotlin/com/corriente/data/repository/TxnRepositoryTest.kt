@@ -183,4 +183,26 @@ class TxnRepositoryTest {
         repo.addIncome("acc", Money(Minor(100), rub), "salary", day)
         assertEquals(2, txnDao.rows.value.size)
     }
+
+    @Test
+    fun `adjustment keeps its sign, moves the balance deltas and is not an expense or income`() = runTest {
+        val (repo, dao, accounts) = setup()
+        accounts.add("acc", "RUB")
+        repo.addIncome("acc", Money(Minor(1_000_00), rub), null, day, null)
+        val down = repo.addAdjustment("acc", Money(Minor(-250_00), rub), day, "забыл записать")
+        val up = repo.addAdjustment("acc", Money(Minor(40_00), rub), day)
+        assertTrue(down is Txn.Adjustment && up is Txn.Adjustment)
+        assertEquals(-250_00L, dao.getById(down.id)!!.amountMinor)
+        assertNull(dao.getById(down.id)!!.categoryId)
+        // 1000 − 250 + 40 = 790 — дельта счёта учитывает знак корректировки
+        assertEquals(790_00L, repo.observeAccountDeltas().first()["acc"])
+    }
+
+    @Test
+    fun `zero adjustment is rejected`() = runTest {
+        val (repo, _, accounts) = setup()
+        accounts.add("acc", "RUB")
+        val result = runCatching { repo.addAdjustment("acc", Money(Minor(0), rub), day) }
+        assertTrue(result.isFailure)
+    }
 }

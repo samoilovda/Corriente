@@ -58,7 +58,7 @@ fun frequentEntries(
         is Txn.Income -> FrequentEntry(
             FrequentEntryKind.INCOME, txn.accountId, txn.categoryId, txn.amount.amount.raw, txn.amount.currency.code,
         )
-        is Txn.Transfer -> null // I-11: перевод не входит в шаблоны быстрого ввода
+        is Txn.Transfer, is Txn.Adjustment -> null // I-11: перевод и поправка баланса не входят в шаблоны быстрого ввода
     }
 
     val counts = LinkedHashMap<FrequentEntry, Int>()

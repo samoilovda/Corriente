@@ -132,7 +132,7 @@ fun buildMonthOverview(
                 income += txn.amount
                 incomeByCategory.merge(topLevel(txn.categoryId), txn.amount, Money::plus)
             }
-            is Txn.Transfer -> Unit
+            is Txn.Transfer, is Txn.Adjustment -> Unit // не доход и не расход
         }
     }
 

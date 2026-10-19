@@ -48,6 +48,22 @@ sealed interface Txn {
         override val importHash: String? = null,
     ) : Txn
 
+    /**
+     * Корректировка баланса: [delta] со знаком (исключение из I-1, см. [TxnKind.ADJUSTMENT]); не доход/расход,
+     * категории нет. Меняет только остаток счёта.
+     */
+    data class Adjustment(
+        override val id: String,
+        override val date: LocalDate,
+        override val createdAt: Long,
+        override val updatedAt: Long,
+        val accountId: String,
+        val delta: Money,
+        override val note: String? = null,
+        override val importBatchId: String? = null,
+        override val importHash: String? = null,
+    ) : Txn
+
     /** I-7а: источник истины — обе суммы; курс сделки выводится из них, нигде не хранится. */
     data class Transfer(
         override val id: String,
@@ -87,6 +103,17 @@ fun TxnEntity.toDomain(): Txn {
             accountId = accountId,
             amount = Money(Minor(amountMinor), CurrencyCode(currencyCode)),
             categoryId = categoryId,
+            note = note,
+            importBatchId = importBatchId,
+            importHash = importHash,
+        )
+        TxnKind.ADJUSTMENT -> Txn.Adjustment(
+            id = id,
+            date = parsedDate,
+            createdAt = createdAt,
+            updatedAt = updatedAt,
+            accountId = accountId,
+            delta = Money(Minor(amountMinor), CurrencyCode(currencyCode)),
             note = note,
             importBatchId = importBatchId,
             importHash = importHash,
@@ -137,6 +164,20 @@ fun Txn.toEntity(): TxnEntity = when (this) {
         amountMinor = amount.amount.raw,
         currencyCode = amount.currency.code,
         categoryId = categoryId,
+        note = note,
+        importBatchId = importBatchId,
+        importHash = importHash,
+    )
+    is Txn.Adjustment -> TxnEntity(
+        id = id,
+        kind = TxnKind.ADJUSTMENT,
+        date = date.toString(),
+        createdAt = createdAt,
+        updatedAt = updatedAt,
+        accountId = accountId,
+        amountMinor = delta.amount.raw,
+        currencyCode = delta.currency.code,
+        categoryId = null,
         note = note,
         importBatchId = importBatchId,
         importHash = importHash,

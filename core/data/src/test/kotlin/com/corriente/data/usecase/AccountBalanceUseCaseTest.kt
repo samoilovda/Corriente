@@ -88,4 +88,16 @@ class AccountBalanceUseCaseTest {
         val totals = totalsByCurrency(listOf(cash, cardUsd))
         assertEquals(setOf(rub, usd), totals.keys)
     }
+
+    @Test
+    fun `adjustment changes only its own account balance, by its signed amount`() {
+        val cash = account("cash", rub, opening = 10_000_00)
+        val other = account("other", rub, opening = 500_00)
+        val txns = listOf(
+            Txn.Adjustment("a1", LocalDate.of(2026, 1, 1), 0, 0, "cash", Money(Minor(-2_891_00), rub)),
+            Txn.Adjustment("a2", LocalDate.of(2026, 1, 2), 0, 0, "cash", Money(Minor(100_00), rub)),
+        )
+        assertEquals(Money(Minor(7_209_00), rub), accountBalance(cash, txns))
+        assertEquals(Money(Minor(500_00), rub), accountBalance(other, txns))
+    }
 }

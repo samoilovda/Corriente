@@ -99,11 +99,13 @@ fun TransactionsScreen(c: DesktopContainer, onEntry: (EntryRequest) -> Unit) {
                 is Txn.Expense -> t.accountId == overview.accountId
                 is Txn.Income -> t.accountId == overview.accountId
                 is Txn.Transfer -> t.fromAccountId == overview.accountId || t.toAccountId == overview.accountId
+                is Txn.Adjustment -> t.accountId == overview.accountId
             }
             else -> when (t) {
                 is Txn.Expense -> t.amount.currency.code == overview.currencyCode
                 is Txn.Income -> t.amount.currency.code == overview.currencyCode
                 is Txn.Transfer -> t.fromAmount.currency.code == overview.currencyCode || t.toAmount.currency.code == overview.currencyCode
+                is Txn.Adjustment -> t.delta.currency.code == overview.currencyCode
             }
         }
     }.sortedWith(compareByDescending<Txn> { it.date }.thenByDescending { it.createdAt })
@@ -194,7 +196,7 @@ fun TransactionsScreen(c: DesktopContainer, onEntry: (EntryRequest) -> Unit) {
                         )
                     }
                     items(dayTxns, key = { it.id }) { t ->
-                        TxnRow(t, categoryById, accountById, byCode) { if (t !is Txn.Transfer) onEntry(EntryRequest.Edit(t)) }
+                        TxnRow(t, categoryById, accountById, byCode) { if (t !is Txn.Transfer && t !is Txn.Adjustment) onEntry(EntryRequest.Edit(t)) }
                         HorizontalDivider()
                     }
                 }
@@ -227,6 +229,11 @@ private fun TxnRow(
             "${formatMoney(t.fromAmount, byCode)} → ${formatMoney(t.toAmount, byCode)}",
             "",
         )
+        is Txn.Adjustment -> Row5(
+            "Корректировка баланса", "mi:tune", 0,
+            (if (t.delta.isNegative) "" else "+") + formatMoney(t.delta, byCode),
+            accountById[t.accountId]?.name.orEmpty(),
+        )
     }
     Row(
         Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 10.dp),
@@ -246,7 +253,7 @@ private fun TxnRow(
             color = when (t) {
                 is Txn.Expense -> MaterialTheme.colorScheme.onSurface
                 is Txn.Income -> INCOME_COLOR
-                is Txn.Transfer -> MaterialTheme.colorScheme.onSurfaceVariant
+                is Txn.Transfer, is Txn.Adjustment -> MaterialTheme.colorScheme.onSurfaceVariant
             },
         )
     }

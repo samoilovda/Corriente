@@ -267,7 +267,7 @@ class TxnEntryViewModel(
                     val prefill = when (source) {
                         is Txn.Expense -> Quad(EntryKind.EXPENSE, source.accountId, source.amount, source.categoryId)
                         is Txn.Income -> Quad(EntryKind.INCOME, source.accountId, source.amount, source.categoryId)
-                        is Txn.Transfer, null -> null // перевод так не повторяется
+                        is Txn.Transfer, is Txn.Adjustment, null -> null // перевод и поправку баланса так не повторяют
                     }
                     if (source != null && prefill != null) {
                         val (kind, accountId, amount, categoryId) = prefill
@@ -288,7 +288,7 @@ class TxnEntryViewModel(
                     val quad = when (existing) {
                         is Txn.Expense -> Quad(EntryKind.EXPENSE, existing.accountId, existing.amount, existing.categoryId)
                         is Txn.Income -> Quad(EntryKind.INCOME, existing.accountId, existing.amount, existing.categoryId)
-                        is Txn.Transfer, null -> null // переводы здесь не редактируются
+                        is Txn.Transfer, is Txn.Adjustment, null -> null // переводы и поправки здесь не редактируются
                     }
                     if (existing != null && quad != null) {
                         val (kind, accountId, amount, categoryId) = quad

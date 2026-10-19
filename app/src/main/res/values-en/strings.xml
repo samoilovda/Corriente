@@ -623,4 +623,13 @@
     <string name="sync_delivery_note">Corriente wrote its changes to the shared folder. Whether they reached other devices is shown by Syncthing.</string>
     <string name="overview_other">Other</string>
     <string name="overview_add_in_category">Add to this category</string>
+    <string name="adjust_action">Adjust balance</string>
+    <string name="adjust_title">Balance adjustment</string>
+    <string name="adjust_body">Account “%1$s”: the records say %2$s right now. Enter what it really is.</string>
+    <string name="adjust_actual">Actual balance</string>
+    <string name="adjust_difference">Difference: %1$s</string>
+    <string name="adjust_no_difference">Balance matches</string>
+    <string name="adjust_note">The difference is saved as a separate entry. It is neither income nor expense: it stays out of categories, reports and budgets.</string>
+    <string name="adjust_error_save">Couldn’t save the adjustment</string>
+    <string name="adjust_row_title">Balance adjustment</string>
 </resources>

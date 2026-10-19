@@ -69,7 +69,7 @@ object RecurrenceMaterializer {
                         val txn = when (rule.kind) {
                             TxnKind.EXPENSE -> txns.addExpense(rule.accountId, rule.amount, rule.categoryId, date, note, id = id)
                             TxnKind.INCOME -> txns.addIncome(rule.accountId, rule.amount, rule.categoryId, date, note, id = id)
-                            TxnKind.TRANSFER -> return@forEach // не поддерживается, гарантировано RecurrenceRepository
+                            TxnKind.TRANSFER, TxnKind.ADJUSTMENT -> return@forEach // не поддерживается, гарантировано RecurrenceRepository
                         }
                         lastTxnId = txn.id
                     }

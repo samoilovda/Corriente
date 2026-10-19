@@ -43,7 +43,7 @@ interface TxnDao {
     @Query(
         """
         SELECT COALESCE(SUM(delta), 0) FROM (
-            SELECT CASE kind WHEN 'INCOME' THEN amount_minor ELSE -amount_minor END AS delta
+            SELECT CASE kind WHEN 'INCOME' THEN amount_minor WHEN 'ADJUSTMENT' THEN amount_minor ELSE -amount_minor END AS delta
             FROM txn WHERE account_id = :accountId AND date < :before
             UNION ALL
             SELECT to_amount_minor AS delta
@@ -77,6 +77,7 @@ interface TxnDao {
             SELECT account_id, currency_code,
                 CASE kind
                     WHEN 'INCOME' THEN amount_minor
+                    WHEN 'ADJUSTMENT' THEN amount_minor
                     WHEN 'EXPENSE' THEN -amount_minor
                     WHEN 'TRANSFER' THEN -amount_minor
                 END AS delta

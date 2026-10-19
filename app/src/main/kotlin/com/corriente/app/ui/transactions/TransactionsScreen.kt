@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.text.style.TextAlign
@@ -538,7 +539,21 @@ private fun TxnRowItem(row: TxnRow, modifier: Modifier = Modifier, onClick: () -
             Modifier.size(42.dp),
             contentAlignment = Alignment.Center,
         ) {
-            if (!row.isTransfer) {
+            if (row.isAdjustment) {
+                Box(
+                    Modifier
+                        .size(42.dp)
+                        .background(MaterialTheme.colorScheme.tertiaryContainer, RoundedCornerShape(14.dp)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        Icons.Outlined.Tune,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onTertiaryContainer,
+                        modifier = Modifier.size(22.dp),
+                    )
+                }
+            } else if (!row.isTransfer) {
                 Box(
                     Modifier
                         .size(42.dp)
@@ -586,7 +601,7 @@ private fun TxnRowItem(row: TxnRow, modifier: Modifier = Modifier, onClick: () -
         }
         Column(Modifier.weight(1f)) {
             Text(
-                row.title,
+                if (row.isAdjustment) stringResource(R.string.adjust_row_title) else row.title,
                 style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,

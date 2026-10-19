@@ -6,7 +6,12 @@ import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
 
-enum class TxnKind { EXPENSE, INCOME, TRANSFER }
+/**
+ * [ADJUSTMENT] — корректировка баланса (операция, которую забыли записать): меняет остаток счёта, но не доход и не
+ * расход — ни в категориях, ни в отчётах, ни в бюджетах. Единственный вид, у которого [TxnEntity.amountMinor]
+ * хранит знак (исключение из I-1: «−» = остаток уменьшили, «+» = увеличили; 0 нельзя).
+ */
+enum class TxnKind { EXPENSE, INCOME, TRANSFER, ADJUSTMENT }
 
 /**
  * Операция (ARCHITECTURE.md §3.2) — ядро схемы. Одна строка на любую операцию, включая

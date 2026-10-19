@@ -74,7 +74,7 @@ class FakeTxnDao : TxnDao {
         val acc = HashMap<Pair<String, String>, Long>()
         list.forEach { t ->
             val signed = when (t.kind) {
-                TxnKind.INCOME -> t.amountMinor
+                TxnKind.INCOME, TxnKind.ADJUSTMENT -> t.amountMinor
                 TxnKind.EXPENSE, TxnKind.TRANSFER -> -t.amountMinor
             }
             acc.merge(t.accountId to t.currencyCode, signed) { a, b -> a + b }

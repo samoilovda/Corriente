@@ -196,7 +196,8 @@ class BackupRepository(private val db: AppDatabase) : BackupIo {
             val sums = mutableMapOf<String, Long>()
             payload.transactions.forEach { t ->
                 if (t.kind == "TRANSFER") return@forEach
-                val delta = if (t.kind == "INCOME") t.amountMinor else -t.amountMinor
+                // Корректировка баланса хранит знак в самой сумме.
+                val delta = if (t.kind == "INCOME" || t.kind == "ADJUSTMENT") t.amountMinor else -t.amountMinor
                 sums[t.currencyCode] = Math.addExact(sums[t.currencyCode] ?: 0L, delta)
             }
             return BackupSummary(
@@ -297,7 +298,8 @@ class BackupRepository(private val db: AppDatabase) : BackupIo {
                 if (t.importBatchId != null && t.importBatchId !in batchIds) {
                     dangling(BackupEntity.TRANSACTION, ref, BackupEntity.IMPORT_BATCH, t.importBatchId)
                 }
-                if (t.amountMinor <= 0) problems += BackupProblem.NonPositiveAmount(BackupEntity.TRANSACTION, ref, t.amountMinor)
+                val amountBad = if (t.kind == "ADJUSTMENT") t.amountMinor == 0L else t.amountMinor <= 0
+                if (amountBad) problems += BackupProblem.NonPositiveAmount(BackupEntity.TRANSACTION, ref, t.amountMinor)
                 if (!dateOk(t.date)) invalid(BackupEntity.TRANSACTION, ref, BackupField.DATE, t.date)
                 when (t.kind) {
                     "TRANSFER" -> {
@@ -322,7 +324,7 @@ class BackupRepository(private val db: AppDatabase) : BackupIo {
                         if (t.categoryId != null) problems += BackupProblem.BadTransfer(ref, TransferIssue.HAS_CATEGORY)
                     }
 
-                    "EXPENSE", "INCOME" -> {
+                    "EXPENSE", "INCOME", "ADJUSTMENT" -> {
                         if (t.toAccountId != null || t.toAmountMinor != null || t.toCurrencyCode != null) {
                             problems += BackupProblem.UnexpectedSecondSide(ref)
                         }

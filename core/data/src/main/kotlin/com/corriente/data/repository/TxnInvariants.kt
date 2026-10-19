@@ -14,8 +14,13 @@ import com.corriente.data.db.entity.TxnKind
  * @throws IllegalArgumentException при любом нарушении (в т.ч. `require`).
  */
 fun requireValidTxn(entity: TxnEntity, accountCurrency: (String) -> String?) {
-    require(entity.amountMinor > 0) {
-        "Txn ${entity.id}: amountMinor must be > 0, sign comes from kind (I-1)"
+    if (entity.kind == TxnKind.ADJUSTMENT) {
+        // Единственное исключение из I-1: знак корректировки хранится в самой сумме.
+        require(entity.amountMinor != 0L) { "Adjustment ${entity.id}: amountMinor must not be 0" }
+    } else {
+        require(entity.amountMinor > 0) {
+            "Txn ${entity.id}: amountMinor must be > 0, sign comes from kind (I-1)"
+        }
     }
     val fromCurrency = accountCurrency(entity.accountId)
         ?: throw IllegalArgumentException("Txn ${entity.id}: account ${entity.accountId} not found")
@@ -37,11 +42,13 @@ fun requireValidTxn(entity: TxnEntity, accountCurrency: (String) -> String?) {
             }
         }
 
-        TxnKind.EXPENSE, TxnKind.INCOME -> require(
+        TxnKind.EXPENSE, TxnKind.INCOME, TxnKind.ADJUSTMENT -> require(
             entity.toAccountId == null && entity.toAmountMinor == null && entity.toCurrencyCode == null,
         ) {
-            "Txn ${entity.id}: expense/income must have no second side (I-11)"
+            "Txn ${entity.id}: expense/income/adjustment must have no second side (I-11)"
         }
+        // У корректировки нет категории — она не доход и не расход.
+        .also { if (entity.kind == TxnKind.ADJUSTMENT) require(entity.categoryId == null) { "Adjustment ${entity.id}: must have no category" } }
     }
 }
 
@@ -55,7 +62,7 @@ fun requireCategoryMatchesKind(entity: TxnEntity, categoryKind: (String) -> Cate
     val expected = when (entity.kind) {
         TxnKind.EXPENSE -> CategoryKind.EXPENSE
         TxnKind.INCOME -> CategoryKind.INCOME
-        TxnKind.TRANSFER -> return
+        TxnKind.TRANSFER, TxnKind.ADJUSTMENT -> return
     }
     val actual = categoryKind(categoryId)
         ?: throw IllegalArgumentException("Txn ${entity.id}: category $categoryId not found")

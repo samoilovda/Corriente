@@ -72,7 +72,16 @@ import com.corriente.app.ui.common.rememberMessageSnackbarState
 import com.corriente.app.ui.common.groupItemShape
 import com.corriente.data.db.entity.AccountKind
 import com.corriente.money.CurrencyCode
+import com.corriente.money.Minor
+import com.corriente.money.Money
 import com.corriente.money.MoneyFormatter
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.input.KeyboardType
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -81,12 +90,13 @@ fun AccountsScreen(
     onOpenAccountBalance: (String) -> Unit = {},
     viewModel: AccountsViewModel = viewModel(
         factory = with(corrienteContainer()) {
-            AccountsViewModel.factory(accountRepository, currencyRepository, accountBalanceUseCase)
+            AccountsViewModel.factory(accountRepository, currencyRepository, accountBalanceUseCase, txnRepository)
         },
     ),
 ) {
     val state by viewModel.uiState.collectAsState()
     val editor by viewModel.editor.collectAsState()
+    val adjust by viewModel.adjust.collectAsState()
     val message by viewModel.messages.collectAsState()
     val snackbarState = rememberMessageSnackbarState(message, viewModel::consumeMessage)
 
@@ -186,6 +196,10 @@ fun AccountsScreen(
         }
     }
 
+    adjust?.let { target ->
+        AdjustBalanceDialog(target = target, onDismiss = viewModel::closeAdjust, onSave = viewModel::saveAdjust)
+    }
+
     editor?.let { current ->
         AccountEditorDialog(
             editor = current,
@@ -193,6 +207,7 @@ fun AccountsScreen(
             onDismiss = viewModel::closeEditor,
             onSave = viewModel::save,
             onArchive = { current.editingId?.let(viewModel::archive); viewModel.closeEditor() },
+            onAdjust = { current.editingId?.let { id -> viewModel.closeEditor(); viewModel.startAdjust(id) } },
             onDelete = { current.editingId?.let(viewModel::deleteIfUnused) },
         )
     }
@@ -319,6 +334,7 @@ private fun AccountEditorDialog(
     onDismiss: () -> Unit,
     onSave: (AccountForm) -> Boolean,
     onArchive: () -> Unit,
+    onAdjust: () -> Unit,
     onDelete: () -> Unit,
 ) {
     var name by rememberSaveable(editor) { mutableStateOf(editor.name) }
@@ -405,6 +421,7 @@ private fun AccountEditorDialog(
                 }
                 if (editor.editingId != null) {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        TextButton(onClick = onAdjust) { Text(stringResource(R.string.adjust_action)) }
                         TextButton(onClick = onArchive) { Text(stringResource(R.string.accounts_archive)) }
                         // A2.2: «Удалить» — только для неиспользуемого счёта; у используемого — подсказка.
                         if (!editor.currencyLocked) {
@@ -478,4 +495,67 @@ private fun EnumDropdown(
             }
         }
     }
+}
+
+/**
+ * Корректировка баланса: пользователь вводит реальный остаток, приложение само считает разницу с расчётным и пишет её
+ * отдельной записью — не доход и не расход, мимо категорий, отчётов и бюджетов.
+ */
+@Composable
+private fun AdjustBalanceDialog(target: AdjustTarget, onDismiss: () -> Unit, onSave: (String) -> Boolean) {
+    val currency = target.currency
+    // Поле открывается с выделенным текущим остатком — набранное число заменяет его, а не вклеивается внутрь.
+    val initialText = remember(target.account.id) { openingBalanceText(target.balance.amount, currency) }
+    var field by rememberSaveable(target.account.id, stateSaver = TextFieldValue.Saver) {
+        mutableStateOf(TextFieldValue(initialText, TextRange(0, initialText.length)))
+    }
+    val text = field.text
+    val focus = remember { FocusRequester() }
+    LaunchedEffect(Unit) { focus.requestFocus() }
+    val actual = remember(text) { text.takeIf { it.isNotBlank() }?.let { openingBalanceMinor(it, currency) } }
+    val delta = actual?.let { Money(Minor(it.raw - target.balance.amount.raw), currency.code) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.adjust_title)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    stringResource(R.string.adjust_body, target.account.name, MoneyFormatter.format(target.balance, currency)),
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                OutlinedTextField(
+                    value = field,
+                    onValueChange = { field = it },
+                    label = { Text(stringResource(R.string.adjust_actual)) },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    modifier = Modifier.fillMaxWidth().focusRequester(focus),
+                )
+                if (delta != null) {
+                    Text(
+                        if (delta.amount.raw == 0L) {
+                            stringResource(R.string.adjust_no_difference)
+                        } else {
+                            stringResource(
+                                R.string.adjust_difference,
+                                (if (delta.isNegative) "" else "+") + MoneyFormatter.format(delta, currency),
+                            )
+                        },
+                        style = MaterialTheme.typography.titleSmall,
+                    )
+                }
+                Text(
+                    stringResource(R.string.adjust_note),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(enabled = actual != null && delta?.amount?.raw != 0L, onClick = { onSave(text) }) {
+                Text(stringResource(R.string.save))
+            }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
+    )
 }

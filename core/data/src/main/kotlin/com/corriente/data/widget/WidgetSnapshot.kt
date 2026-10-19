@@ -84,6 +84,7 @@ fun defaultPinnedCurrencies(
                 is Txn.Expense -> listOf(txn.accountId)
                 is Txn.Income -> listOf(txn.accountId)
                 is Txn.Transfer -> listOf(txn.fromAccountId, txn.toAccountId)
+                is Txn.Adjustment -> emptyList() // поправка баланса — не «пользование» счётом
             }
         }
     val ranked = touchedAccounts
@@ -115,7 +116,7 @@ fun defaultQuickCategories(
             val categoryId = when (txn) {
                 is Txn.Expense -> txn.categoryId
                 is Txn.Income -> txn.categoryId
-                is Txn.Transfer -> null
+                is Txn.Transfer, is Txn.Adjustment -> null
             } ?: return@forEach
             val category = categoryById[categoryId] ?: return@forEach
             if (category.isArchived) return@forEach

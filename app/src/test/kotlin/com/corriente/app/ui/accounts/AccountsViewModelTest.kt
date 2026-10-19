@@ -28,6 +28,8 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import kotlinx.coroutines.flow.first
+import com.corriente.data.model.Txn
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class AccountsViewModelTest {
@@ -64,6 +66,7 @@ class AccountsViewModelTest {
             accountRepository,
             currencies,
             AccountBalanceUseCase(accountRepository, txnRepository),
+            txnRepository,
         )
         return Triple(vm, accountDao, currencies)
     }
@@ -319,5 +322,38 @@ class AccountsViewModelTest {
         assertEquals(com.corriente.app.R.string.delete_blocked_account_transactions, vm.messages.value?.resId)
         assertEquals(1, activeRows(vm).size)
         assertTrue(vm.editor.value != null)
+    }
+
+    @Test
+    fun `balance adjustment records the difference to the actual balance as a signed entry`() = runTest(dispatcher) {
+        val (vm, _, _) = build()
+        backgroundScope.observe(vm)
+        backgroundScope.launch { vm.adjust.collect {} }
+        vm.startCreate(); advanceUntilIdle()
+        vm.save(AccountForm("Наличные", CurrencyCode("RUB"), AccountKind.CASH, "1000", includeInTotal = true)); advanceUntilIdle()
+        val account = activeRows(vm).single().account
+
+        vm.startAdjust(account.id); advanceUntilIdle()
+        assertEquals(100_000L, vm.adjust.value!!.balance.amount.raw)
+        assertTrue(vm.saveAdjust("750.50")); advanceUntilIdle()
+
+        assertEquals(null, vm.adjust.value)
+        assertEquals(75_050L, activeRows(vm).single().balance!!.amount.raw)
+        val adj = txnRepository.observeAll().first().single() as Txn.Adjustment
+        assertEquals(-24_950L, adj.delta.amount.raw)
+    }
+
+    @Test
+    fun `balance adjustment to the same balance writes nothing`() = runTest(dispatcher) {
+        val (vm, _, _) = build()
+        backgroundScope.observe(vm)
+        backgroundScope.launch { vm.adjust.collect {} }
+        vm.startCreate(); advanceUntilIdle()
+        vm.save(AccountForm("Наличные", CurrencyCode("RUB"), AccountKind.CASH, "1000", includeInTotal = true)); advanceUntilIdle()
+        vm.startAdjust(activeRows(vm).single().account.id); advanceUntilIdle()
+
+        assertTrue(vm.saveAdjust("1000")); advanceUntilIdle()
+
+        assertTrue(txnRepository.observeAll().first().isEmpty())
     }
 }

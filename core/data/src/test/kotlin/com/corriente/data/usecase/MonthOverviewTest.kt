@@ -151,4 +151,19 @@ class MonthOverviewTest {
         assertEquals(listOf("home", "food"), o.segments.map { it.categoryId })
         assertTrue(o.segments.none { it.isOther })
     }
+
+    @Test
+    fun adjustmentIsNeitherIncomeNorExpenseInTheOverview() {
+        val o = build(
+            listOf(
+                exp("cash", 500_00, "food"),
+                Txn.Adjustment("adj", day, 0, 0, "cash", money(-9_000_00)),
+                Txn.Adjustment("adj2", day, 0, 0, "cash", money(7_000_00)),
+            ),
+        )
+        assertEquals(listOf(500_00L), o.slices.map { it.valueMinor })
+        assertEquals("0.00", o.incomeAmountText)
+        assertEquals("500.00", o.expenseAmountText)
+        assertTrue(o.incomeSegments.isEmpty())
+    }
 }

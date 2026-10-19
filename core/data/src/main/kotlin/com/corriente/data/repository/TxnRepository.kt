@@ -128,6 +128,27 @@ class TxnRepository(
     }
 
     /**
+     * Корректировка баланса: [delta] со знаком в валюте счёта — на столько остаток счёта отличался от реального.
+     * Не доход и не расход (без категории, мимо отчётов и бюджетов), но хранится как обычная запись и в бэкапе.
+     */
+    suspend fun addAdjustment(accountId: String, delta: Money, date: LocalDate, note: String? = null): Txn {
+        val now = System.currentTimeMillis()
+        val txn = Txn.Adjustment(
+            id = UUID.randomUUID().toString(),
+            date = date,
+            createdAt = now,
+            updatedAt = now,
+            accountId = accountId,
+            delta = delta,
+            note = note,
+        )
+        val entity = txn.toEntity()
+        validate(entity)
+        txnDao.insert(entity)
+        return txn
+    }
+
+    /**
      * Перевод между счетами, в том числе между валютами (T2.1). [fromAmount]/[toAmount] —
      * единственный источник истины; неявный курс сделки = toAmount / fromAmount, вычисляется
      * на слое ViewModel/UI для показа, здесь не хранится (I-7а, I-12).

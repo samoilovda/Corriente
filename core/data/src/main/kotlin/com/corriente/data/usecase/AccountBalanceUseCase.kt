@@ -34,6 +34,7 @@ fun accountBalance(account: Account, transactions: List<Txn>): Money {
 internal fun applyToBalance(balance: Money, account: Account, txn: Txn): Money = when (txn) {
     is Txn.Income -> if (txn.accountId == account.id) balance + txn.amount else balance
     is Txn.Expense -> if (txn.accountId == account.id) balance - txn.amount else balance
+    is Txn.Adjustment -> if (txn.accountId == account.id) balance + txn.delta else balance
     is Txn.Transfer -> when (account.id) {
         txn.fromAccountId -> balance - txn.fromAmount
         txn.toAccountId -> balance + txn.toAmount
