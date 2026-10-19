@@ -83,7 +83,7 @@ private fun leftHandedFlow(context: Context) = callbackFlow {
 class QuickAddIncomeWidget : GlanceAppWidget() {
     override val sizeMode = SizeMode.Exact
     override suspend fun provideGlance(context: Context, id: GlanceId) {
-        provideContent { QuickAddButton(context, "INCOME", GlanceModifier.fillMaxSize()) }
+        provideContent { QuickAddButton(context, "INCOME", GlanceModifier.fillMaxSize().padding(top = HYPEROS_TOP_SHIFT)) }
     }
 }
 
@@ -91,9 +91,16 @@ class QuickAddIncomeWidget : GlanceAppWidget() {
 class QuickAddExpenseWidget : GlanceAppWidget() {
     override val sizeMode = SizeMode.Exact
     override suspend fun provideGlance(context: Context, id: GlanceId) {
-        provideContent { QuickAddButton(context, "EXPENSE", GlanceModifier.fillMaxSize()) }
+        provideContent { QuickAddButton(context, "EXPENSE", GlanceModifier.fillMaxSize().padding(top = HYPEROS_TOP_SHIFT)) }
     }
 }
+
+/**
+ * Подгонка под HyperOS (Xiaomi): рамка виджета там стоит ~7 dp выше центра ячейки, в которой иконки приложений
+ * центрируются ровно. Сдвигаем содержимое вниз: верхний отступ вдвое больше смещения. Для других лончеров
+ * значение может понадобиться другое — позже, по реальным устройствам.
+ */
+private val HYPEROS_TOP_SHIFT = 12.dp
 
 // Тона income/expense из CorrienteColors (:app, ui/theme/Color.kt) — тема приложения сюда не доступна.
 private val ExpenseContainer = ColorProvider(day = Color(0xFFFFDAD6), night = Color(0xFF5C1D18))
@@ -113,7 +120,7 @@ private fun entryIntent(appPackage: String, kind: String) =
 private fun QuickAddBody(leftHanded: Boolean) {
     val context = LocalContext.current
     val size = LocalSize.current
-    val modifier = GlanceModifier.fillMaxSize()
+    val modifier = GlanceModifier.fillMaxSize().padding(top = HYPEROS_TOP_SHIFT)
     val kinds = if (leftHanded) listOf("EXPENSE", "INCOME") else listOf("INCOME", "EXPENSE")
     if (size.height > size.width) {
         Column(modifier = modifier) {
@@ -132,7 +139,7 @@ private fun QuickAddButton(context: Context, kind: String, slot: GlanceModifier)
     // Как в CorrienteWidget: внешний Box даёт реальный зазор между залитыми кнопками.
     // `slot` — вес плюс растяжение по поперечной оси (у 1×1 — fillMaxSize); собственный fillMaxSize() здесь
     // перебил бы вес (в Glance последний модификатор ширины/высоты выигрывает) и первая кнопка заняла бы весь виджет.
-    Box(modifier = slot.padding(4.dp)) {
+    Box(modifier = slot.padding(horizontal = 4.dp, vertical = 2.dp)) {
         Box(
             contentAlignment = Alignment.Center,
             modifier = GlanceModifier
