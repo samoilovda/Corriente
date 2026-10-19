@@ -36,6 +36,7 @@ import androidx.compose.material3.LocalTextStyle
 import androidx.compose.ui.unit.isSpecified
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.navigation.NavDestination.Companion.hierarchy
@@ -67,6 +68,9 @@ import com.corriente.app.ui.txnentry.TxnEntryScreen
 /** Маршруты вне нижней навигации (T1.2/T1.4 — из «Настроек»; T1.5 — ввод по FAB). */
 private const val CURRENCIES_ROUTE = "currencies"
 private const val CATEGORIES_ROUTE = "categories"
+
+/** Значение `from` в deep link виджета «−/+» (см. `:widget`, `QuickAddWidget.entryIntent`). */
+private const val WIDGET_ORIGIN = "widget"
 private const val WIDGET_SETTINGS_ROUTE = "widget_settings"
 private const val AUTOBACKUP_ROUTE = "autobackup"
 private const val APP_LOCK_ROUTE = "app_lock"
@@ -296,18 +300,24 @@ fun CorrienteNavHost(deepLinkIntent: Intent? = null, onDeepLinkConsumed: () -> U
                 CategoriesScreen(onBack = { navController.popBackStack() })
             }
             composable(
-                "$TXN_ENTRY_ROUTE?kind={kind}&category={category}&account={account}&repeat={repeat}",
+                "$TXN_ENTRY_ROUTE?kind={kind}&category={category}&account={account}&repeat={repeat}&from={from}",
                 arguments = listOf(
                     navArgument("kind") { type = NavType.StringType; defaultValue = EntryKind.EXPENSE.name },
                     navArgument("category") { type = NavType.StringType; nullable = true; defaultValue = null },
                     navArgument("account") { type = NavType.StringType; nullable = true; defaultValue = null },
                     navArgument("repeat") { type = NavType.StringType; nullable = true; defaultValue = null },
+                    navArgument("from") { type = NavType.StringType; nullable = true; defaultValue = null },
                 ),
                 // R4.4: ярлыки «Записать расход»/«Записать доход» ведут сюда через deep link.
-                deepLinks = listOf(navDeepLink { uriPattern = "$DEEP_LINK_SCHEME://entry?kind={kind}" }),
+                deepLinks = listOf(navDeepLink { uriPattern = "$DEEP_LINK_SCHEME://entry?kind={kind}&from={from}" }),
             ) { entry ->
+                // Ввод начат с виджета «−/+»: записал (или передумал) — закрываем приложение, возвращаясь на рабочий стол,
+                // а не оставляем пользователя в списке операций.
+                val fromWidget = entry.arguments?.getString("from") == WIDGET_ORIGIN
+                val activity = generateSequence(LocalContext.current) { (it as? android.content.ContextWrapper)?.baseContext }
+                    .firstOrNull { it is android.app.Activity } as? android.app.Activity
                 TxnEntryScreen(
-                    onDone = { navController.popBackStack() },
+                    onDone = { if (fromWidget && activity != null) activity.finish() else navController.popBackStack() },
                     onCreateCategory = { navController.navigate(CATEGORIES_ROUTE) },
                     onCreateAccount = {
                         // Сначала убираем экран ввода из стека, потом уходим на «Счета» тем же

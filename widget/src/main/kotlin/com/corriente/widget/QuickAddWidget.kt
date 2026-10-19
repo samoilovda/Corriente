@@ -112,7 +112,7 @@ private val OnIncomeContainer = ColorProvider(day = Color(0xFF1B6E3A), night = C
 // Явный intent на MainActivity с data-URI — как в res/xml/shortcuts.xml :app. CLEAR_TASK — как у
 // ярлыков: иначе NavController.handleDeepLink сам перезапустит Activity с этим флагом.
 private fun entryIntent(appPackage: String, kind: String) =
-    Intent(Intent.ACTION_VIEW, Uri.parse("corriente://entry?kind=$kind")).apply {
+    Intent(Intent.ACTION_VIEW, Uri.parse("corriente://entry?kind=$kind&from=widget")).apply {
         component = ComponentName(appPackage, "com.corriente.app.MainActivity")
         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
     }

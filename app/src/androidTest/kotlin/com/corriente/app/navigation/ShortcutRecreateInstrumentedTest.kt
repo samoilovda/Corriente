@@ -103,4 +103,21 @@ class ShortcutRecreateInstrumentedTest {
             composeRule.onNodeWithContentDescription(context.getString(R.string.report_open_fx)).assertExists()
         }
     }
+
+    /** V20: ввод, начатый с виджета «−/+», закрывает приложение (рабочий стол), а не оставляет список операций. */
+    @Test
+    fun leavingTheEntryOpenedFromTheWidgetClosesTheApp() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("corriente://entry?kind=EXPENSE&from=widget"))
+            .setClassName(context.packageName, MainActivity::class.java.name)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+
+        ActivityScenario.launch<MainActivity>(intent).use { scenario ->
+            composeRule.waitForIdle()
+            composeRule.onNodeWithText(context.getString(R.string.txn_entry_title)).assertExists()
+
+            composeRule.onNodeWithContentDescription(context.getString(R.string.back)).performClick()
+            composeRule.waitUntil(timeoutMillis = 10_000) { scenario.state == Lifecycle.State.DESTROYED }
+        }
+    }
 }
