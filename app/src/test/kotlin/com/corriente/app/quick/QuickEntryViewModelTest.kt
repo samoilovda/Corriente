@@ -111,7 +111,7 @@ class QuickEntryViewModelTest {
     }
 
     @Test
-    fun `toggling to income switches the branch and clears the amount`() = runTest(dispatcher) {
+    fun `toggling to income switches the branch and keeps the typed amount`() = runTest(dispatcher) {
         val fakes = Fakes().apply { seed() }
         val model = vm(fakes)
         backgroundScope.observe(model)
@@ -122,7 +122,35 @@ class QuickEntryViewModelTest {
         advanceUntilIdle()
 
         assertEquals(EntryKind.INCOME, model.uiState.value.kind)
-        assertTrue(model.uiState.value.amount.isEmpty)
+        assertEquals("5", model.uiState.value.amount.displayText())
+    }
+
+    @Test
+    fun `two saves in a row write a single transaction and remember the account`() = runTest(dispatcher) {
+        val fakes = Fakes().apply { seed() }
+        var remembered: String? = null
+        val store = object : com.corriente.app.ui.txnentry.LastAccountStore {
+            override fun get(): String? = remembered
+            override fun set(accountId: String) { remembered = accountId }
+        }
+        val model = QuickEntryViewModel(
+            txnRepository = TxnRepository(fakes.txnDao, fakes.accountDao),
+            accountRepository = AccountRepository(fakes.accountDao),
+            currencyRepository = CurrencyRepository(fakes.currencyDao),
+            categoryId = "cat-food", categoryName = "Еда", initialAccountId = "acc-usd",
+            categoryKind = CategoryKind.EXPENSE, today = { today }, lastAccount = store,
+        )
+        backgroundScope.observe(model)
+        advanceUntilIdle()
+        model.pressDigit('7')
+        advanceUntilIdle()
+
+        assertTrue(model.save())
+        assertFalse(model.save()) // второй тап до пересчёта uiState
+        advanceUntilIdle()
+
+        assertEquals(1, fakes.txnDao.rows.value.size)
+        assertEquals("acc-usd", remembered)
     }
 
     @Test

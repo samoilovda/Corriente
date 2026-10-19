@@ -64,6 +64,8 @@ class QuickEntryViewModel(
     /** A2.5: вид категории виджета — определяет вид окна по умолчанию; null (категория неизвестна) — расход. */
     categoryKind: CategoryKind? = null,
     private val today: () -> LocalDate = LocalDate::now,
+    /** Как в основной форме: счёт последней записи становится счётом по умолчанию для следующего ввода. */
+    private val lastAccount: com.corriente.app.ui.txnentry.LastAccountStore = com.corriente.app.ui.txnentry.LastAccountStore.None,
 ) : WritingViewModel() {
 
     private data class Form(
@@ -111,7 +113,7 @@ class QuickEntryViewModel(
 
     fun setKind(kind: EntryKind) {
         consumeMessage() // новая попытка — старая ошибка сохранения больше не актуальна
-        form.update { it.copy(kind = kind, amount = AmountInput.empty()) }
+        form.update { it.copy(kind = kind) }
     }
 
     /** Счёт для именно этой операции — не пишется в `WidgetConfigStore` (R4.2). */
@@ -151,10 +153,17 @@ class QuickEntryViewModel(
         val money = Money(minor, currency.code)
         val kind = state.kind
         val effectiveCategoryId = categoryId.takeIf { kind == categoryEntryKind }
-        form.update { it.copy(saving = true) }
+        // Флаг ставится атомарно на форме: uiState выводится асинхронно, и второй тап до его пересчёта видел бы
+        // ещё saving = false (тот же приём, что в TxnEntryViewModel.save).
+        var claimed = false
+        form.update {
+            claimed = !it.saving
+            if (claimed) it.copy(saving = true) else it
+        }
+        if (!claimed) return false
         launchWrite(
             onError = { form.update { f -> f.copy(saving = false) }; uiMessage(R.string.quick_expense_save_failed) },
-            onSuccess = { _finished.value = true },
+            onSuccess = { lastAccount.set(accountId); _finished.value = true },
         ) {
             when (kind) {
                 EntryKind.EXPENSE -> txnRepository.addExpense(accountId, money, effectiveCategoryId, today(), null)
@@ -173,11 +182,12 @@ class QuickEntryViewModel(
             categoryName: String,
             initialAccountId: String?,
             categoryKind: CategoryKind? = null,
+            lastAccount: com.corriente.app.ui.txnentry.LastAccountStore = com.corriente.app.ui.txnentry.LastAccountStore.None,
         ) = viewModelFactory {
             initializer {
                 QuickEntryViewModel(
                     txnRepository, accountRepository, currencyRepository,
-                    categoryId, categoryName, initialAccountId, categoryKind,
+                    categoryId, categoryName, initialAccountId, categoryKind, lastAccount = lastAccount,
                 )
             }
         }

@@ -120,6 +120,7 @@ private fun QuickEntryContent(
         factory = with(corrienteContainer()) {
             QuickEntryViewModel.factory(
                 txnRepository, accountRepository, currencyRepository, categoryId, categoryName, initialAccountId, categoryKind,
+                lastAccount = com.corriente.app.UiPrefs.lastAccount(androidx.compose.ui.platform.LocalContext.current),
             )
         },
     ),
