@@ -14,6 +14,13 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.padding
+import androidx.compose.animation.AnimatedContentTransitionScope
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -124,7 +131,11 @@ fun CorrienteNavHost(deepLinkIntent: Intent? = null, onDeepLinkConsumed: () -> U
     Scaffold(
         bottomBar = {
             // Панель разделов — только на корневых экранах и только на телефоне; на широких окнах — рейка слева.
-            if (layout == NavLayout.BOTTOM_BAR && topLevel) {
+            androidx.compose.animation.AnimatedVisibility(
+                visible = layout == NavLayout.BOTTOM_BAR && topLevel,
+                enter = androidx.compose.animation.slideInVertically(tween(220)) { it },
+                exit = androidx.compose.animation.slideOutVertically(tween(180)) { it },
+            ) {
                 NavigationBar {
                     CorrienteDestination.entries.forEach { destination ->
                         val selected = currentDestination?.hierarchy?.any { it.route == destination.route } == true
@@ -163,6 +174,39 @@ fun CorrienteNavHost(deepLinkIntent: Intent? = null, onDeepLinkConsumed: () -> U
         NavHost(
             navController = navController,
             startDestination = CorrienteDestination.TRANSACTIONS.route,
+            // Переходы: между вкладками — быстрое затухание; в форму/вложенный экран — выезд снизу, назад — уезжает вниз.
+            // (По умолчанию NavHost делает 0,7-секундный кроссфейд: два экрана просвечивают друг сквозь друга.)
+            enterTransition = {
+                val fromTop = CorrienteDestination.isTopLevelRoute(initialState.destination.route)
+                val toTop = CorrienteDestination.isTopLevelRoute(targetState.destination.route)
+                when {
+                    fromTop && toTop -> fadeIn(tween(160))
+                    else -> slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Up, tween(260, easing = FastOutSlowInEasing)) + fadeIn(tween(160))
+                }
+            },
+            exitTransition = {
+                val fromTop = CorrienteDestination.isTopLevelRoute(initialState.destination.route)
+                val toTop = CorrienteDestination.isTopLevelRoute(targetState.destination.route)
+                when {
+                    fromTop && toTop -> fadeOut(tween(100))
+                    else -> ExitTransition.KeepUntilTransitionsFinished
+                }
+            },
+            // Переключение вкладок идёт через popUpTo, т.е. тоже как «pop» — для него тот же быстрый fade.
+            popEnterTransition = {
+                if (CorrienteDestination.isTopLevelRoute(initialState.destination.route) &&
+                    CorrienteDestination.isTopLevelRoute(targetState.destination.route)
+                ) fadeIn(tween(160)) else EnterTransition.None
+            },
+            popExitTransition = {
+                if (CorrienteDestination.isTopLevelRoute(initialState.destination.route) &&
+                    CorrienteDestination.isTopLevelRoute(targetState.destination.route)
+                ) {
+                    fadeOut(tween(100))
+                } else {
+                    slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Down, tween(220, easing = FastOutSlowInEasing)) + fadeOut(tween(180))
+                }
+            },
             modifier = if (twoPane) Modifier.fillMaxSize() else Modifier.fillMaxHeight().widthIn(max = 840.dp).fillMaxWidth(),
         ) {
             composable(CorrienteDestination.TRANSACTIONS.route) {
