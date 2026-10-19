@@ -2,6 +2,11 @@ package com.corriente.app.ui.txnentry
 
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.activity.compose.BackHandler
+import androidx.compose.ui.unit.Velocity
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
@@ -378,6 +383,26 @@ fun TxnEntryScreen(
                     }
 
                     Spacer(Modifier.height(8.dp))
+                    // Свайп вниз по списку категорий (когда он уже в начале) возвращает клавиатуру.
+                    val closeThresholdPx = with(LocalDensity.current) { CATEGORY_SWIPE_THRESHOLD.toPx() }
+                    val closeOnPullDown = remember(closeThresholdPx) {
+                        object : NestedScrollConnection {
+                            var pulled = 0f
+                            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                                if (available.y < 0f) pulled = 0f
+                                return Offset.Zero
+                            }
+                            override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
+                                if (source == NestedScrollSource.UserInput && available.y > 0f) pulled += available.y
+                                return Offset.Zero
+                            }
+                            override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity {
+                                if (pulled >= closeThresholdPx) categoriesOpen = false
+                                pulled = 0f
+                                return Velocity.Zero
+                            }
+                        }
+                    }
                     // Категории занимают место клавиатуры: она уезжает вверх, панель выезжает снизу.
                     AnimatedContent(
                         modifier = if (categoriesOpen && !compact) Modifier.weight(1f) else Modifier,
@@ -393,7 +418,8 @@ fun TxnEntryScreen(
                     ) { showCategories ->
                         if (showCategories) {
                             Column(
-                                if (compact) Modifier.fillMaxWidth().height(keyHeight * 4 + 24.dp) else Modifier.fillMaxSize(),
+                                (if (compact) Modifier.fillMaxWidth().height(keyHeight * 4 + 24.dp) else Modifier.fillMaxSize())
+                                    .nestedScroll(closeOnPullDown),
                             ) {
                                 Box(
                                     Modifier.fillMaxWidth().height(20.dp)
@@ -421,6 +447,7 @@ fun TxnEntryScreen(
                                 onOp = viewModel::pressOp,
                                 onEquals = viewModel::pressEquals,
                                 equalsEnabled = state.hasPendingCalc,
+                                onSwipeUp = { categoriesOpen = true },
                                 keyHeight = keyHeight,
                             )
                         }
@@ -843,6 +870,7 @@ private fun Keypad(
     onOp: (CalcOp) -> Unit,
     onEquals: () -> Unit,
     equalsEnabled: Boolean,
+    onSwipeUp: () -> Unit,
     keyHeight: androidx.compose.ui.unit.Dp = 64.dp,
 ) {
     // Раскладка как в Monefy: цифры слева, операции — правой колонкой; «=» в нижней строке.
@@ -866,15 +894,16 @@ private fun Keypad(
     // Высота клавиши фиксирована в dp — цифру растим вместе с ней, а не с fontScale, иначе при 200%
     // она не помещается в клавишу (сами символы и так крупные).
     val keyFont = with(LocalDensity.current) { (keyHeight.value * 0.44f / fontScale).sp }
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    // Свайп вверх по клавиатуре открывает категории (клавиатура уезжает вверх).
+    Column(
+        Modifier.verticalSwipe(true, CATEGORY_SWIPE_THRESHOLD, onUp = onSwipeUp, onDown = {}),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
         rows.forEach { row ->
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                 row.forEach { key ->
                     val isOp = key in setOf("+", "−", "×", "÷")
-                    if (key == "=" && !equalsEnabled) {
-                        // UI-2.7: «=» появляется, только когда есть что вычислять; место остаётся пустым.
-                        Spacer(Modifier.weight(1f).height(keyHeight))
-                    } else {
+                    run {
                         val interactionSource = remember { MutableInteractionSource() }
                         val isPressed by interactionSource.collectIsPressedAsState()
                         val keyRadius by animateDpAsState(
@@ -882,9 +911,12 @@ private fun Keypad(
                             label = "keypad-shape",
                         )
                         val buttonColors = when {
+                            // «=» всегда на месте; пока считать нечего — приглушён.
                             key == "=" -> ButtonDefaults.buttonColors(
                                 containerColor = colors.primary,
                                 contentColor = colors.onPrimary,
+                                disabledContainerColor = colors.primary.copy(alpha = 0.14f),
+                                disabledContentColor = colors.onSurface.copy(alpha = 0.38f),
                             )
                             isOp -> ButtonDefaults.filledTonalButtonColors(
                                 containerColor = colors.secondaryContainer,
@@ -908,6 +940,7 @@ private fun Keypad(
                                     else -> onDigit(key[0])
                                 }
                             },
+                            enabled = key != "=" || equalsEnabled,
                             shape = RoundedCornerShape(keyRadius),
                             colors = buttonColors,
                             interactionSource = interactionSource,

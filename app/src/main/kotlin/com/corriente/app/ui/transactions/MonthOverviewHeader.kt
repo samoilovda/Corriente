@@ -236,16 +236,6 @@ fun MonthOverviewHeader(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             MonthAmountCard(
-                label = stringResource(R.string.overview_expenses_for, monthLabel),
-                amount = overview.expenseAmountText,
-                currency = overview.currencySymbol,
-                description = overview.expenseText,
-                kind = com.corriente.app.ui.common.MoneyKind.EXPENSE,
-                selected = !showIncome,
-                onClick = { showIncome = false },
-                modifier = Modifier.weight(1f).fillMaxHeight(),
-            )
-            MonthAmountCard(
                 label = stringResource(R.string.overview_income_for, monthLabel),
                 amount = overview.incomeAmountText,
                 currency = overview.currencySymbol,
@@ -253,6 +243,16 @@ fun MonthOverviewHeader(
                 kind = com.corriente.app.ui.common.MoneyKind.INCOME,
                 selected = showIncome,
                 onClick = { showIncome = true },
+                modifier = Modifier.weight(1f).fillMaxHeight(),
+            )
+            MonthAmountCard(
+                label = stringResource(R.string.overview_expenses_for, monthLabel),
+                amount = overview.expenseAmountText,
+                currency = overview.currencySymbol,
+                description = overview.expenseText,
+                kind = com.corriente.app.ui.common.MoneyKind.EXPENSE,
+                selected = !showIncome,
+                onClick = { showIncome = false },
                 modifier = Modifier.weight(1f).fillMaxHeight(),
             )
         }
