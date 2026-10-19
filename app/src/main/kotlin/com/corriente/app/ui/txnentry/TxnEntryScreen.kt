@@ -1,13 +1,12 @@
 package com.corriente.app.ui.txnentry
 
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.spring
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.runtime.rememberCoroutineScope
-import kotlinx.coroutines.launch
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.unit.Dp
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -89,7 +88,6 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.Surface
@@ -155,6 +153,7 @@ fun TxnEntryScreen(
                 txnRepository, accountRepository, categoryRepository, currencyRepository, editingTxnId, initialKind,
                 initialCategoryId, initialAccountId, repeatTxnId,
                 pinnedEntries = UiPrefs.pinnedEntries(LocalContext.current),
+                lastAccount = UiPrefs.lastAccount(LocalContext.current),
             )
         },
     ),
@@ -165,7 +164,7 @@ fun TxnEntryScreen(
     val pendingUndo by viewModel.pendingUndo.collectAsState()
     val snackbarState = rememberMessageSnackbarState(message, viewModel::consumeMessage)
     var datePickerOpen by remember { mutableStateOf(false) }
-    var categorySheetOpen by remember { mutableStateOf(false) }
+    var categoriesOpen by rememberSaveable { mutableStateOf(false) }
     var discardDialogOpen by remember { mutableStateOf(false) }
     val showKindLabels = UiPrefs.showKindLabels(LocalContext.current)
 
@@ -174,7 +173,8 @@ fun TxnEntryScreen(
     // U06: один путь выхода для стрелки, системного «Назад» и жеста. Есть изменения — спрашиваем.
     val guardExit = state.dirty && !finished && pendingUndo == null && !state.saving
     val requestExit = { if (guardExit) discardDialogOpen = true else onDone() }
-    BackHandler(enabled = guardExit) { discardDialogOpen = true }
+    BackHandler(enabled = categoriesOpen) { categoriesOpen = false }
+    BackHandler(enabled = guardExit && !categoriesOpen) { discardDialogOpen = true }
 
     // R5.3: снекбар «Операция удалена — Отменить» — держит форму на экране, пока не истечёт
     // таймер ViewModel (UNDO_WINDOW_MS) или пользователь не нажмёт «Отменить»; уход с экрана
@@ -367,14 +367,51 @@ fun TxnEntryScreen(
                     }
 
                     Spacer(Modifier.height(8.dp))
-                    Keypad(
-                        onDigit = viewModel::pressDigit,
-                        onDecimalPoint = viewModel::pressDecimalPoint,
-                        onOp = viewModel::pressOp,
-                        onEquals = viewModel::pressEquals,
-                        equalsEnabled = state.hasPendingCalc,
-                        keyHeight = keyHeight,
-                    )
+                    // Категории занимают место клавиатуры: она уезжает вверх, панель выезжает снизу.
+                    AnimatedContent(
+                        targetState = categoriesOpen,
+                        transitionSpec = {
+                            if (targetState) {
+                                (slideInVertically { it } + fadeIn()) togetherWith (slideOutVertically { -it } + fadeOut())
+                            } else {
+                                (slideInVertically { -it } + fadeIn()) togetherWith (slideOutVertically { it } + fadeOut())
+                            }.using(SizeTransform(clip = true))
+                        },
+                        label = "keypadOrCategories",
+                    ) { showCategories ->
+                        if (showCategories) {
+                            Column(Modifier.fillMaxWidth().height(keyHeight * 4 + 24.dp)) {
+                                Box(
+                                    Modifier.fillMaxWidth().height(20.dp)
+                                        .verticalSwipe(true, CATEGORY_SWIPE_THRESHOLD, onUp = {}, onDown = { categoriesOpen = false }),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Box(
+                                        Modifier.width(36.dp).height(4.dp)
+                                            .background(MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(2.dp)),
+                                    )
+                                }
+                                CategoryGrid(
+                                    label = stringResource(R.string.txn_entry_category),
+                                    categories = state.categories,
+                                    selectedId = state.selectedCategoryId,
+                                    onSelect = { id ->
+                                        categoriesOpen = false
+                                        viewModel.selectCategoryAndSave(id)
+                                    },
+                                )
+                            }
+                        } else {
+                            Keypad(
+                                onDigit = viewModel::pressDigit,
+                                onDecimalPoint = viewModel::pressDecimalPoint,
+                                onOp = viewModel::pressOp,
+                                onEquals = viewModel::pressEquals,
+                                equalsEnabled = state.hasPendingCalc,
+                                keyHeight = keyHeight,
+                            )
+                        }
+                    }
                     Spacer(Modifier.height(8.dp))
                     // U02: категория — поле (только выбирает), запись — всегда отдельной основной кнопкой.
                     val selectedCategory = state.categories.firstOrNull { it.id == state.selectedCategoryId }
@@ -388,7 +425,9 @@ fun TxnEntryScreen(
                         CategoryField(
                             category = selectedCategory,
                             enabled = interactive,
-                            onOpen = { categorySheetOpen = true },
+                            onToggle = { categoriesOpen = !categoriesOpen },
+                            onSwipeUp = { categoriesOpen = true },
+                            onSwipeDown = { categoriesOpen = false },
                             modifier = Modifier.weight(1f).fillMaxHeight(),
                         )
                         Button(
@@ -438,24 +477,6 @@ fun TxnEntryScreen(
         )
     }
 
-    // Новая операция с уже введённой суммой: тап по категории записывает её сразу, как основная кнопка.
-    // Без суммы и при правке — только выбирает (U02).
-    if (categorySheetOpen) {
-        ModalBottomSheet(onDismissRequest = { categorySheetOpen = false }) {
-            Box(Modifier.padding(horizontal = 12.dp).padding(bottom = 24.dp)) {
-                CategoryGrid(
-                    label = stringResource(R.string.txn_entry_category),
-                    categories = state.categories,
-                    selectedId = state.selectedCategoryId,
-                    onSelect = { id ->
-                        categorySheetOpen = false
-                        viewModel.selectCategoryAndSave(id)
-                    },
-                )
-            }
-        }
-    }
-
     if (datePickerOpen) {
         val pickerState = rememberDatePickerState(
             initialSelectedDateMillis = state.date.atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli(),
@@ -479,52 +500,52 @@ fun TxnEntryScreen(
 private val COMPACT_HEIGHT = 480.dp
 private val ROOMY_HEIGHT = 600.dp
 
-/** Насколько кнопка «Категория» поднимается за пальцем; половина этого пути — порог открытия списка. */
-private val CATEGORY_SWIPE_LIFT = 32.dp
+/** Путь свайпа по кнопке «Категория», после которого панель категорий открывается (вверх) или закрывается (вниз). */
+private val CATEGORY_SWIPE_THRESHOLD = 24.dp
 
-/**
- * U02: поле категории — показывает выбор (иконка, цвет, имя) или «Без категории». Открывает список тапом или
- * свайпом вверх: при свайпе кнопка тянется за пальцем (не выше [CATEGORY_SWIPE_LIFT]) и, перейдя порог,
- * открывает лист, который выезжает снизу — из-под самой кнопки.
- */
-@Composable
-private fun CategoryField(category: Category?, enabled: Boolean, onOpen: () -> Unit, modifier: Modifier = Modifier) {
-    val label = stringResource(R.string.txn_entry_category)
-    val value = category?.name ?: stringResource(R.string.txn_entry_no_category)
-    val surfaceColor = if (category != null && category.color != 0) {
-        Color(category.color).copy(alpha = 0.14f)
-    } else {
-        MaterialTheme.colorScheme.surfaceContainerHigh
-    }
-    val scope = rememberCoroutineScope()
-    val lift = remember { Animatable(0f) }
-    val density = LocalDensity.current
-    val maxLiftPx = with(density) { CATEGORY_SWIPE_LIFT.toPx() }
-    val swipeUp = Modifier.pointerInput(enabled) {
+/** Вертикальный свайп: вверх — [onUp], вниз — [onDown]; короткие движения игнорируются. */
+private fun Modifier.verticalSwipe(enabled: Boolean, threshold: Dp, onUp: () -> Unit, onDown: () -> Unit): Modifier =
+    pointerInput(enabled) {
         if (!enabled) return@pointerInput
+        val thresholdPx = threshold.toPx()
         var dragged = 0f
         detectVerticalDragGestures(
             onDragStart = { dragged = 0f },
-            onVerticalDrag = { change, dy ->
-                change.consume()
-                dragged += dy
-                scope.launch { lift.snapTo(dragged.coerceIn(-maxLiftPx, 0f)) }
-            },
+            onVerticalDrag = { change, dy -> change.consume(); dragged += dy },
             onDragEnd = {
-                if (dragged <= -maxLiftPx / 2) onOpen()
-                scope.launch { lift.animateTo(0f, spring(dampingRatio = Spring.DampingRatioMediumBouncy)) }
+                if (dragged <= -thresholdPx) onUp() else if (dragged >= thresholdPx) onDown()
             },
-            onDragCancel = { scope.launch { lift.animateTo(0f) } },
         )
     }
+
+/**
+ * U02: поле категории — показывает выбор (иконка, цвет, имя) или «Без категории». Тап переключает панель
+ * категорий, свайп вверх открывает её (клавиатура уезжает вверх), свайп вниз возвращает клавиатуру.
+ */
+@Composable
+private fun CategoryField(
+    category: Category?,
+    enabled: Boolean,
+    onToggle: () -> Unit,
+    onSwipeUp: () -> Unit,
+    onSwipeDown: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val label = stringResource(R.string.txn_entry_category)
+    val value = category?.name ?: stringResource(R.string.txn_entry_no_category)
+    val surfaceColor = if (category != null && category.color != 0) {
+        Color(category.color).copy(alpha = 0.18f)
+    } else {
+        MaterialTheme.colorScheme.surfaceContainerHigh
+    }
+    val swipe = Modifier.verticalSwipe(enabled, CATEGORY_SWIPE_THRESHOLD, onSwipeUp, onSwipeDown)
     Surface(
-        onClick = onOpen,
+        onClick = onToggle,
         enabled = enabled,
         shape = MaterialTheme.shapes.large,
         color = surfaceColor,
         modifier = modifier
-            .graphicsLayer { translationY = lift.value }
-            .then(swipeUp)
+            .then(swipe)
             .heightIn(min = 56.dp)
             .semantics { contentDescription = "$label: $value" },
     ) {

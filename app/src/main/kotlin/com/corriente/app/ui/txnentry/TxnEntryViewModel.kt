@@ -52,6 +52,17 @@ import java.time.LocalDate
 /** Расход или доход. Перевод — отдельный поток ввода (T2.1). */
 enum class EntryKind { EXPENSE, INCOME }
 
+/** Где хранится последний выбранный при записи счёт; в приложении — на устройстве ([com.corriente.app.UiPrefs]). */
+interface LastAccountStore {
+    fun get(): String?
+    fun set(accountId: String)
+
+    object None : LastAccountStore {
+        override fun get(): String? = null
+        override fun set(accountId: String) = Unit
+    }
+}
+
 /** Счёт как вариант выбора в форме — с уже разрешённой [Currency] для клавиатуры и показа. */
 data class AccountOption(val id: String, val name: String, val currency: Currency, val isArchived: Boolean = false)
 
@@ -168,6 +179,8 @@ class TxnEntryViewModel(
     private val savedStateHandle: SavedStateHandle = SavedStateHandle(),
     /** E1: закреплённые шаблоны; по умолчанию — в памяти (постоянное хранилище передаёт [factory]). */
     private val pinnedEntries: PinnedEntries = InMemoryPinnedEntries(),
+    /** Счёт (а с ним и валюта) последней записанной операции: новая форма открывается с ним. */
+    private val lastAccount: LastAccountStore = LastAccountStore.None,
 ) : WritingViewModel() {
 
     private data class Form(
@@ -307,7 +320,8 @@ class TxnEntryViewModel(
                 }
             }
             if (editingTxnId == null && form.value.selectedAccountId == null) {
-                accounts.observeActive().first().firstOrNull()?.let { default ->
+                val active = accounts.observeActive().first()
+                (active.firstOrNull { it.id == lastAccount.get() } ?: active.firstOrNull())?.let { default ->
                     form.update { if (it.selectedAccountId == null) it.copy(selectedAccountId = default.id) else it }
                 }
             }
@@ -572,7 +586,10 @@ class TxnEntryViewModel(
         if (!claimed) return false
         launchWrite(
             onError = { form.update { f -> f.copy(saving = false) }; uiMessage(R.string.txn_entry_error_save) },
-            onSuccess = { _finished.value = true },
+            onSuccess = {
+                if (editingTxnId == null) lastAccount.set(accountId)
+                _finished.value = true
+            },
         ) {
             if (editingTxnId != null) {
                 txns.updateEntry(editingTxnId, accountId, money, categoryId, state.date, note)
@@ -635,6 +652,7 @@ class TxnEntryViewModel(
             initialAccountId: String? = null,
             repeatTxnId: String? = null,
             pinnedEntries: PinnedEntries = InMemoryPinnedEntries(),
+            lastAccount: LastAccountStore = LastAccountStore.None,
         ) = viewModelFactory {
             initializer {
                 // R5.4: createSavedStateHandle() — расширение на CreationExtras, доступное здесь
@@ -646,6 +664,7 @@ class TxnEntryViewModel(
                     repeatTxnId = repeatTxnId,
                     savedStateHandle = createSavedStateHandle(),
                     pinnedEntries = pinnedEntries,
+                    lastAccount = lastAccount,
                 )
             }
         }

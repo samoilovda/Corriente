@@ -78,6 +78,7 @@ class TxnEntryViewModelTest {
         initialAccountId: String? = null,
         repeatTxnId: String? = null,
         pinned: com.corriente.data.quickentry.PinnedEntries = com.corriente.data.quickentry.InMemoryPinnedEntries(),
+        lastAccount: LastAccountStore = LastAccountStore.None,
     ): TxnEntryViewModel = TxnEntryViewModel(
         txns = TxnRepository(fakes.txnDao, fakes.accountDao),
         accounts = AccountRepository(fakes.accountDao),
@@ -91,6 +92,7 @@ class TxnEntryViewModelTest {
         repeatTxnId = repeatTxnId,
         savedStateHandle = savedStateHandle,
         pinnedEntries = pinned,
+        lastAccount = lastAccount,
     )
 
     private fun CoroutineScope.observe(model: TxnEntryViewModel) {
@@ -130,6 +132,30 @@ class TxnEntryViewModelTest {
         backgroundScope.observe(other)
         advanceUntilIdle()
         assertEquals("acc-rub", other.uiState.value.selectedAccountId)
+    }
+
+    @Test
+    fun `account of the last saved entry is remembered and preselected next time`() = runTest(dispatcher) {
+        val fakes = Fakes().apply { seed() }
+        var stored: String? = null
+        val store = object : LastAccountStore {
+            override fun get() = stored
+            override fun set(accountId: String) { stored = accountId }
+        }
+        val first = vm(fakes, lastAccount = store)
+        backgroundScope.observe(first)
+        advanceUntilIdle()
+        first.selectAccount("acc-clp")
+        first.pressDigit('5')
+        advanceUntilIdle()
+        first.save()
+        advanceUntilIdle()
+        assertEquals("acc-clp", stored)
+
+        val second = vm(fakes, lastAccount = store)
+        backgroundScope.observe(second)
+        advanceUntilIdle()
+        assertEquals("acc-clp", second.uiState.value.selectedAccountId)
     }
 
     @Test

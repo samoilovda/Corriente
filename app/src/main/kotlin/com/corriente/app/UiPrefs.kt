@@ -31,6 +31,7 @@ object UiPrefs {
     private const val KEY_DYNAMIC_COLOR = "dynamic_color"
     private const val KEY_START_CARD_DISMISSED = "start_card_dismissed"
     private const val KEY_PINNED_ENTRIES = "pinned_entries"
+    private const val KEY_LAST_ACCOUNT = "last_entry_account"
     private const val KEY_KIND_LABELS_SEEN = "kind_labels_seen"
 
     private var leftHandedFlow: MutableStateFlow<Boolean>? = null
@@ -38,6 +39,13 @@ object UiPrefs {
     private var dynamicColorFlow: MutableStateFlow<Boolean>? = null
     private var startCardDismissedFlow: MutableStateFlow<Boolean>? = null
     private var pinnedEntries: PinnedEntries? = null
+
+    /** Счёт последней записанной операции — форма ввода открывается с ним (и его валютой). */
+    fun lastAccount(context: Context): com.corriente.app.ui.txnentry.LastAccountStore = object : com.corriente.app.ui.txnentry.LastAccountStore {
+        private val prefs = prefs(context)
+        override fun get(): String? = prefs.getString(KEY_LAST_ACCOUNT, null)
+        override fun set(accountId: String) { prefs.edit().putString(KEY_LAST_ACCOUNT, accountId).apply() }
+    }
 
     /** E1: закреплённые шаблоны быстрого ввода — на этом устройстве, вне БД, бэкапа и синхронизации. */
     @Synchronized
