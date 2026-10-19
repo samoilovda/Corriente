@@ -23,10 +23,14 @@ import com.corriente.data.usecase.OverviewIcon
 import com.corriente.data.usecase.OverviewSlice
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
+import com.corriente.data.usecase.RingSegment
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.Column
@@ -87,16 +91,11 @@ private val FALLBACK = listOf(
     0xFFEDC948, 0xFFB07AA1, 0xFFFF9DA7, 0xFF9C755F, 0xFFBAB0AC,
 ).map { Color(it) }
 
-private val ICON_SIZE = 34.dp
-/** Ширина и высота ячейки иконки на орбите (иконка, подпись с процентом, поля). */
-private val ICON_CELL_WIDTH = ICON_SIZE + 18.dp
-private val ICON_CELL_HEIGHT = ICON_SIZE + 22.dp
-/** Орбита — овал: растягивается по ширине экрана (не шире [MAX_ORBIT_RX]), высота — доля ширины. */
-private val MAX_ORBIT_RX = 170.dp
-private const val ORBIT_ASPECT = 0.6f
-/** Зазор от орбиты иконок до внешнего края кольца. */
-private val RING_INSET_X = ICON_CELL_WIDTH / 2 + 12.dp
-private val RING_INSET_Y = ICON_CELL_HEIGHT / 2 + 6.dp
+/** Кольцо — овал по ширине экрана (не шире [MAX_RING_WIDTH]); высота — доля ширины. */
+private val MAX_RING_WIDTH = 340.dp
+private const val RING_ASPECT = 0.56f
+/** Толщина полоски — доля меньшей стороны овала. */
+private const val RING_STROKE_FRACTION = 1f / 4.4f
 
 /**
  * Шапка «Операций» в духе Monefy: выбор счёта и месяца, небольшое кольцо расходов с иконками категорий вокруг
@@ -145,19 +144,20 @@ fun MonthOverviewHeader(
 
         // Тап по плитке «Расходы»/«Доходы» переключает кольцо; режим живёт, пока жив экран.
         var showIncome by rememberSaveable { mutableStateOf(false) }
-        val slices = if (showIncome) overview.incomeSlices else overview.slices
-        val icons = if (showIncome) overview.incomeIcons else overview.icons
+        val segments = if (showIncome) overview.incomeSegments else overview.segments
         val months = stringArrayResource(R.array.month_names)
         val monthLabel = "${months[overview.month.monthValue - 1]} ${overview.month.year}"
+        val segmentNames = segments.map { segmentName(it) }
         val ringDescription = stringResource(
             R.string.overview_ring_cd,
             monthLabel,
-            icons.filter { it.percent != null }.joinToString { "${it.name} ${it.percent}%" }
+            segments.indices.joinToString { "${segmentNames[it]} ${segments[it].percent}%" }
                 .ifEmpty { stringResource(R.string.overview_ring_empty) },
         )
         val swipeThreshold = with(androidx.compose.ui.platform.LocalDensity.current) { 48.dp.toPx() }
+        val kind = if (showIncome) EntryKind.INCOME else EntryKind.EXPENSE
         BoxWithConstraints(
-            Modifier.fillMaxWidth().pointerInput(onShiftMonth) {
+            Modifier.fillMaxWidth().padding(vertical = 8.dp).pointerInput(onShiftMonth) {
                 // Свайп влево — следующий месяц, вправо — предыдущий (как листание страниц).
                 var dragged = 0f
                 detectHorizontalDragGestures(
@@ -170,14 +170,15 @@ fun MonthOverviewHeader(
             },
             contentAlignment = Alignment.Center,
         ) {
-            val orbitRx = ((maxWidth - ICON_CELL_WIDTH) / 2 - 4.dp).coerceIn(80.dp, MAX_ORBIT_RX)
-            val orbitRy = orbitRx * ORBIT_ASPECT
-            val ringWidth = (orbitRx - RING_INSET_X) * 2
-            val ringHeight = (orbitRy - RING_INSET_Y) * 2
-            Spacer(Modifier.fillMaxWidth().height(orbitRy * 2 + ICON_CELL_HEIGHT + 8.dp))
-            Ring(slices, icons, Modifier.size(ringWidth, ringHeight).clearAndSetSemantics { contentDescription = ringDescription })
+            val ringWidth = (maxWidth - 32.dp).coerceAtMost(MAX_RING_WIDTH)
+            val ringHeight = ringWidth * RING_ASPECT
+            Ring(
+                segments = segments,
+                onAdd = { id -> onCategoryClick(kind, id) },
+                modifier = Modifier.size(ringWidth, ringHeight).clearAndSetSemantics { contentDescription = ringDescription },
+            )
             Column(
-                modifier = Modifier.width(ringWidth - ringHeight / 3).clearAndSetSemantics {},
+                modifier = Modifier.width(ringWidth * 0.5f).clearAndSetSemantics {},
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Text(
@@ -189,30 +190,16 @@ fun MonthOverviewHeader(
                 com.corriente.app.ui.common.MoneyText(
                     if (showIncome) overview.incomeAmountText else overview.expenseAmountText,
                     if (showIncome) com.corriente.app.ui.common.MoneyKind.INCOME else com.corriente.app.ui.common.MoneyKind.EXPENSE,
-                    style = MaterialTheme.typography.titleMedium,
+                    style = MaterialTheme.typography.titleLarge,
                     deemphasizeFraction = true,
                     maxLines = 1,
                     textAlign = TextAlign.Center,
                 )
                 Text(
                     overview.currencySymbol,
-                    style = MaterialTheme.typography.labelSmall,
+                    style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
-                )
-            }
-            val n = icons.size
-            icons.forEachIndexed { i, icon ->
-                // Равномерно по окружности, начиная сверху и по часовой стрелке.
-                val angle = Math.toRadians(-90.0 + 360.0 * i / n)
-                CategoryIcon(
-                    icon = icon,
-                    fallback = FALLBACK[i % FALLBACK.size],
-                    onClick = { onCategoryClick(if (showIncome) EntryKind.INCOME else EntryKind.EXPENSE, icon.categoryId) },
-                    modifier = Modifier.offset(
-                        x = orbitRx * cos(angle).toFloat(),
-                        y = orbitRy * sin(angle).toFloat() + 7.dp,
-                    ),
                 )
             }
         }
@@ -320,55 +307,84 @@ private fun MonthAmountCard(
 }
 
 @Composable
-private fun Ring(slices: List<OverviewSlice>, icons: List<OverviewIcon>, modifier: Modifier) {
+private fun segmentName(segment: RingSegment): String = when {
+    segment.isOther -> stringResource(R.string.overview_other)
+    else -> segment.name ?: stringResource(R.string.report_no_category)
+}
+
+/**
+ * Кольцо-овал из полосок по категориям. Тап по полоске — всплывающее окно с названием и суммой (по «Прочее» — со
+ * списком вошедших категорий); тап по строке окна — ввод в эту категорию. Остальные полоски при этом приглушаются.
+ */
+@Composable
+private fun Ring(segments: List<RingSegment>, onAdd: (String) -> Unit, modifier: Modifier) {
     val trackColor = MaterialTheme.colorScheme.surfaceContainerHighest
-    val uncategorized = MaterialTheme.colorScheme.outline
+    val neutral = MaterialTheme.colorScheme.outline
     // Float — только координаты отрисовки (I-1); доли считаются из уже посчитанных Long.
-    val fractions = com.corriente.app.ui.report.ChartGeometry.fractionsOfTotal(slices.map { it.valueMinor })
-    // UI-3.1: дуги «вырастают» при каждом новом наборе долей (смена месяца/счёта).
-    val reveal = remember(slices) { Animatable(0f) }
+    val fractions = com.corriente.app.ui.report.ChartGeometry.fractionsOfTotal(segments.map { it.valueMinor })
+    // UI-3.1: дуги «вырастают» при каждом новом наборе долей (смена месяца/счёта/режима).
+    val reveal = remember(segments) { Animatable(0f) }
     LaunchedEffect(reveal) { reveal.animateTo(1f, tween(durationMillis = 600)) }
+    var selected by remember(segments) { mutableStateOf<Int?>(null) }
     val activeCount = fractions.count { it > 0.0 }
     val gap = if (activeCount > 1) 4f else 0f
-
-    Canvas(modifier) {
-        val strokeWidth = size.minDimension / 6.5f
-        val inset = strokeWidth / 2f
-        val arcSize = androidx.compose.ui.geometry.Size(size.width - strokeWidth, size.height - strokeWidth)
-        val topLeft = androidx.compose.ui.geometry.Offset(inset, inset)
-        val radius = (size.minDimension - strokeWidth) / 2f
-        val capDegrees = Math.toDegrees(atan2((strokeWidth / 2f).toDouble(), radius.toDouble())).toFloat()
-
-        drawArc(
-            trackColor,
-            0f,
-            360f,
-            useCenter = false,
-            topLeft = topLeft,
-            size = arcSize,
-            style = Stroke(width = strokeWidth * 0.65f),
-        )
-
-        if (fractions.all { it == 0.0 }) {
-            return@Canvas
+    fun colorOf(i: Int): Color {
+        val seg = segments[i]
+        return when {
+            seg.isOther -> neutral
+            seg.color != 0 -> Color(seg.color)
+            seg.categoryId != null -> FALLBACK[i % FALLBACK.size]
+            else -> neutral
         }
+    }
+    // Начало и размах каждой полоски в градусах (по часовой, с -90°) — общие для рисования и для попадания тапом.
+    val starts = remember(fractions) {
+        var acc = -90.0
+        fractions.map { f -> acc.also { acc += f * 360.0 } }
+    }
 
-        var start = -90f
-        slices.forEachIndexed { i, slice ->
-            val fraction = fractions[i]
-            if (fraction > 0.0) {
-                val fullSweep = (fraction * 360.0).toFloat() * reveal.value
-                val iconIndex = icons.indexOfFirst { it.categoryId != null && it.categoryId == slice.categoryId }
-                val color = when {
-                    slice.color != 0 -> Color(slice.color)
-                    // Цвет дуги совпадает с цветом иконки на орбите (там та же палитра по индексу).
-                    iconIndex >= 0 -> FALLBACK[iconIndex % FALLBACK.size]
-                    slice.categoryId != null -> FALLBACK[(icons.size + i) % FALLBACK.size]
-                    else -> uncategorized
+    BoxWithConstraints(modifier) {
+        val density = androidx.compose.ui.platform.LocalDensity.current
+        val widthPx = with(density) { maxWidth.toPx() }
+        val heightPx = with(density) { maxHeight.toPx() }
+        val strokePx = minOf(widthPx, heightPx) * RING_STROKE_FRACTION
+        Canvas(
+            Modifier.fillMaxSize().pointerInput(segments, fractions) {
+                detectTapGestures { tap ->
+                    // Эллипс: угол параметрический (как у drawArc на овале), попадание — в полосу кольца.
+                    val rx = (widthPx - strokePx) / 2f
+                    val ry = (heightPx - strokePx) / 2f
+                    val nx = (tap.x - widthPx / 2f) / rx
+                    val ny = (tap.y - heightPx / 2f) / ry
+                    val dist = kotlin.math.hypot(nx, ny)
+                    val half = strokePx / 2f / minOf(rx, ry)
+                    if (dist < 1f - half * 1.1f || dist > 1f + half * 1.1f) { selected = null; return@detectTapGestures }
+                    var deg = Math.toDegrees(atan2(ny.toDouble(), nx.toDouble()))
+                    if (deg < -90.0) deg += 360.0
+                    val hit = fractions.indices.firstOrNull { i ->
+                        fractions[i] > 0.0 && deg >= starts[i] && deg < starts[i] + fractions[i] * 360.0
+                    }
+                    selected = if (hit == selected) null else hit
                 }
+            },
+        ) {
+            val inset = strokePx / 2f
+            val arcSize = androidx.compose.ui.geometry.Size(size.width - strokePx, size.height - strokePx)
+            val topLeft = androidx.compose.ui.geometry.Offset(inset, inset)
+            val radius = (size.minDimension - strokePx) / 2f
+            val capDegrees = Math.toDegrees(atan2((strokePx / 2f).toDouble(), radius.toDouble())).toFloat() * 0.6f
+
+            drawArc(trackColor, 0f, 360f, useCenter = false, topLeft = topLeft, size = arcSize, style = Stroke(width = strokePx))
+            if (fractions.all { it == 0.0 }) return@Canvas
+
+            segments.forEachIndexed { i, _ ->
+                val fraction = fractions[i]
+                if (fraction <= 0.0) return@forEachIndexed
+                val start = starts[i].toFloat()
+                val fullSweep = (fraction * 360.0).toFloat() * reveal.value
+                val color = colorOf(i).let { if (selected != null && selected != i) it.copy(alpha = 0.35f) else it }
                 if (activeCount == 1) {
-                    val cap = if (fullSweep < 359f) StrokeCap.Round else StrokeCap.Butt
-                    drawArc(color, start, fullSweep, useCenter = false, topLeft = topLeft, size = arcSize, style = Stroke(width = strokeWidth, cap = cap))
+                    drawArc(color, start, fullSweep, useCenter = false, topLeft = topLeft, size = arcSize, style = Stroke(width = strokePx))
                 } else if (fullSweep > gap + capDegrees * 2f) {
                     drawArc(
                         color = color,
@@ -377,7 +393,7 @@ private fun Ring(slices: List<OverviewSlice>, icons: List<OverviewIcon>, modifie
                         useCenter = false,
                         topLeft = topLeft,
                         size = arcSize,
-                        style = Stroke(width = strokeWidth, cap = StrokeCap.Round),
+                        style = Stroke(width = strokePx, cap = StrokeCap.Round),
                     )
                 } else {
                     val buttSweep = (fullSweep - gap).coerceAtLeast(1.5f)
@@ -388,69 +404,65 @@ private fun Ring(slices: List<OverviewSlice>, icons: List<OverviewIcon>, modifie
                         useCenter = false,
                         topLeft = topLeft,
                         size = arcSize,
-                        style = Stroke(width = strokeWidth, cap = StrokeCap.Butt),
+                        style = Stroke(width = strokePx, cap = StrokeCap.Butt),
                     )
                 }
-                start += fullSweep
+            }
+        }
+
+        selected?.takeIf { it in segments.indices }?.let { index ->
+            val segment = segments[index]
+            val mid = Math.toRadians(starts[index] + fractions[index] * 180.0)
+            val rx = (widthPx - strokePx) / 2f
+            val ry = (heightPx - strokePx) / 2f
+            Box(
+                Modifier.offset {
+                    androidx.compose.ui.unit.IntOffset(
+                        (widthPx / 2f + rx * cos(mid).toFloat()).toInt(),
+                        (heightPx / 2f + ry * sin(mid).toFloat()).toInt(),
+                    )
+                }.size(1.dp),
+            ) {
+                DropdownMenu(expanded = true, onDismissRequest = { selected = null }) {
+                    SegmentDetails(segment, segmentName(segment), onAdd = { id -> selected = null; onAdd(id) })
+                }
             }
         }
     }
 }
 
-/** Тап — ввод в эту категорию; долгое нажатие — всплывающее окно с названием и суммой за месяц. */
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun CategoryIcon(icon: OverviewIcon, fallback: Color, onClick: () -> Unit, modifier: Modifier) {
-    val color = if (icon.color != 0) Color(icon.color) else fallback
-    var showHint by remember { mutableStateOf(false) }
-    val haptic = LocalHapticFeedback.current
-    LaunchedEffect(showHint) {
-        if (showHint) {
-            delay(3_000)
-            showHint = false
+private fun SegmentDetails(segment: RingSegment, name: String, onAdd: (String) -> Unit) {
+    Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp).widthIn(min = 160.dp)) {
+        val rowModifier = Modifier.fillMaxWidth()
+        Row(rowModifier, horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(name, style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
+            Text("${segment.percent}%", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-    }
-    Column(
-        modifier
-            .width(ICON_CELL_WIDTH)
-            // Категории без трат за месяц приглушены, чтобы акцент оставался на тех, что в кольце.
-            .alpha(if (icon.percent == null) 0.55f else 1f)
-            .semantics { contentDescription = icon.amountText?.let { "${icon.name}: $it" } ?: icon.name }
-            .combinedClickable(
-                onClick = onClick,
-                onLongClick = {
-                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                    showHint = true
-                },
-            ),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(2.dp),
-    ) {
-        Surface(
-            shape = RoundedCornerShape(14.dp),
-            color = MaterialTheme.colorScheme.surfaceContainerLow,
-            border = BorderStroke(1.dp, color.copy(alpha = 0.35f)),
-            modifier = Modifier.size(ICON_SIZE + 4.dp),
-        ) {
-            Box(contentAlignment = Alignment.Center) {
-                CategoryGlyph(icon.icon, icon.name, color, size = 20.dp)
-                DropdownMenu(expanded = showHint, onDismissRequest = { showHint = false }) {
-                    Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                        Text(icon.name, style = MaterialTheme.typography.titleSmall)
-                        Text(
-                            icon.amountText ?: "—",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
+        Text(segment.amountText, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        if (segment.isOther) {
+            HorizontalDivider(Modifier.padding(vertical = 6.dp))
+            segment.members.forEach { member ->
+                val id = member.categoryId
+                Row(
+                    rowModifier
+                        .then(if (id != null) Modifier.clickable { onAdd(id) } else Modifier)
+                        .padding(vertical = 6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                ) {
+                    Text(
+                        member.name ?: stringResource(R.string.report_no_category),
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Text(member.amountText, style = MaterialTheme.typography.bodyMedium)
                 }
             }
+        } else if (segment.categoryId != null) {
+            TextButton(onClick = { onAdd(segment.categoryId!!) }, modifier = Modifier.padding(top = 4.dp)) {
+                Text(stringResource(R.string.overview_add_in_category))
+            }
         }
-        Text(
-            icon.percent?.let { "$it%" } ?: " ",
-            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
     }
 }
 

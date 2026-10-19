@@ -621,4 +621,6 @@
     <string name="sync_replace_confirm_title">Replace this device’s data?</string>
     <string name="sync_replace_confirm_text">Accounts and transactions on this device will be deleted and replaced with the data from the shared folder. A copy of the database is saved first. After you confirm, the only way back is restoring that copy.</string>
     <string name="sync_delivery_note">Corriente wrote its changes to the shared folder. Whether they reached other devices is shown by Syncthing.</string>
+    <string name="overview_other">Other</string>
+    <string name="overview_add_in_category">Add to this category</string>
 </resources>

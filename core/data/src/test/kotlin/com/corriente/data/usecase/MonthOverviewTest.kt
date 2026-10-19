@@ -128,4 +128,27 @@ class MonthOverviewTest {
         assertEquals("3\u00A0000.00\u00A0UZS", o.incomeIcons.single().amountText)
         assertEquals(listOf(500_00L), o.slices.map { it.valueMinor })
     }
+
+    @Test
+    fun smallCategoriesFoldIntoOneOtherSegmentThatListsMembers() {
+        val o = build(
+            listOf(
+                exp("cash", 900_00, "home"), exp("cash", 40_00, "food"), exp("cash", 30_00, "taxi"),
+                exp("cash", 30_00, null),
+            ),
+        )
+        assertEquals(listOf("home", null), o.segments.map { it.categoryId })
+        val other = o.segments.last()
+        assertTrue(other.isOther)
+        assertEquals(100_00L, other.valueMinor)
+        assertEquals(listOf("food", "taxi", null), other.members.map { it.categoryId })
+        assertEquals(100, o.segments.sumOf { it.percent })
+    }
+
+    @Test
+    fun aSingleSmallCategoryStaysOnItsOwn() {
+        val o = build(listOf(exp("cash", 980_00, "home"), exp("cash", 20_00, "food")))
+        assertEquals(listOf("home", "food"), o.segments.map { it.categoryId })
+        assertTrue(o.segments.none { it.isOther })
+    }
 }

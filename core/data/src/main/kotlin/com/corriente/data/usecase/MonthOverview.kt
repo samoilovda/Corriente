@@ -29,6 +29,28 @@ data class OverviewIcon(
 /** Сегмент кольца; [color] == 0 у «Без категории» — экран красит его нейтральным цветом. */
 data class OverviewSlice(val valueMinor: Long, val color: Int, val categoryId: String? = null)
 
+/** Категория, вошедшая в сегмент «Прочее» (или сам сегмент); [name] == null — «Без категории». */
+data class RingMember(val categoryId: String?, val name: String?, val amountText: String, val percent: Int)
+
+/**
+ * Полоска кольца. Мелкие категории (меньше [OTHER_SHARE_PERCENT]% месяца, если таких две и больше) сливаются в одну
+ * полоску «Прочее» ([isOther], в [members] — всё, что в неё вошло). [name] == null у «Без категории» и у «Прочее»
+ * — подписи подставляет экран. [percent] — целые проценты по всем полоскам кольца (сумма 100).
+ */
+data class RingSegment(
+    val valueMinor: Long,
+    val color: Int,
+    val categoryId: String?,
+    val name: String?,
+    val amountText: String,
+    val percent: Int,
+    val isOther: Boolean = false,
+    val members: List<RingMember> = emptyList(),
+)
+
+/** Категории доли меньше этой сливаются в «Прочее» на кольце. */
+const val OTHER_SHARE_PERCENT = 5
+
 /**
  * Шапка «Операций» в духе Monefy: расходы месяца кольцом по категориям, доход/расход в центре, баланс под кольцом.
  * Всё — в одной валюте (I-8): либо выбранного счёта, либо выбранной валюты по всем счетам.
@@ -52,6 +74,9 @@ data class MonthOverview(
     val icons: List<OverviewIcon>,
     val incomeSlices: List<OverviewSlice>,
     val incomeIcons: List<OverviewIcon>,
+    /** Полоски кольца с «Прочее» — их рисует приложение; [slices]/[icons] остаются для настольной версии. */
+    val segments: List<RingSegment>,
+    val incomeSegments: List<RingSegment>,
     /** Варианты выбора в шапке: валюты счетов (для «Все счета») и сами счета. */
     val currencyOptions: List<String>,
     val accountOptions: List<Account>,
@@ -137,6 +162,41 @@ fun buildMonthOverview(
         val slices = spent.map { (id, money) -> OverviewSlice(money.amount.raw, id?.let { categoryById[it]?.color } ?: 0, id) }
         return slices to icons
     }
+    fun segments(byCat: Map<String?, Money>, total: Money): List<RingSegment> {
+        val spent = byCat.entries.filter { it.value.amount.raw > 0 }.sortedByDescending { it.value.amount.raw }
+        val grand = total.amount.raw
+        fun small(e: Map.Entry<String?, Money>) = Math.multiplyExact(e.value.amount.raw, 100L) < grand * OTHER_SHARE_PERCENT
+        val smalls = spent.filter(::small)
+        val merge = smalls.size >= 2
+        val big = if (merge) spent.filterNot(::small) else spent
+        val values = big.map { it.value.amount.raw } + if (merge) listOf(smalls.sumOf { it.value.amount.raw }) else emptyList()
+        val shares = largestRemainderShares(values, grand)
+        val memberShares = if (merge) largestRemainderShares(smalls.map { it.value.amount.raw }, grand) else emptyList()
+        val result = big.mapIndexed { i, (id, money) ->
+            RingSegment(
+                valueMinor = money.amount.raw,
+                color = id?.let { categoryById[it]?.color } ?: 0,
+                categoryId = id,
+                name = id?.let { categoryById[it]?.name },
+                amountText = MoneyFormatter.format(money, currency),
+                percent = shares[i],
+            )
+        }
+        if (!merge) return result
+        val otherMoney = smalls.fold(Money.zero(code)) { acc, e -> acc + e.value }
+        return result + RingSegment(
+            valueMinor = otherMoney.amount.raw,
+            color = 0,
+            categoryId = null,
+            name = null,
+            amountText = MoneyFormatter.format(otherMoney, currency),
+            percent = shares.last(),
+            isOther = true,
+            members = smalls.mapIndexed { i, (id, money) ->
+                RingMember(id, id?.let { categoryById[it]?.name }, MoneyFormatter.format(money, currency), memberShares[i])
+            },
+        )
+    }
     val (expenseSlices, expenseIcons) = ring(byCategory, expense, CategoryKind.EXPENSE, pinned)
     val (incomeSlices, incomeIcons) = ring(incomeByCategory, income, CategoryKind.INCOME, emptyList())
 
@@ -162,6 +222,8 @@ fun buildMonthOverview(
         icons = expenseIcons,
         incomeSlices = incomeSlices,
         incomeIcons = incomeIcons,
+        segments = segments(byCategory, expense),
+        incomeSegments = segments(incomeByCategory, income),
         currencyOptions = currencyOptions,
         accountOptions = active,
     )

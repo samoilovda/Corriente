@@ -631,4 +631,6 @@
     <string name="sync_replace_confirm_title">Заменить данные этого устройства?</string>
     <string name="sync_replace_confirm_text">Счета и операции этого устройства будут удалены и заменены данными из общей папки. Перед этим сохранится копия базы. Отменить замену после подтверждения можно только восстановлением этой копии.</string>
     <string name="sync_delivery_note">Corriente записал изменения в общую папку. Дошли ли они до других устройств, показывает Syncthing.</string>
+    <string name="overview_other">Прочее</string>
+    <string name="overview_add_in_category">Добавить в эту категорию</string>
 </resources>
