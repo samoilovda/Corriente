@@ -50,7 +50,6 @@ class PlanningEntryInstrumentedTest {
         val start = string(R.string.start_title)
         composeRule.waitUntil(10_000) { composeRule.onAllNodesWithText(start).fetchSemanticsNodes().isNotEmpty() }
         composeRule.onNodeWithText(string(R.string.start_create_account)).assertExists()
-        composeRule.onNodeWithText(string(R.string.start_import_monefy)).assertExists()
         composeRule.onNodeWithText(string(R.string.start_restore)).assertExists()
         composeRule.onNodeWithText(string(R.string.start_skip)).performClick()
         composeRule.waitUntil(5_000) { composeRule.onAllNodesWithText(start).fetchSemanticsNodes().isEmpty() }

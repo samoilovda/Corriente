@@ -32,8 +32,6 @@ data class SyncStatus(
     /** Имена устройств, чьи данные новее схемы этого приложения. */
     val newerSchemaDevices: List<String> = emptyList(),
 ) {
-    /** Импорт Monefy и откат импорта — только на основном устройстве (docs/SYNC_DESIGN.md §10). */
-    val importAllowed: Boolean get() = !enabled || primary
 }
 
 sealed interface SyncError {

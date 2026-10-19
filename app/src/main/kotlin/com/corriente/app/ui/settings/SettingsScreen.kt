@@ -65,8 +65,6 @@ import java.io.File
 fun SettingsScreen(
     onOpenCurrencies: () -> Unit,
     onOpenCategories: () -> Unit,
-    onOpenImport: () -> Unit,
-    onOpenImportHistory: () -> Unit,
     onOpenWidgetSettings: () -> Unit,
     onOpenAutoBackup: () -> Unit,
     onOpenBudgets: () -> Unit,
@@ -134,24 +132,6 @@ fun SettingsScreen(
             }
 
             SettingsGroup(stringResource(R.string.settings_group_backup)) {
-                // Синхронизация: импорт и его откат — только на основном устройстве (docs/SYNC_DESIGN.md §10).
-                val importAllowed = syncStatus.importAllowed
-                SettingsItem(
-                    Icons.Outlined.UploadFile, stringResource(R.string.import_monefy),
-                    supporting = {
-                        Text(stringResource(if (importAllowed) R.string.import_monefy_hint else R.string.sync_import_primary_only))
-                    },
-                    enabled = importAllowed,
-                    onClick = onOpenImport,
-                )
-                SettingsItem(
-                    Icons.Outlined.History, stringResource(R.string.import_history_title),
-                    supporting = {
-                        Text(stringResource(if (importAllowed) R.string.import_history_hint else R.string.sync_import_primary_only))
-                    },
-                    enabled = importAllowed,
-                    onClick = onOpenImportHistory,
-                )
                 SettingsItem(
                     Icons.Outlined.FileDownload, stringResource(R.string.backup_export),
                     supporting = { Text(stringResource(R.string.backup_export_hint)) },

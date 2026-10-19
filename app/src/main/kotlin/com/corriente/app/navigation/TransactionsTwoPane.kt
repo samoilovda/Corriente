@@ -57,7 +57,6 @@ fun TransactionsTwoPane(
     onCreateAccount: () -> Unit,
     onOpenBudgets: () -> Unit = {},
     onOpenRecurring: () -> Unit = {},
-    onOpenImport: () -> Unit = {},
     onOpenBackup: () -> Unit = {},
 ) {
     var detail by remember { mutableStateOf<Detail?>(null) }
@@ -82,7 +81,6 @@ fun TransactionsTwoPane(
                 onOpenBudgets = onOpenBudgets,
                 onOpenRecurring = onOpenRecurring,
                 onCreateAccount = onCreateAccount,
-                onOpenImport = onOpenImport,
                 onOpenBackup = onOpenBackup,
             )
         }

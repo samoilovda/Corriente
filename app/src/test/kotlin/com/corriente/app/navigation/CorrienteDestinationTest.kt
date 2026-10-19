@@ -20,7 +20,7 @@ class CorrienteDestinationTest {
     @Test
     fun `sub-screen routes are not top level`() {
         listOf(
-            "currencies", "categories", "import_monefy", "widget_settings", "autobackup",
+            "currencies", "categories", "widget_settings", "autobackup",
             "fx_report", "txn_entry?kind=EXPENSE", "txn_edit/abc", "transfer", "transfer_edit/abc",
         ).forEach {
             assertFalse(it, CorrienteDestination.isTopLevelRoute(it))

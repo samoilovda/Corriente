@@ -12,7 +12,6 @@ import com.corriente.data.db.ALL_MIGRATIONS
 import androidx.sqlite.db.framework.FrameworkSQLiteOpenHelperFactory
 import com.corriente.data.db.PreMigrationBackup
 import com.corriente.data.db.PreMigrationSnapshotFactory
-import com.corriente.data.imports.MonefyImportRepository
 import com.corriente.data.widget.WidgetConfigStore
 import com.corriente.data.recurrence.RecurrenceErrors
 import com.corriente.data.repository.AccountRepository
@@ -62,7 +61,6 @@ class AppContainer(context: Context) {
     val appLockSettings: AppLockSettings by lazy { AppLockSettings(database.appSettingDao()) }
     /** Какие категории стоят вокруг кольца на главном. */
     val overviewCategoriesSettings: OverviewCategoriesSettings by lazy { OverviewCategoriesSettings(database.appSettingDao()) }
-    val monefyImportRepository: MonefyImportRepository by lazy { MonefyImportRepository(database) }
     val budgetRepository: BudgetRepository by lazy { BudgetRepository(database.budgetDao()) }
     val recurrenceRepository: RecurrenceRepository by lazy { RecurrenceRepository(database.recurrenceDao(), database.txnDao()) }
     val recurrenceErrors: RecurrenceErrors by lazy { RecurrenceErrors(database.appSettingDao()) }

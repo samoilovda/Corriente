@@ -13,9 +13,6 @@ import com.corriente.data.db.entity.CurrencyEntity
 import com.corriente.data.db.entity.RecurrenceEntity
 import com.corriente.data.db.entity.RecurrenceRuleType
 import com.corriente.data.db.entity.TxnKind
-import com.corriente.data.imports.MonefyCsvParser
-import com.corriente.data.imports.MonefyImportPlanner
-import com.corriente.data.imports.MonefyImportRepository
 import com.corriente.data.repository.AccountRepository
 import com.corriente.data.repository.CategoryRepository
 import com.corriente.data.repository.DeleteBlocker
@@ -30,7 +27,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
-/** A1.7: FK `budget`/`recurrence` в путях удаления, слияния и отката импорта — на настоящем Room. */
+/** A1.7: FK `budget`/`recurrence` в путях удаления и слияния — на настоящем Room. */
 class RelatedTablesFkInstrumentedTest {
 
     private lateinit var db: AppDatabase
@@ -102,30 +99,5 @@ class RelatedTablesFkInstrumentedTest {
         assertEquals("groc", budgets.getValue("b-usd").categoryId)
         assertEquals(7_000_00, budgets.getValue("b-groc").amountMinor)
         assertEquals("groc", db.recurrenceDao().getById("r")!!.categoryId)
-    }
-
-    @Test
-    fun rollbackSucceedsWhenTheUserBuiltOnAnImportedCategory() = runBlocking {
-        val csv = javaClass.classLoader!!.getResourceAsStream("monefy_sample.csv")!!.readBytes().toString(Charsets.UTF_8)
-        val plan = MonefyImportPlanner.plan(MonefyCsvParser.parse(csv))
-        val repo = MonefyImportRepository(db)
-        val result = repo.import(plan, "monefy_sample.csv")
-
-        val imported = db.categoryDao().observeAll().first().filter { it.origin == CategoryOrigin.IMPORT }
-        val withBudget = imported.first()
-        val withRule = imported.last { it.id != withBudget.id }
-        val parent = imported.first { it.id != withBudget.id && it.id != withRule.id }
-        db.budgetDao().insert(budget("b", withBudget.id))
-        db.recurrenceDao().insert(rule("r", withRule.id))
-        db.categoryDao().insert(
-            CategoryEntity("child", "Моя подкатегория", parent.kind, parentId = parent.id, color = 0),
-        )
-
-        repo.rollback(result.batchId)
-
-        assertTrue(db.txnDao().observeAll().first().isEmpty())
-        val left = db.categoryDao().observeAll().first().map { it.id }.toSet()
-        assertTrue(withBudget.id in left && withRule.id in left && parent.id in left)
-        assertTrue(db.importBatchDao().getAll().none { it.id == result.batchId })
     }
 }

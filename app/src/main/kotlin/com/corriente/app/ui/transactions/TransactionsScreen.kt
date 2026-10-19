@@ -128,7 +128,6 @@ fun TransactionsScreen(
     onOpenRecurring: () -> Unit = {},
     /** U11: стартовая карточка пустой базы. */
     onCreateAccount: () -> Unit = {},
-    onOpenImport: () -> Unit = {},
     onOpenBackup: () -> Unit = {},
     viewModel: TransactionsViewModel = viewModel(
         factory = with(corrienteContainer()) {
@@ -412,7 +411,6 @@ fun TransactionsScreen(
                     item(key = "start") {
                         StartCard(
                             onCreateAccount = onCreateAccount,
-                            onImport = onOpenImport,
                             onRestore = onOpenBackup,
                             onSkip = { UiPrefs.dismissStartCard(context) },
                         )
@@ -639,9 +637,9 @@ private fun TxnRowItem(row: TxnRow, modifier: Modifier = Modifier, onClick: () -
 
 private const val UNDO_WINDOW_MS = 5_000L
 
-/** U11: три понятных способа начать; ни один не обязателен. */
+/** U11: понятные способы начать; ни один не обязателен. */
 @Composable
-private fun StartCard(onCreateAccount: () -> Unit, onImport: () -> Unit, onRestore: () -> Unit, onSkip: () -> Unit) {
+private fun StartCard(onCreateAccount: () -> Unit, onRestore: () -> Unit, onSkip: () -> Unit) {
     androidx.compose.material3.OutlinedCard(Modifier.fillMaxWidth().padding(16.dp)) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(stringResource(R.string.start_title), style = MaterialTheme.typography.titleMedium)
@@ -652,9 +650,6 @@ private fun StartCard(onCreateAccount: () -> Unit, onImport: () -> Unit, onResto
             )
             androidx.compose.material3.Button(onClick = onCreateAccount, modifier = Modifier.fillMaxWidth()) {
                 Text(stringResource(R.string.start_create_account))
-            }
-            androidx.compose.material3.OutlinedButton(onClick = onImport, modifier = Modifier.fillMaxWidth()) {
-                Text(stringResource(R.string.start_import_monefy))
             }
             androidx.compose.material3.OutlinedButton(onClick = onRestore, modifier = Modifier.fillMaxWidth()) {
                 Text(stringResource(R.string.start_restore))
