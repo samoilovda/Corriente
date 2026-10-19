@@ -27,6 +27,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
@@ -85,10 +87,16 @@ private val FALLBACK = listOf(
     0xFFEDC948, 0xFFB07AA1, 0xFFFF9DA7, 0xFF9C755F, 0xFFBAB0AC,
 ).map { Color(it) }
 
-private val RING_SIZE = 132.dp
 private val ICON_SIZE = 34.dp
-private val ORBIT_RADIUS = 112.dp
-private val HEADER_SIZE = ORBIT_RADIUS * 2 + ICON_SIZE + 36.dp
+/** Ширина и высота ячейки иконки на орбите (иконка, подпись с процентом, поля). */
+private val ICON_CELL_WIDTH = ICON_SIZE + 18.dp
+private val ICON_CELL_HEIGHT = ICON_SIZE + 22.dp
+/** Орбита — овал: растягивается по ширине экрана (не шире [MAX_ORBIT_RX]), высота — доля ширины. */
+private val MAX_ORBIT_RX = 170.dp
+private const val ORBIT_ASPECT = 0.6f
+/** Зазор от орбиты иконок до внешнего края кольца. */
+private val RING_INSET_X = ICON_CELL_WIDTH / 2 + 12.dp
+private val RING_INSET_Y = ICON_CELL_HEIGHT / 2 + 6.dp
 
 /**
  * Шапка «Операций» в духе Monefy: выбор счёта и месяца, небольшое кольцо расходов с иконками категорий вокруг
@@ -148,8 +156,8 @@ fun MonthOverviewHeader(
                 .ifEmpty { stringResource(R.string.overview_ring_empty) },
         )
         val swipeThreshold = with(androidx.compose.ui.platform.LocalDensity.current) { 48.dp.toPx() }
-        Box(
-            Modifier.size(HEADER_SIZE).pointerInput(onShiftMonth) {
+        BoxWithConstraints(
+            Modifier.fillMaxWidth().pointerInput(onShiftMonth) {
                 // Свайп влево — следующий месяц, вправо — предыдущий (как листание страниц).
                 var dragged = 0f
                 detectHorizontalDragGestures(
@@ -162,9 +170,14 @@ fun MonthOverviewHeader(
             },
             contentAlignment = Alignment.Center,
         ) {
-            Ring(slices, icons, Modifier.size(RING_SIZE).clearAndSetSemantics { contentDescription = ringDescription })
+            val orbitRx = ((maxWidth - ICON_CELL_WIDTH) / 2 - 4.dp).coerceIn(80.dp, MAX_ORBIT_RX)
+            val orbitRy = orbitRx * ORBIT_ASPECT
+            val ringWidth = (orbitRx - RING_INSET_X) * 2
+            val ringHeight = (orbitRy - RING_INSET_Y) * 2
+            Spacer(Modifier.fillMaxWidth().height(orbitRy * 2 + ICON_CELL_HEIGHT + 8.dp))
+            Ring(slices, icons, Modifier.size(ringWidth, ringHeight).clearAndSetSemantics { contentDescription = ringDescription })
             Column(
-                modifier = Modifier.width(RING_SIZE - 36.dp).clearAndSetSemantics {},
+                modifier = Modifier.width(ringWidth - ringHeight / 3).clearAndSetSemantics {},
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Text(
@@ -197,8 +210,8 @@ fun MonthOverviewHeader(
                     fallback = FALLBACK[i % FALLBACK.size],
                     onClick = { onCategoryClick(if (showIncome) EntryKind.INCOME else EntryKind.EXPENSE, icon.categoryId) },
                     modifier = Modifier.offset(
-                        x = ORBIT_RADIUS * cos(angle).toFloat(),
-                        y = ORBIT_RADIUS * sin(angle).toFloat() + 7.dp,
+                        x = orbitRx * cos(angle).toFloat(),
+                        y = orbitRy * sin(angle).toFloat() + 7.dp,
                     ),
                 )
             }
@@ -399,7 +412,7 @@ private fun CategoryIcon(icon: OverviewIcon, fallback: Color, onClick: () -> Uni
     }
     Column(
         modifier
-            .width(ICON_SIZE + 18.dp)
+            .width(ICON_CELL_WIDTH)
             // Категории без трат за месяц приглушены, чтобы акцент оставался на тех, что в кольце.
             .alpha(if (icon.percent == null) 0.55f else 1f)
             .semantics { contentDescription = icon.amountText?.let { "${icon.name}: $it" } ?: icon.name }
