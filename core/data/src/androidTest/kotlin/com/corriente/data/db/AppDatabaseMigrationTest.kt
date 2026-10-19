@@ -288,6 +288,29 @@ class AppDatabaseMigrationTest {
         db.close()
     }
 
+    @Test
+    fun migration8to9KeepsDataAndAllowsAdjustment() {
+        helper.createDatabase(testDbName, 8).apply {
+            execSQL("INSERT INTO currency(code, minor_units, display_scale, symbol, is_active, display_order) VALUES ('RUB', 2, 2, '₽', 1, 0)")
+            execSQL(
+                """
+                INSERT INTO account(id, name, currency_code, kind, opening_balance_minor, color, display_order, is_archived, include_in_total)
+                VALUES ('a1', 'Нал', 'RUB', 'CASH', 0, 0, 0, 0, 1)
+                """.trimIndent(),
+            )
+            close()
+        }
+        val db = helper.runMigrationsAndValidate(testDbName, 9, true, AppDatabase.MIGRATION_8_9)
+        db.execSQL(
+            """
+            INSERT INTO txn(id, kind, date, created_at, updated_at, account_id, amount_minor, currency_code)
+            VALUES ('adj', 'ADJUSTMENT', '2026-01-02', 0, 0, 'a1', -500, 'RUB')
+            """.trimIndent(),
+        )
+        db.query("SELECT amount_minor FROM txn WHERE id = 'adj'").use { c -> c.moveToFirst(); assertEquals(-500L, c.getLong(0)) }
+        db.close()
+    }
+
     // S1 синхронизации: служебные таблицы + триггеры; пока sync_state пуст, триггеры ничего не пишут.
     @Test
     fun migration7to8AddsSyncTablesAndSilentTriggers() {

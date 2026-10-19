@@ -214,6 +214,15 @@ private val MIGRATION_7_8_DEF = object : Migration(7, 8) {
     }
 }
 
+/**
+ * v8 → v9: новый вид операции `ADJUSTMENT` (корректировка баланса, знак хранится в сумме). Структура таблиц не
+ * меняется — версия поднята, чтобы сборки без этого вида (старый APK, десктоп) отказались читать бэкапы и
+ * change-файлы новой версии (`schemaVersion > SCHEMA_VERSION`), а не падали на `TxnKind.valueOf("ADJUSTMENT")`.
+ */
+private val MIGRATION_8_9_DEF = object : Migration(8, 9) {
+    override fun migrate(db: SupportSQLiteDatabase) = Unit
+}
+
 /** DDL служебных таблиц схемы 8 — ровно то, что генерирует Room (см. `schemas/.../8.json`). */
 private val SYNC_TABLES_SQL = listOf(
     "CREATE TABLE IF NOT EXISTS `sync_state` (`id` INTEGER NOT NULL, `enabled` INTEGER NOT NULL, `applying` INTEGER NOT NULL, PRIMARY KEY(`id`))",
@@ -238,6 +247,7 @@ private val FTS_TRIGGER_SUFFIXES = listOf("BEFORE_UPDATE", "BEFORE_DELETE", "AFT
 
 private val ALL_MIGRATIONS_DEF: Array<Migration> = arrayOf(
     MIGRATION_1_2_DEF, MIGRATION_2_3_DEF, MIGRATION_3_4_DEF, MIGRATION_4_5_DEF, MIGRATION_5_6_DEF, MIGRATION_6_7_DEF, MIGRATION_7_8_DEF,
+    MIGRATION_8_9_DEF,
 )
 
 /**
@@ -310,5 +320,6 @@ val AppDatabase.Companion.MIGRATION_4_5: Migration get() = MIGRATION_4_5_DEF
 val AppDatabase.Companion.MIGRATION_5_6: Migration get() = MIGRATION_5_6_DEF
 val AppDatabase.Companion.MIGRATION_6_7: Migration get() = MIGRATION_6_7_DEF
 val AppDatabase.Companion.MIGRATION_7_8: Migration get() = MIGRATION_7_8_DEF
+val AppDatabase.Companion.MIGRATION_8_9: Migration get() = MIGRATION_8_9_DEF
 val AppDatabase.Companion.syncTriggersCallback: Callback get() = syncTriggersCallback_DEF
 val AppDatabase.Companion.ALL_MIGRATIONS: Array<Migration> get() = ALL_MIGRATIONS_DEF

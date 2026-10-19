@@ -64,6 +64,6 @@ abstract class AppDatabase : RoomDatabase() {
     companion object {
         const val DB_NAME = "corriente.db"
         /** Единственный источник версии: аннотация [Database] и `BackupRepository` берут её отсюда. */
-        const val SCHEMA_VERSION = 8
+        const val SCHEMA_VERSION = 9
     }
 }
