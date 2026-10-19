@@ -98,7 +98,7 @@ private val FALLBACK = listOf(
 private val MAX_RING_WIDTH = 340.dp
 private const val RING_ASPECT = 0.56f
 /** Толщина полоски — доля меньшей стороны овала. */
-private const val RING_STROKE_FRACTION = 1f / 4.4f
+private const val RING_STROKE_FRACTION = 1f / 7.5f
 
 /**
  * Шапка «Операций» в духе Monefy: выбор счёта и месяца, небольшое кольцо расходов с иконками категорий вокруг
@@ -354,7 +354,7 @@ private fun Ring(segments: List<RingSegment>, onAdd: (String) -> Unit, modifier:
     LaunchedEffect(reveal) { reveal.animateTo(1f, tween(durationMillis = 600)) }
     var selected by remember(segments) { mutableStateOf<Int?>(null) }
     val activeCount = fractions.count { it > 0.0 }
-    val gap = if (activeCount > 1) 4f else 0f
+    val separator = MaterialTheme.colorScheme.background
     fun colorOf(i: Int): Color {
         val seg = segments[i]
         return when {
@@ -398,40 +398,44 @@ private fun Ring(segments: List<RingSegment>, onAdd: (String) -> Unit, modifier:
             val inset = strokePx / 2f
             val arcSize = androidx.compose.ui.geometry.Size(size.width - strokePx, size.height - strokePx)
             val topLeft = androidx.compose.ui.geometry.Offset(inset, inset)
-            val radius = (size.minDimension - strokePx) / 2f
-            val capDegrees = Math.toDegrees(atan2((strokePx / 2f).toDouble(), radius.toDouble())).toFloat() * 0.6f
-
             drawArc(trackColor, 0f, 360f, useCenter = false, topLeft = topLeft, size = arcSize, style = Stroke(width = strokePx))
             if (fractions.all { it == 0.0 }) return@Canvas
 
             segments.forEachIndexed { i, _ ->
                 val fraction = fractions[i]
                 if (fraction <= 0.0) return@forEachIndexed
-                val start = starts[i].toFloat()
-                val fullSweep = (fraction * 360.0).toFloat() * reveal.value
                 val color = colorOf(i).let { if (selected != null && selected != i) it.copy(alpha = 0.35f) else it }
-                if (activeCount == 1) {
-                    drawArc(color, start, fullSweep, useCenter = false, topLeft = topLeft, size = arcSize, style = Stroke(width = strokePx))
-                } else if (fullSweep > gap + capDegrees * 2f) {
-                    drawArc(
-                        color = color,
-                        startAngle = start + gap / 2f + capDegrees,
-                        sweepAngle = fullSweep - gap - capDegrees * 2f,
-                        useCenter = false,
-                        topLeft = topLeft,
-                        size = arcSize,
-                        style = Stroke(width = strokePx, cap = StrokeCap.Round),
-                    )
-                } else {
-                    val buttSweep = (fullSweep - gap).coerceAtLeast(1.5f)
-                    drawArc(
-                        color = color,
-                        startAngle = start + (fullSweep - buttSweep) / 2f,
-                        sweepAngle = buttSweep,
-                        useCenter = false,
-                        topLeft = topLeft,
-                        size = arcSize,
-                        style = Stroke(width = strokePx, cap = StrokeCap.Butt),
+                drawArc(
+                    color = color,
+                    startAngle = starts[i].toFloat(),
+                    sweepAngle = (fraction * 360.0).toFloat() * reveal.value,
+                    useCenter = false,
+                    topLeft = topLeft,
+                    size = arcSize,
+                    style = Stroke(width = strokePx),
+                )
+            }
+
+            // Разделители между полосками — ровные по толщине вдоль всего овала (угол на овале растягивает зазор).
+            if (activeCount > 1) {
+                val rx = arcSize.width / 2f
+                val ry = arcSize.height / 2f
+                val cx = size.width / 2f
+                val cy = size.height / 2f
+                val half = strokePx / 2f + 1f
+                fractions.indices.filter { fractions[it] > 0.0 }.forEach { i ->
+                    val t = Math.toRadians(starts[i])
+                    val px = cx + rx * cos(t).toFloat()
+                    val py = cy + ry * sin(t).toFloat()
+                    // Нормаль к параметрическому эллипсу: (ry·cos t, rx·sin t).
+                    val nx = ry * cos(t).toFloat()
+                    val ny = rx * sin(t).toFloat()
+                    val len = kotlin.math.hypot(nx, ny)
+                    drawLine(
+                        color = separator,
+                        start = androidx.compose.ui.geometry.Offset(px - nx / len * half, py - ny / len * half),
+                        end = androidx.compose.ui.geometry.Offset(px + nx / len * half, py + ny / len * half),
+                        strokeWidth = 3.dp.toPx(),
                     )
                 }
             }
