@@ -13,7 +13,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -23,6 +22,10 @@ import com.corriente.data.usecase.OverviewIcon
 import com.corriente.data.usecase.OverviewSlice
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.FastOutLinearInEasing
+import androidx.compose.foundation.gestures.detectDragGestures
 import com.corriente.data.usecase.RingSegment
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -144,7 +147,17 @@ fun MonthOverviewHeader(
 
         // Тап по плитке «Расходы»/«Доходы» переключает кольцо; режим живёт, пока жив экран.
         var showIncome by rememberSaveable { mutableStateOf(false) }
-        val segments = if (showIncome) overview.incomeSegments else overview.segments
+        // Показанное кольцо отстаёт от выбора на половину переворота: на ребре (90°) подменяем данные.
+        var displayIncome by remember { mutableStateOf(showIncome) }
+        val flip = remember { Animatable(0f) }
+        LaunchedEffect(showIncome) {
+            if (displayIncome == showIncome) return@LaunchedEffect
+            flip.animateTo(90f, tween(durationMillis = 200, easing = FastOutLinearInEasing))
+            displayIncome = showIncome
+            flip.snapTo(-90f)
+            flip.animateTo(0f, tween(durationMillis = 380, easing = FastOutSlowInEasing))
+        }
+        val segments = if (displayIncome) overview.incomeSegments else overview.segments
         val months = stringArrayResource(R.array.month_names)
         val monthLabel = "${months[overview.month.monthValue - 1]} ${overview.month.year}"
         val segmentNames = segments.map { segmentName(it) }
@@ -155,16 +168,22 @@ fun MonthOverviewHeader(
                 .ifEmpty { stringResource(R.string.overview_ring_empty) },
         )
         val swipeThreshold = with(androidx.compose.ui.platform.LocalDensity.current) { 48.dp.toPx() }
-        val kind = if (showIncome) EntryKind.INCOME else EntryKind.EXPENSE
+        val kind = if (displayIncome) EntryKind.INCOME else EntryKind.EXPENSE
         BoxWithConstraints(
             Modifier.fillMaxWidth().padding(vertical = 8.dp).pointerInput(onShiftMonth) {
-                // Свайп влево — следующий месяц, вправо — предыдущий (как листание страниц).
-                var dragged = 0f
-                detectHorizontalDragGestures(
-                    onDragStart = { dragged = 0f },
-                    onHorizontalDrag = { change, dx -> change.consume(); dragged += dx },
+                // Горизонтальный свайп: влево — следующий месяц, вправо — предыдущий (как листание страниц).
+                // Вертикальный — переворот «Расходы» ⇄ «Доходы».
+                var dx = 0f
+                var dy = 0f
+                detectDragGestures(
+                    onDragStart = { dx = 0f; dy = 0f },
+                    onDrag = { change, drag -> change.consume(); dx += drag.x; dy += drag.y },
                     onDragEnd = {
-                        if (dragged <= -swipeThreshold) onShiftMonth(1) else if (dragged >= swipeThreshold) onShiftMonth(-1)
+                        if (kotlin.math.abs(dx) >= kotlin.math.abs(dy)) {
+                            if (dx <= -swipeThreshold) onShiftMonth(1) else if (dx >= swipeThreshold) onShiftMonth(-1)
+                        } else if (kotlin.math.abs(dy) >= swipeThreshold) {
+                            showIncome = !showIncome
+                        }
                     },
                 )
             },
@@ -172,6 +191,13 @@ fun MonthOverviewHeader(
         ) {
             val ringWidth = (maxWidth - 32.dp).coerceAtMost(MAX_RING_WIDTH)
             val ringHeight = ringWidth * RING_ASPECT
+            Box(
+                Modifier.graphicsLayer {
+                    rotationX = flip.value
+                    cameraDistance = 14f * density
+                },
+                contentAlignment = Alignment.Center,
+            ) {
             Ring(
                 segments = segments,
                 onAdd = { id -> onCategoryClick(kind, id) },
@@ -182,14 +208,14 @@ fun MonthOverviewHeader(
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Text(
-                    stringResource(if (showIncome) R.string.category_kind_income else R.string.category_kind_expense),
+                    stringResource(if (displayIncome) R.string.category_kind_income else R.string.category_kind_expense),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                 )
                 com.corriente.app.ui.common.MoneyText(
-                    if (showIncome) overview.incomeAmountText else overview.expenseAmountText,
-                    if (showIncome) com.corriente.app.ui.common.MoneyKind.INCOME else com.corriente.app.ui.common.MoneyKind.EXPENSE,
+                    if (displayIncome) overview.incomeAmountText else overview.expenseAmountText,
+                    if (displayIncome) com.corriente.app.ui.common.MoneyKind.INCOME else com.corriente.app.ui.common.MoneyKind.EXPENSE,
                     style = MaterialTheme.typography.titleLarge,
                     deemphasizeFraction = true,
                     maxLines = 1,
@@ -201,6 +227,7 @@ fun MonthOverviewHeader(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                 )
+            }
             }
         }
 
