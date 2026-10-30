@@ -15,10 +15,10 @@ Docs, code comments, commit messages and CHANGELOG are in Russian: write them in
 - `docs/` plans, audits, architecture. `testdata/` synthetic Monefy CSV. `.github/workflows/ci.yml` runs `check assembleDebug`.
 
 ## Commands
-Needs JDK 17+ per README (CI uses 21; verified locally on 25), Android SDK (platform 37, build-tools 36) via `local.properties` `sdk.dir` or `ANDROID_HOME`.
-- `./gradlew check assembleDebug` — unit tests of all modules, lint, `verifyInvariantGuards`, `verify<Variant>MergedManifest`, debug APK. Verified: passes (~1 min).
-- `./gradlew connectedCheck` — instrumented tests; needs a running emulator/device, API 26+. Project AVD: `corriente` (API 36). Start: `$ANDROID_HOME/emulator/emulator -avd corriente -no-window -no-audio -gpu swiftshader_indirect -no-snapshot`. `adb` is not on PATH: use `$ANDROID_HOME/platform-tools/adb`. Verified on API 36 headless: FAILS, `app` `ShortcutRecreateInstrumentedTest.leavingTheEntryOpenedFromTheWidgetClosesTheApp` ("Condition still not satisfied after 10000 ms"); the rest pass (29 run, 3 skipped). Logged in `docs/BACKLOG.md`.
-- `./gradlew :desktop:packageDmg` — macOS installer, `desktop/build/compose/binaries/main/dmg/Corriente-<ver>.dmg`. Verified: passes. `.msi` and `.deb` must be built on Windows/Linux (not run: no such machine).
+Needs JDK 17+ per README (CI uses 21), Android SDK (platform 37, build-tools 36) via `local.properties` `sdk.dir` or `ANDROID_HOME`.
+- `./gradlew check assembleDebug` — unit tests of all modules, lint, `verifyInvariantGuards`, `verify<Variant>MergedManifest`, debug APK.
+- `./gradlew connectedCheck` — instrumented tests; needs a running emulator/device, API 26+. Project AVD: `corriente` (API 36). Start: `$ANDROID_HOME/emulator/emulator -avd corriente -no-window -no-audio -gpu swiftshader_indirect -no-snapshot`. `adb` is not on PATH: use `$ANDROID_HOME/platform-tools/adb`. Known failures: see `docs/BACKLOG.md`.
+- `./gradlew :desktop:packageDmg` — macOS installer, `desktop/build/compose/binaries/main/dmg/Corriente-<ver>.dmg`. `.msi` and `.deb` must be built on Windows/Linux (not run: no such machine).
 - `./gradlew :desktop:run` — run desktop from sources (not run: GUI). `CORRIENTE_DATA_DIR=/path` points it at other data.
 - `./gradlew assembleRelease` — signed minified APK (not run: needs a keystore). Fails by design without `RELEASE_STORE_FILE`/`RELEASE_STORE_PASSWORD`/`RELEASE_KEY_ALIAS`/`RELEASE_KEY_PASSWORD` (in `local.properties`, or `CORRIENTE_`-prefixed env vars). No fallback to debug signing.
 - `scripts/deploy.sh` — build debug and install on a paired phone (not run: needs a phone).
@@ -26,8 +26,8 @@ Needs JDK 17+ per README (CI uses 21; verified locally on 25), Android SDK (plat
 
 ## Working rules
 - One task = one commit. Message starts with the task ID, then a Russian summary: `V20: ввод с виджета ...`. Several IDs: `V3/V6/V9–V14: ...`. Check `git log` before writing one.
-- Task IDs: `Tx.y` `docs/BUILD_PLAN.md`, `Fx.y` `docs/FIX_PLAN.md`, `Rx.y` `docs/ROADMAP.md`, `Ax.y` `docs/AUDIT_2026-09-23.md`, `U<nn>` (stages A–E) `docs/audit/2026-10-18/AGENT_IMPLEMENTATION.md` (stage E not finished), `V<n>` `docs/audit/2026-10-20/AUDIT.md`. All closed; new audits go to `docs/audit/<date>/AUDIT.md`.
-- Before every task read `docs/INVARIANTS.md` (I-1…I-27). If an invariant blocks the task, stop and ask; never work around it or leave a TODO.
+- Task IDs map to plan docs in `docs/` (`BUILD_PLAN.md`, `FIX_PLAN.md`, `ROADMAP.md`, `AUDIT_*.md`) and `docs/audit/<date>/`. New audits go to `docs/audit/<date>/AUDIT.md`.
+- Before any code change read `docs/INVARIANTS.md` (I-1…I-27). If an invariant blocks the task, stop and ask; never work around it or leave a TODO.
 - Every task needs a test, except purely visual Composables (move their logic into a ViewModel/pure function and test that).
 - Before committing: `./gradlew check` green. Never commit red tests. For tasks touching DB, operations or widget also run `connectedCheck`, and say in the report if it fails.
 - Do not widen scope. Out-of-scope findings go to `docs/BACKLOG.md`.
