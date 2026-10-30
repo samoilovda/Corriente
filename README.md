@@ -5,7 +5,7 @@
 Corriente is a personal, fully offline finance tracker for Android (a Monefy
 replacement): multi-currency accounting with **no currency conversion**
 (each currency is its own closed loop — ADR-012), a home-screen widget,
-Monefy history import, and local backups. Single-user, no server component,
+one-time Monefy migration via JSON backup restore, and local backups. Single-user, no server component,
 **no network code at all** — no networking library and no `INTERNET`
 permission in the built app (ADR-013/I-24; the build checks the merged manifest; see
 [`PRIVACY.md`](PRIVACY.md) for what that means for your data).
@@ -51,7 +51,7 @@ translating if you're evaluating the project seriously.
 
 Личный офлайн-трекер финансов для Android (замена Monefy): мультивалютный учёт
 без конвертации между валютами (каждая валюта — свой контур, ADR-012), виджет
-на домашний экран, импорт истории из Monefy, локальные бэкапы. Один пользователь,
+на домашний экран, перенос истории из Monefy через восстановление JSON-бэкапа, локальные бэкапы. Один пользователь,
 без серверной части и без сети вообще (ADR-013 — в приложении нет ни одной сетевой
 библиотеки и разрешения `INTERNET`).
 
@@ -237,12 +237,8 @@ AGP 9 использует встроенный Kotlin (built-in Kotlin) — п�
 в `core/data/schemas/` при каждой сборке — файлы коммитятся. Они дают
 `MigrationTestHelper` эталон, с которым сверяется схема при каждой следующей миграции.
 
-Текущая версия схемы — **v2**. Миграции (`AppDatabase.ALL_MIGRATIONS`, тесты в
-`AppDatabaseMigrationTest`):
-
-| | Что |
-|---|---|
-| `MIGRATION_1_2` | `category.import_batch_id` — откат импорта чистит только свои категории (F1.5) |
+Текущая версия схемы — `AppDatabase.SCHEMA_VERSION` (сейчас **9**). Миграции — `AppDatabase.ALL_MIGRATIONS`
+(`AppDatabaseAndroid.kt`), тесты — `AppDatabaseMigrationTest`; список по версиям — в `CHANGELOG.md`.
 
 `fallbackToDestructiveMigration` запрещён навсегда (I-20). Перед применением миграции
 `PreMigrationBackup` копирует файл БД в `databases/pre-migration/`.
@@ -331,7 +327,7 @@ Corriente синхронизирует данные между своими Andr
    Syncthing на остальные устройства. На них Syncthing создаст такую же папку.
 3. **Перед первым включением — экспорт JSON** («Настройки → Экспортировать данные»).
 4. Основное устройство: «Настройки → Синхронизация» → выбрать папку → **«Начать синхронизацию с этого
-   устройства»**. Импорт из Monefy дальше работает только на нём.
+   устройства»**. 
 5. Остальные: дождаться, пока Syncthing перенесёт папку (в ней появятся `devices/` и `changes/`), затем
    «Настройки → Синхронизация» → выбрать ту же папку → **«Подключиться к синхронизации»**. Если на устройстве уже
    есть свои данные, приложение спросит: заменить их данными из папки (с копией базы перед этим) или объединить.
@@ -344,8 +340,8 @@ Corriente синхронизирует данные между своими Andr
 
 Окно на Compose Desktop (`:desktop`) поверх того же слоя данных, что на телефоне (`:core:data-jvm` компилирует
 исходники `core/data`). Данные — в папке пользователя (macOS: `~/Library/Application Support/Corriente`), обмен с
-телефоном — через ту же папку Syncthing («Синхронизация» → выбрать папку → «Подключиться к синхронизации»). Импорт
-Monefy, автобэкап, замок и виджет — только на телефоне.
+телефоном — через ту же папку Syncthing («Синхронизация» → выбрать папку → «Подключиться к синхронизации»). Автобэкап,
+замок и виджет — только на телефоне.
 
 ```
 ./gradlew :desktop:test           # UI-тесты окна (входят в ./gradlew check)
