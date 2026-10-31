@@ -15,6 +15,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.platform.LocalHapticFeedback
 import kotlinx.coroutines.delay
 import com.corriente.data.usecase.MonthOverview
@@ -25,7 +26,8 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.FastOutLinearInEasing
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import com.corriente.data.usecase.RingSegment
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -117,6 +119,8 @@ fun MonthOverviewHeader(
     onSelectAllAccounts: (String) -> Unit,
     onCategoryClick: (EntryKind, String) -> Unit,
     onBalanceClick: () -> Unit,
+    /** Список операций стоит в самом начале: свайп вниз по кольцу его не прокручивает, и жест можно отдать «Расходы» ⇄ «Доходы». */
+    isListAtTop: () -> Boolean = { false },
 ) {
     Column(Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -171,17 +175,39 @@ fun MonthOverviewHeader(
         val kind = if (displayIncome) EntryKind.INCOME else EntryKind.EXPENSE
         BoxWithConstraints(
             Modifier.fillMaxWidth().padding(vertical = 8.dp).pointerInput(onShiftMonth) {
-                // Только горизонталь: влево — следующий месяц, вправо — предыдущий (как листание страниц).
-                // Вертикальный жест остаётся списку — кольцо стоит в его начале, и иначе оно съедало бы прокрутку.
-                // «Расходы» ⇄ «Доходы» переключаются тапом по плиткам под кольцом.
-                var dx = 0f
-                detectHorizontalDragGestures(
-                    onDragStart = { dx = 0f },
-                    onHorizontalDrag = { change, drag -> change.consume(); dx += drag },
-                    onDragEnd = {
-                        if (dx <= -swipeThreshold) onShiftMonth(1) else if (dx >= swipeThreshold) onShiftMonth(-1)
-                    },
-                )
+                // Горизонталь: влево — следующий месяц, вправо — предыдущий (как листание страниц).
+                // Вниз — «Расходы» ⇄ «Доходы», но только пока список в самом начале: тогда ему вниз прокручиваться
+                // некуда, и жест никому не мешает. Любой другой вертикальный жест не трогаем — он остаётся списку (V4).
+                awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    val slop = viewConfiguration.touchSlop
+                    var dx = 0f
+                    var dy = 0f
+                    var mode = RingGesture.UNDECIDED
+                    while (mode != RingGesture.IGNORED) {
+                        val change = awaitPointerEvent().changes.firstOrNull { it.id == down.id } ?: break
+                        if (change.isConsumed) { mode = RingGesture.IGNORED; break }
+                        val delta = change.positionChange()
+                        dx += delta.x
+                        dy += delta.y
+                        if (mode == RingGesture.UNDECIDED) {
+                            mode = when {
+                                kotlin.math.abs(dx) > slop && kotlin.math.abs(dx) > kotlin.math.abs(dy) -> RingGesture.HORIZONTAL
+                                dy > slop && dy > kotlin.math.abs(dx) && isListAtTop() -> RingGesture.FLIP
+                                kotlin.math.abs(dy) > slop -> RingGesture.IGNORED
+                                else -> RingGesture.UNDECIDED
+                            }
+                        }
+                        if (mode == RingGesture.HORIZONTAL || mode == RingGesture.FLIP) change.consume()
+                        if (!change.pressed) break
+                    }
+                    when (mode) {
+                        RingGesture.HORIZONTAL ->
+                            if (dx <= -swipeThreshold) onShiftMonth(1) else if (dx >= swipeThreshold) onShiftMonth(-1)
+                        RingGesture.FLIP -> if (dy >= swipeThreshold) showIncome = !showIncome
+                        else -> Unit
+                    }
+                }
             },
             contentAlignment = Alignment.Center,
         ) {
@@ -529,3 +555,6 @@ private fun AccountSelector(
         }
     }
 }
+
+/** Что делает жест по кольцу: решается после выхода за touch slop. */
+private enum class RingGesture { UNDECIDED, HORIZONTAL, FLIP, IGNORED }

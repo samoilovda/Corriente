@@ -441,6 +441,7 @@ fun TransactionsScreen(
                             },
                             onCategoryClick = { kind, id -> onAddInCategory(kind, id, header.accountId) },
                             onBalanceClick = { scope.launch { listState.animateScrollToItem(1) } },
+                            isListAtTop = { listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset == 0 },
                         )
                     }
                 }
