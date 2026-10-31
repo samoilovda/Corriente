@@ -106,6 +106,10 @@ interface TxnDao {
     @Query("SELECT EXISTS(SELECT 1 FROM txn WHERE date < :before)")
     fun observeAnyBefore(before: String): Flow<Boolean>
 
+    /** Счета самых недавно внесённых операций (по времени записи, не по дате) — какой счёт открыть при запуске. */
+    @Query("SELECT account_id FROM txn ORDER BY created_at DESC LIMIT :limit")
+    suspend fun recentAccountIds(limit: Int): List<String>
+
     /** Общее число операций (R1.5) — плашка напоминания о бэкапе не грузит весь список ради счётчика. */
     @Query("SELECT COUNT(*) FROM txn")
     fun observeCount(): Flow<Int>

@@ -350,6 +350,11 @@
     <!-- R5.2: блокировка приложения. -->
     <string name="language_title">Язык</string>
     <string name="language_system">Как в системе</string>
+    <string name="start_account_title">Счёт при запуске</string>
+    <string name="start_account_last">По последней операции</string>
+    <string name="start_account_first">Первый в списке</string>
+    <string name="start_account_pinned_header">Всегда открывать счёт:</string>
+    <string name="start_account_pinned">Закреплённый счёт</string>
     <string name="left_handed_title">Режим для левшей</string>
     <string name="left_handed_hint">Кнопки «−» и «+» слева, в порядке «−», «+»</string>
     <string name="app_lock_title">Блокировка приложения</string>

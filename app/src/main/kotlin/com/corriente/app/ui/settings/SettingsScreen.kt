@@ -54,6 +54,10 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.corriente.app.AppLocale
 import com.corriente.app.ThemeMode
 import com.corriente.app.UiPrefs
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material.icons.outlined.AccountBalanceWallet
+import com.corriente.data.usecase.StartAccountSetting
+import com.corriente.data.usecase.StartAccountMode
 import com.corriente.app.R
 import com.corriente.app.backup.ShareBackupCache
 import com.corriente.app.corrienteContainer
@@ -88,6 +92,7 @@ fun SettingsScreen(
     var pendingImportUri by remember { mutableStateOf<android.net.Uri?>(null) }
     var languageDialogOpen by remember { mutableStateOf(false) }
     var themeDialogOpen by remember { mutableStateOf(false) }
+    var startAccountDialogOpen by remember { mutableStateOf(false) }
     val themeMode by remember(context) { UiPrefs.themeMode(context) }.collectAsState()
     val syncStatus by corrienteContainer().syncController.status.collectAsState(initial = com.corriente.app.sync.SyncStatus())
 
@@ -194,6 +199,24 @@ fun SettingsScreen(
                     supporting = { Text(languageLabel(AppLocale.get(context))) },
                     onClick = { languageDialogOpen = true },
                 )
+                val startAccount by remember(context) { UiPrefs.startAccountSettings(context).state }.collectAsState()
+                val accountRepository = corrienteContainer().accountRepository
+                val startAccounts by remember(accountRepository) { accountRepository.observeActive() }.collectAsState(emptyList())
+                SettingsItem(
+                    Icons.Outlined.AccountBalanceWallet, stringResource(R.string.start_account_title),
+                    supporting = {
+                        Text(
+                            when (startAccount.mode) {
+                                StartAccountMode.LAST_TRANSACTION -> stringResource(R.string.start_account_last)
+                                StartAccountMode.FIRST -> stringResource(R.string.start_account_first)
+                                StartAccountMode.PINNED ->
+                                    startAccounts.firstOrNull { it.id == startAccount.pinnedAccountId }?.name
+                                        ?: stringResource(R.string.start_account_pinned)
+                            },
+                        )
+                    },
+                    onClick = { startAccountDialogOpen = true },
+                )
                 SettingsItem(
                     Icons.Outlined.DarkMode, stringResource(R.string.theme_title),
                     supporting = { Text(themeLabel(themeMode)) },
@@ -276,6 +299,52 @@ fun SettingsScreen(
     }
 
     result?.let { current -> BackupResultDialog(current, onDismiss = backupViewModel::consumeResult) }
+
+    if (startAccountDialogOpen) {
+        val setting by remember(context) { UiPrefs.startAccountSettings(context).state }.collectAsState()
+        val accountRepositoryNow = corrienteContainer().accountRepository
+        val accountsNow by remember(accountRepositoryNow) { accountRepositoryNow.observeActive() }.collectAsState(emptyList())
+        @Composable
+        fun OptionRow(selected: Boolean, label: String, onClick: () -> Unit) {
+            Row(
+                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth().clickable { startAccountDialogOpen = false; onClick() },
+            ) {
+                androidx.compose.material3.RadioButton(selected = selected, onClick = null)
+                Text(label, Modifier.padding(start = 12.dp, top = 12.dp, bottom = 12.dp))
+            }
+        }
+        AlertDialog(
+            onDismissRequest = { startAccountDialogOpen = false },
+            title = { Text(stringResource(R.string.start_account_title)) },
+            text = {
+                Column(Modifier.verticalScroll(rememberScrollState())) {
+                    OptionRow(setting.mode == StartAccountMode.LAST_TRANSACTION, stringResource(R.string.start_account_last)) {
+                        UiPrefs.startAccountSettings(context).set(StartAccountSetting(StartAccountMode.LAST_TRANSACTION))
+                    }
+                    OptionRow(setting.mode == StartAccountMode.FIRST, stringResource(R.string.start_account_first)) {
+                        UiPrefs.startAccountSettings(context).set(StartAccountSetting(StartAccountMode.FIRST))
+                    }
+                    if (accountsNow.isNotEmpty()) {
+                        Text(
+                            stringResource(R.string.start_account_pinned_header),
+                            style = MaterialTheme.typography.labelMedium,
+                            modifier = Modifier.padding(top = 12.dp),
+                        )
+                        accountsNow.forEach { account ->
+                            OptionRow(
+                                setting.mode == StartAccountMode.PINNED && setting.pinnedAccountId == account.id,
+                                "${account.name} · ${account.currency.code}",
+                            ) {
+                                UiPrefs.startAccountSettings(context).set(StartAccountSetting(StartAccountMode.PINNED, account.id))
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { startAccountDialogOpen = false }) { Text(stringResource(R.string.cancel)) } },
+        )
+    }
 
     if (themeDialogOpen) {
         val current = themeMode

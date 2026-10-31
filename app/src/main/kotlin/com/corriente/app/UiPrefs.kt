@@ -9,6 +9,10 @@ import com.corriente.data.quickentry.InMemoryFavouriteCategories
 import com.corriente.data.quickentry.InMemoryPinnedEntries
 import com.corriente.data.quickentry.PinnedEntries
 import com.corriente.data.quickentry.PinnedEntryCodec
+import com.corriente.data.usecase.InMemoryStartAccountSettings
+import com.corriente.data.usecase.StartAccountMode
+import com.corriente.data.usecase.StartAccountSetting
+import com.corriente.data.usecase.StartAccountSettings
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
@@ -37,6 +41,8 @@ object UiPrefs {
     private const val KEY_PINNED_ENTRIES = "pinned_entries"
     private const val KEY_FAVOURITES_ENABLED = "favourite_categories_enabled"
     private const val KEY_FAVOURITE_IDS = "favourite_category_ids"
+    private const val KEY_START_ACCOUNT_MODE = "start_account_mode"
+    private const val KEY_START_ACCOUNT_PINNED = "start_account_pinned"
     private const val KEY_LAST_ACCOUNT = "last_entry_account"
     private const val KEY_KIND_LABELS_SEEN = "kind_labels_seen"
 
@@ -46,6 +52,7 @@ object UiPrefs {
     private var startCardDismissedFlow: MutableStateFlow<Boolean>? = null
     private var pinnedEntries: PinnedEntries? = null
     private var favouriteCategories: FavouriteCategories? = null
+    private var startAccountSettings: StartAccountSettings? = null
 
     /** Счёт последней записанной операции — форма ввода открывается с ним (и его валютой). */
     fun lastAccount(context: Context): com.corriente.app.ui.txnentry.LastAccountStore = object : com.corriente.app.ui.txnentry.LastAccountStore {
@@ -63,6 +70,28 @@ object UiPrefs {
     @Synchronized
     fun favouriteCategories(context: Context): FavouriteCategories =
         favouriteCategories ?: PrefsFavouriteCategories(prefs(context)).also { favouriteCategories = it }
+
+    /** Какой счёт открывать на «Операциях» при запуске — на этом устройстве, вне БД, бэкапа и синхронизации. */
+    @Synchronized
+    fun startAccountSettings(context: Context): StartAccountSettings =
+        startAccountSettings ?: PrefsStartAccountSettings(prefs(context)).also { startAccountSettings = it }
+
+    private class PrefsStartAccountSettings(private val prefs: android.content.SharedPreferences) : InMemoryStartAccountSettings(
+        StartAccountSetting(
+            mode = StartAccountMode.entries.firstOrNull { it.name == prefs.getString(KEY_START_ACCOUNT_MODE, null) }
+                ?: StartAccountMode.LAST_TRANSACTION,
+            pinnedAccountId = prefs.getString(KEY_START_ACCOUNT_PINNED, null),
+        ),
+    ) {
+        @Synchronized
+        override fun set(setting: StartAccountSetting) {
+            super.set(setting)
+            prefs.edit()
+                .putString(KEY_START_ACCOUNT_MODE, setting.mode.name)
+                .putString(KEY_START_ACCOUNT_PINNED, setting.pinnedAccountId)
+                .apply()
+        }
+    }
 
     private class PrefsFavouriteCategories(private val prefs: android.content.SharedPreferences) : InMemoryFavouriteCategories(
         FavouriteSettings(

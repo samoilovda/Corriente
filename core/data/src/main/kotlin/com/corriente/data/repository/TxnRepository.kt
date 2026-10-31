@@ -60,6 +60,9 @@ class TxnRepository(
     /** Есть ли в БД хоть одна операция (F2.1/F2.5). */
     fun observeAnyExist(): Flow<Boolean> = txnDao.observeAnyExist()
 
+    /** Счета последних внесённых операций, новые первыми (с повторами). */
+    suspend fun recentAccountIds(limit: Int = RECENT_ACCOUNTS_LIMIT): List<String> = txnDao.recentAccountIds(limit)
+
     /** Общее число операций (R1.5 — плашка напоминания о бэкапе). */
     fun observeCount(): Flow<Int> = txnDao.observeCount()
 
@@ -284,3 +287,6 @@ class TxnRepository(
         }
     }
 }
+
+/** Сколько последних операций смотрим, чтобы найти среди них активный счёт (архивные пропускаются). */
+const val RECENT_ACCOUNTS_LIMIT = 50

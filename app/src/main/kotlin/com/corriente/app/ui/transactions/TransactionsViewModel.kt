@@ -20,6 +20,8 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -333,9 +335,24 @@ class TransactionsViewModel(
     private val csvHeaders: com.corriente.data.export.CsvHeaders = com.corriente.data.export.CsvHeaders.ENGLISH,
     private val adjustmentLabel: String = "Balance adjustment",
     private val today: () -> LocalDate = LocalDate::now,
+    startAccountSettings: com.corriente.data.usecase.StartAccountSettings? = null,
 ) : WritingViewModel(io) {
 
     private val filter = MutableStateFlow(TxnFilter())
+
+    init {
+        // Запуск приложения: открываем счёт последней операции (или закреплённый), а не первый в списке. Один раз на
+        // жизнь экрана и только если пользователь за эти мгновения ещё ничего не выбрал.
+        if (startAccountSettings != null) {
+            viewModelScope.launch {
+                val active = accounts.observeActive().first().map { it.id }
+                if (active.isEmpty()) return@launch
+                val id = com.corriente.data.usecase.resolveStartAccountId(startAccountSettings.state.value, active, txns.recentAccountIds())
+                    ?: return@launch
+                filter.update { if (it.accountId == null && it.currencyCode == null) it.copy(accountId = id) else it }
+            }
+        }
+    }
 
     /** UI-3.2: только что удалённая свайпом операция — копия для «Отменить» (I-22: из БД она уже ушла). */
     private val _pendingUndo = MutableStateFlow<Txn?>(null)
@@ -560,9 +577,13 @@ class TransactionsViewModel(
             currencies: CurrencyRepository,
             csvHeaders: com.corriente.data.export.CsvHeaders = com.corriente.data.export.CsvHeaders.ENGLISH,
             adjustmentLabel: String = "Balance adjustment",
+            startAccountSettings: com.corriente.data.usecase.StartAccountSettings? = null,
         ) = viewModelFactory {
             initializer {
-                TransactionsViewModel(txns, accounts, categories, currencies, csvHeaders = csvHeaders, adjustmentLabel = adjustmentLabel)
+                TransactionsViewModel(
+                    txns, accounts, categories, currencies, csvHeaders = csvHeaders, adjustmentLabel = adjustmentLabel,
+                    startAccountSettings = startAccountSettings,
+                )
             }
         }
     }

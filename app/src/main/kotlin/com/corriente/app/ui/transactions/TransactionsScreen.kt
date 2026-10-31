@@ -137,6 +137,7 @@ fun TransactionsScreen(
                 txnRepository, accountRepository, categoryRepository, currencyRepository,
                 ResourceReportTexts(LocalContext.current).csvHeaders,
                 stringResource(R.string.adjust_row_title),
+                UiPrefs.startAccountSettings(LocalContext.current),
             )
         },
     ),

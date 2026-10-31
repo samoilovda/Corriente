@@ -170,6 +170,32 @@ class TransactionsViewModelTest {
         assertEquals(2, vm.uiState.value.sections.single().rows.size)
     }
 
+    @Test
+    fun `start account follows the setting - last transaction, first in the list or pinned`() = runTest(dispatcher) {
+        suspend fun filterAtStart(setting: com.corriente.data.usecase.StartAccountSetting): String? {
+            val txnDao = FakeTxnDao()
+            val accountDao = FakeAccountDao()
+            val currencyDao = FakeCurrencyDao(listOf(CurrencyEntity("RUB", 2, 2, "₽", true, 0)))
+            accountDao.insert(AccountEntity("cash", "Наличные", "RUB", AccountKind.CASH, 0, 0))
+            accountDao.insert(AccountEntity("bank", "Банк", "RUB", AccountKind.CARD, 0, 0))
+            val txns = TxnRepository(txnDao, accountDao)
+            txns.addIncome("cash", Money(Minor(100_00), rub), null, d1, null)
+            Thread.sleep(3) // createdAt — миллисекунды: «последняя» операция должна отличаться по времени записи
+            txns.addIncome("bank", Money(Minor(200_00), rub), null, d1, null)
+            val vm = TransactionsViewModel(
+                txns, AccountRepository(accountDao), CategoryRepository(FakeCategoryDao()), CurrencyRepository(currencyDao),
+                today = { d2.plusDays(1) },
+                startAccountSettings = com.corriente.data.usecase.InMemoryStartAccountSettings(setting),
+            )
+            backgroundScope.observe(vm)
+            advanceUntilIdle()
+            return vm.uiState.value.filter.accountId
+        }
+        assertEquals("bank", filterAtStart(com.corriente.data.usecase.StartAccountSetting(com.corriente.data.usecase.StartAccountMode.LAST_TRANSACTION)))
+        assertEquals(null, filterAtStart(com.corriente.data.usecase.StartAccountSetting(com.corriente.data.usecase.StartAccountMode.FIRST)))
+        assertEquals("cash", filterAtStart(com.corriente.data.usecase.StartAccountSetting(com.corriente.data.usecase.StartAccountMode.PINNED, "cash")))
+    }
+
     // U01: порог суммы в RUB не переинтерпретируется после выбора JPY-счёта; снятие счёта порог сохраняет.
     @Test
     fun `switching to an account in another currency clears the amount threshold with a message`() = runTest(dispatcher) {

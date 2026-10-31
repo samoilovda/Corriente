@@ -70,6 +70,9 @@ class FakeTxnDao : TxnDao {
 
     override fun observeCount(): Flow<Int> = rows.map { it.size }
 
+    override suspend fun recentAccountIds(limit: Int): List<String> =
+        rows.value.sortedByDescending { it.createdAt }.take(limit).map { it.accountId }
+
     override fun observeAccountDeltas(): Flow<List<AccountDeltaRow>> = rows.map { list ->
         val acc = HashMap<Pair<String, String>, Long>()
         list.forEach { t ->
