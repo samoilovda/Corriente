@@ -11,19 +11,23 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.corriente.app.CorrienteApplication
 import com.corriente.app.MainActivity
 import com.corriente.app.R
+import com.corriente.app.UiPrefs
 import com.corriente.app.clearMutableTables
 import com.corriente.data.db.entity.AccountEntity
 import com.corriente.data.db.entity.AccountKind
+import com.corriente.data.usecase.StartAccountMode
 import com.corriente.money.CurrencyCode
 import com.corriente.money.Minor
 import com.corriente.money.Money
 import kotlinx.coroutines.runBlocking
+import org.junit.After
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -43,6 +47,9 @@ class TxnFilterSheetInstrumentedTest {
     @Before
     fun seed() {
         val container = (composeRule.activity.applicationContext as CorrienteApplication).container
+        // Тест исходит из «ни один счёт не выбран». По умолчанию экран сам открывает счёт последней операции, и засеянный
+        // ниже счёт мог быть выбран до открытия листа фильтров (гонка) — на время теста возвращаем «Первый в списке».
+        UiPrefs.startAccountSettings(composeRule.activity).update { it.copy(mode = StartAccountMode.FIRST) }
         runBlocking {
             container.database.clearMutableTables()
             container.database.accountDao().insert(
@@ -53,6 +60,11 @@ class TxnFilterSheetInstrumentedTest {
             container.txnRepository.addExpense("ui-filter-cash", Money(Minor(200_00), rub), null, LocalDate.now(), "крупно")
         }
         composeRule.waitForIdle()
+    }
+
+    @After
+    fun restoreStartAccountMode() {
+        UiPrefs.startAccountSettings(composeRule.activity).update { it.copy(mode = StartAccountMode.LAST_TRANSACTION) }
     }
 
     private fun string(id: Int, vararg args: Any) = composeRule.activity.getString(id, *args)
@@ -74,13 +86,30 @@ class TxnFilterSheetInstrumentedTest {
 
     private fun minField() = composeRule.onNode(hasText(string(R.string.txn_filter_amount_min)) and hasSetTextAction())
 
+    /**
+     * Вводит текст в поле «от» и убеждается, что он там появился: на медленном эмуляторе первый ввод иногда теряется
+     * (поле ещё не в фокусе), и «Применить» тогда применяло фильтр без порога и закрывало лист.
+     */
+    private fun typeInMin(text: String) {
+        repeat(3) {
+            minField().performScrollTo().performClick()
+            minField().performTextInput(text)
+            composeRule.waitForIdle()
+            if (composeRule.onAllNodes(hasSetTextAction() and hasText(text)).fetchSemanticsNodes().isNotEmpty()) return
+            minField().performTextClearance()
+        }
+        error("Не удалось ввести «$text» в поле порога")
+    }
+
     @Test
     fun invalidAmountKeepsTheListAndValidAmountFiltersIt() {
         composeRule.waitUntil(10_000) { composeRule.onAllNodesWithText("крупно").fetchSemanticsNodes().isNotEmpty() }
         openSheetForAccount()
-        minField().performScrollTo().performTextInput("125.505")
+        typeInMin("125.505")
         composeRule.onNodeWithText(string(R.string.txn_filter_apply)).performScrollTo().performClick()
-        composeRule.onNodeWithText(string(R.string.txn_filter_error_amount_decimals, "RUB", 2)).assertExists()
+        composeRule.waitUntil(5_000) {
+            composeRule.onAllNodesWithText(string(R.string.txn_filter_error_amount_decimals, "RUB", 2)).fetchSemanticsNodes().isNotEmpty()
+        }
         composeRule.onNodeWithText(string(R.string.txn_filter_not_applied)).assertExists()
 
         // Лист закрыт без применения — в списке по-прежнему обе операции, фильтр не активен.
@@ -95,7 +124,7 @@ class TxnFilterSheetInstrumentedTest {
         assertRowShown("крупно")
 
         openSheetForAccount()
-        minField().performScrollTo().performTextInput("100,5")
+        typeInMin("100,5")
         composeRule.onNodeWithText(string(R.string.txn_filter_apply)).performScrollTo().performClick()
         composeRule.waitForIdle()
 
