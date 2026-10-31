@@ -607,11 +607,14 @@ class TxnEntryViewModel(
     /**
      * Тап по категории при уже введённой сумме новой операции — сразу запись, как основная кнопка. Категорию
      * передаём в запись явно: [uiState] выводится из формы асинхронно и сразу после [selectCategory] её ещё не видит.
-     * @return true, если запись пошла; иначе категория просто выбрана (суммы нет, правка или запись уже в полёте).
+     * При правке существующей операции так же сохраняется смена категории — без нажатия «Сохранить»; повторный
+     * выбор той же категории ничего не пишет.
+     * @return true, если запись пошла; иначе категория просто выбрана (суммы нет, та же категория или запись уже в полёте).
      */
     fun selectCategoryAndSave(id: String?): Boolean {
+        val previous = uiState.value.selectedCategoryId
         selectCategory(id)
-        return !isEditing && save(id)
+        return if (isEditing) id != previous && save(id) else save(id)
     }
 
     private fun save(categoryId: String?): Boolean {

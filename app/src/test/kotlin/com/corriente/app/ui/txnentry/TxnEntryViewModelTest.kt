@@ -506,6 +506,34 @@ class TxnEntryViewModelTest {
         assertFalse(model.finished.value)
     }
 
+    @Test
+    fun `changing the category of an existing expense saves it without pressing save`() = runTest(dispatcher) {
+        val fakes = Fakes().apply { seed() }
+        fakes.categoryDao.insert(entityCategory("cat-taxi", "Такси", CategoryKind.EXPENSE))
+        TxnRepository(fakes.txnDao, fakes.accountDao).addExpense(
+            "acc-rub", com.corriente.money.Money(com.corriente.money.Minor(12_50), com.corriente.money.CurrencyCode("RUB")),
+            "cat-food", today, "обед",
+        )
+        val id = fakes.txnDao.rows.value.single().id
+        val model = vm(fakes, editingTxnId = id)
+        backgroundScope.observe(model)
+        advanceUntilIdle()
+
+        // Та же категория — ничего не пишем и форму не закрываем.
+        assertFalse(model.selectCategoryAndSave("cat-food"))
+        advanceUntilIdle()
+        assertFalse(model.finished.value)
+
+        assertTrue(model.selectCategoryAndSave("cat-taxi"))
+        advanceUntilIdle()
+
+        val row = fakes.txnDao.rows.value.single()
+        assertEquals("cat-taxi", row.categoryId)
+        assertEquals(12_50L, row.amountMinor)
+        assertEquals("обед", row.note)
+        assertTrue(model.finished.value)
+    }
+
     // U06: «есть изменения» — относительно исходной формы, а не «нажимал ли что-то».
     @Test
     fun `dirty is relative to the initial form`() = runTest(dispatcher) {
