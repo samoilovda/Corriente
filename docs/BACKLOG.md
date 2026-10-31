@@ -41,6 +41,7 @@
   из нескольких, только принять порядок строк или расклеить всю группу — для реального
   файла (2 одинаковых перевода в день) этого достаточно.
 
-- **Падает `ShortcutRecreateInstrumentedTest.leavingTheEntryOpenedFromTheWidgetClosesTheApp`** (добавлен в V20, 62f17ba):
-  на эмуляторе API 36 (headless) после нажатия «Назад» `MainActivity` не переходит в `DESTROYED` за 10 с. Воспроизводится
-  при повторном запуске. Неясно, ошибка кода (`CorrienteNavHost`, `from=widget`) или теста.
+- **Нестабильные инструментальные тесты на headless-эмуляторе (API 36).** `ShortcutRecreateInstrumentedTest` починен (приложение
+  при этом вело себя правильно): `ActivityScenario` теряет переходы жизненного цикла (последний — `RESUMED`, хотя на экране
+  уже рабочий стол), поэтому тест ждёт `isFinishing`, а `close()` не роняет тест. Редко (1 из ~5 полных прогонов) падает
+  `TxnFilterSheetInstrumentedTest.invalidAmountKeepsTheListAndValidAmountFiltersIt` (`assertExists`) — причина не изучалась.

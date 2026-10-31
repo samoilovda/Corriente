@@ -40,7 +40,8 @@ class ShortcutRecreateInstrumentedTest {
             .setClassName(context.packageName, MainActivity::class.java.name)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
 
-        ActivityScenario.launch<MainActivity>(intent).use { scenario ->
+        val scenario = ActivityScenario.launch<MainActivity>(intent)
+        try {
             composeRule.waitForIdle()
             composeRule.onNodeWithText(context.getString(R.string.txn_entry_title)).assertExists()
 
@@ -101,6 +102,8 @@ class ShortcutRecreateInstrumentedTest {
 
             composeRule.onNodeWithText(context.getString(R.string.txn_entry_title)).assertDoesNotExist()
             composeRule.onNodeWithContentDescription(context.getString(R.string.report_open_fx)).assertExists()
+        } finally {
+            scenario.closeQuietly()
         }
     }
 
@@ -112,12 +115,30 @@ class ShortcutRecreateInstrumentedTest {
             .setClassName(context.packageName, MainActivity::class.java.name)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
 
-        ActivityScenario.launch<MainActivity>(intent).use { scenario ->
+        val scenario = ActivityScenario.launch<MainActivity>(intent)
+        try {
             composeRule.waitForIdle()
             composeRule.onNodeWithText(context.getString(R.string.txn_entry_title)).assertExists()
 
             composeRule.onNodeWithContentDescription(context.getString(R.string.back)).performClick()
-            composeRule.waitUntil(timeoutMillis = 10_000) { scenario.state == Lifecycle.State.DESTROYED }
+            // Ждём isFinishing, а не Lifecycle.State.DESTROYED: система уничтожает Activity последней задачи только
+            // после того, как рабочий стол встанет на экран, и на медленном эмуляторе это занимает >10 с (на скриншоте
+            // при этом уже рабочий стол). Закрытие приложения — это finish(), его и проверяем.
+            composeRule.waitUntil(timeoutMillis = 10_000) {
+                scenario.state == Lifecycle.State.DESTROYED || runCatching {
+                    var finishing = false
+                    scenario.onActivity { finishing = it.isFinishing }
+                    finishing
+                }.getOrDefault(true)
+            }
+        } finally {
+            scenario.closeQuietly()
         }
+    }
+
+    // close() ждёт DESTROYED: на медленном эмуляторе ActivityScenario теряет переходы жизненного цикла (последний
+    // виденный — RESUMED, хотя Activity закрыта) и close() падает через ~минуту. Проверяемое поведение к этому не относится.
+    private fun ActivityScenario<MainActivity>.closeQuietly() {
+        runCatching { close() }
     }
 }
