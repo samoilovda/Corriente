@@ -22,6 +22,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import com.corriente.data.usecase.rememberSelection
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -340,16 +341,35 @@ class TransactionsViewModel(
 
     private val filter = MutableStateFlow(TxnFilter())
 
+    /** Валюта «Все счета» для шапки при запуске ([consumeStartCurrency] после применения экраном). */
+    private val _startCurrency = MutableStateFlow<String?>(null)
+    val startCurrency: kotlinx.coroutines.flow.StateFlow<String?> = _startCurrency
+
+    fun consumeStartCurrency() {
+        _startCurrency.value = null
+    }
+
+    private val startSettings = startAccountSettings
+
     init {
-        // Запуск приложения: открываем счёт последней операции (или закреплённый), а не первый в списке. Один раз на
-        // жизнь экрана и только если пользователь за эти мгновения ещё ничего не выбрал.
+        // Запуск приложения: открываем счёт (или валюту) по настройке «Счёт при запуске», а не первый в списке. Один раз
+        // на жизнь экрана и только если пользователь за эти мгновения ещё ничего не выбрал.
         if (startAccountSettings != null) {
             viewModelScope.launch {
-                val active = accounts.observeActive().first().map { it.id }
+                val active = accounts.observeActive().first().map {
+                    com.corriente.data.usecase.StartAccountInfo(it.id, it.currency.code)
+                }
                 if (active.isEmpty()) return@launch
-                val id = com.corriente.data.usecase.resolveStartAccountId(startAccountSettings.state.value, active, txns.recentAccountIds())
-                    ?: return@launch
-                filter.update { if (it.accountId == null && it.currencyCode == null) it.copy(accountId = id) else it }
+                val selection = com.corriente.data.usecase.resolveStartSelection(
+                    startAccountSettings.state.value,
+                    active,
+                    txns.recentAccountIds(),
+                    txns.frequentAccountIds(today().minusDays(com.corriente.data.usecase.MOST_USED_DAYS)),
+                ) ?: return@launch
+                selection.accountId?.let { id ->
+                    filter.update { if (it.accountId == null && it.currencyCode == null) it.copy(accountId = id) else it }
+                }
+                _startCurrency.value = selection.currency
             }
         }
     }
@@ -506,7 +526,16 @@ class TransactionsViewModel(
     private val knownAccounts: StateFlow<List<Account>> =
         accounts.observeAll().stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
-    fun setAccountFilter(accountId: String?) = changeCurrencyContext { it.copy(accountId = accountId) }
+    /** Выбор счёта пользователем (шапка, чип): запоминается для режима «Как оставил» в «Счёте при запуске». */
+    fun setAccountFilter(accountId: String?) {
+        changeCurrencyContext { it.copy(accountId = accountId) }
+        startSettings?.rememberSelection(com.corriente.data.usecase.StartSelection(accountId = accountId))
+    }
+
+    /** «Все счета» в валюте [code] выбраны в шапке — тоже запоминаем (счёт при этом уже снят через [setAccountFilter]). */
+    fun rememberAllAccounts(code: String) {
+        startSettings?.rememberSelection(com.corriente.data.usecase.StartSelection(currency = code))
+    }
 
     fun setCurrencyFilter(code: String?) = changeCurrencyContext { it.copy(currencyCode = code) }
 

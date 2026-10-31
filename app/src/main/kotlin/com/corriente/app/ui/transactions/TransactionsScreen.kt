@@ -157,6 +157,14 @@ fun TransactionsScreen(
     val scope = rememberCoroutineScope()
     // Счёт в шапке и фильтр списка по счёту — одно и то же (как в Monefy: выбранный счёт видно и в кольце, и в списке).
     LaunchedEffect(state.filter.accountId) { overviewViewModel.setAccount(state.filter.accountId) }
+    // Запуск с «Все счета» в валюте последней операции или с последним выбором в шапке: валюта шапки, список не сужаем.
+    val startCurrency by viewModel.startCurrency.collectAsState()
+    LaunchedEffect(startCurrency) {
+        startCurrency?.let { code ->
+            overviewViewModel.setAllAccounts(code)
+            viewModel.consumeStartCurrency()
+        }
+    }
     // Месяц в кольце глубже подгруженного окна списка — подгружаем историю до него.
     val overviewMonth = overview.overview?.month
     // Шапка с кольцом приходит позже первого кадра: список держит позицию по ключу и без этого остаётся
@@ -428,6 +436,7 @@ fun TransactionsScreen(
                             onSelectAccount = viewModel::setAccountFilter,
                             onSelectAllAccounts = { code ->
                                 viewModel.setAccountFilter(null)
+                                viewModel.rememberAllAccounts(code)
                                 overviewViewModel.setAllAccounts(code)
                             },
                             onCategoryClick = { kind, id -> onAddInCategory(kind, id, header.accountId) },

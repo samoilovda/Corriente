@@ -110,6 +110,15 @@ interface TxnDao {
     @Query("SELECT account_id FROM txn ORDER BY created_at DESC LIMIT :limit")
     suspend fun recentAccountIds(limit: Int): List<String>
 
+    /** Счета по убыванию числа операций с даты [since] (ISO) — «самый частый счёт»; при равенстве — тот, где операция новее. */
+    @Query(
+        """
+        SELECT account_id FROM txn WHERE date >= :since
+        GROUP BY account_id ORDER BY COUNT(*) DESC, MAX(created_at) DESC LIMIT :limit
+        """,
+    )
+    suspend fun frequentAccountIds(since: String, limit: Int): List<String>
+
     /** Общее число операций (R1.5) — плашка напоминания о бэкапе не грузит весь список ради счётчика. */
     @Query("SELECT COUNT(*) FROM txn")
     fun observeCount(): Flow<Int>

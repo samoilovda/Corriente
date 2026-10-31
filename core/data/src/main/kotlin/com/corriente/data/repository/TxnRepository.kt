@@ -60,6 +60,10 @@ class TxnRepository(
     /** Есть ли в БД хоть одна операция (F2.1/F2.5). */
     fun observeAnyExist(): Flow<Boolean> = txnDao.observeAnyExist()
 
+    /** Счета по убыванию числа операций с даты [since]. */
+    suspend fun frequentAccountIds(since: LocalDate, limit: Int = RECENT_ACCOUNTS_LIMIT): List<String> =
+        txnDao.frequentAccountIds(since.toString(), limit)
+
     /** Счета последних внесённых операций, новые первыми (с повторами). */
     suspend fun recentAccountIds(limit: Int = RECENT_ACCOUNTS_LIMIT): List<String> = txnDao.recentAccountIds(limit)
 

@@ -45,3 +45,13 @@
   при этом вело себя правильно): `ActivityScenario` теряет переходы жизненного цикла (последний — `RESUMED`, хотя на экране
   уже рабочий стол), поэтому тест ждёт `isFinishing`, а `close()` не роняет тест. Редко (1 из ~5 полных прогонов) падает
   `TxnFilterSheetInstrumentedTest.invalidAmountKeepsTheListAndValidAmountFiltersIt` (`assertExists`) — причина не изучалась.
+
+- **`SyncConvergenceInstrumentedTest.randomOperationsOnThreeDevicesConverge` иногда не сходится** (проверено на `bad27e3`,
+  до правок порядка категорий: при `-Pandroid.testInstrumentationRunnerArguments.syncSeeds=40` падает на сидах 28 и 33,
+  при обычных 6 сидах — примерно раз в 5–10 прогонов): после синхронизации у одного устройства нет категории, которая есть
+  у другого (`b6 differs: category … b6: []`). Сид случайности фиксирован, но id категорий — `UUID.randomUUID()`,
+  поэтому исход плавает. Скорее всего это слияние одноимённых категорий (`resolveCategoryNameClash`, `category_redirect`);
+  причина не изучалась. Запуск для воспроизведения: `./gradlew :core:data:connectedDebugAndroidTest
+  -Pandroid.testInstrumentationRunnerArguments.class=com.corriente.data.sync.SyncConvergenceInstrumentedTest
+  -Pandroid.testInstrumentationRunnerArguments.syncSeeds=40`.
+

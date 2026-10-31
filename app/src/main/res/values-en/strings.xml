@@ -352,6 +352,9 @@
     <string name="language_system">System default</string>
     <string name="start_account_title">Account on launch</string>
     <string name="start_account_last">By last transaction</string>
+    <string name="start_account_last_selected">As you left it last time</string>
+    <string name="start_account_last_currency">All accounts in the currency of the last transaction</string>
+    <string name="start_account_most_used">Most used in the last 30 days</string>
     <string name="start_account_first">First in the list</string>
     <string name="start_account_pinned_header">Always open account:</string>
     <string name="start_account_pinned">Pinned account</string>

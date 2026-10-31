@@ -13,6 +13,7 @@ import com.corriente.data.usecase.InMemoryStartAccountSettings
 import com.corriente.data.usecase.StartAccountMode
 import com.corriente.data.usecase.StartAccountSetting
 import com.corriente.data.usecase.StartAccountSettings
+import com.corriente.data.usecase.StartSelection
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
@@ -43,6 +44,9 @@ object UiPrefs {
     private const val KEY_FAVOURITE_IDS = "favourite_category_ids"
     private const val KEY_START_ACCOUNT_MODE = "start_account_mode"
     private const val KEY_START_ACCOUNT_PINNED = "start_account_pinned"
+    private const val KEY_START_LAST_ACCOUNT = "start_account_last_account"
+    private const val KEY_START_LAST_CURRENCY = "start_account_last_currency"
+    private const val KEY_START_LAST_CHOSEN = "start_account_last_chosen"
     private const val KEY_LAST_ACCOUNT = "last_entry_account"
     private const val KEY_KIND_LABELS_SEEN = "kind_labels_seen"
 
@@ -81,14 +85,23 @@ object UiPrefs {
             mode = StartAccountMode.entries.firstOrNull { it.name == prefs.getString(KEY_START_ACCOUNT_MODE, null) }
                 ?: StartAccountMode.LAST_TRANSACTION,
             pinnedAccountId = prefs.getString(KEY_START_ACCOUNT_PINNED, null),
+            lastSelection = if (prefs.getBoolean(KEY_START_LAST_CHOSEN, false)) {
+                StartSelection(prefs.getString(KEY_START_LAST_ACCOUNT, null), prefs.getString(KEY_START_LAST_CURRENCY, null))
+            } else {
+                null
+            },
         ),
     ) {
         @Synchronized
-        override fun set(setting: StartAccountSetting) {
-            super.set(setting)
+        override fun update(transform: (StartAccountSetting) -> StartAccountSetting) {
+            super.update(transform)
+            val setting = state.value
             prefs.edit()
                 .putString(KEY_START_ACCOUNT_MODE, setting.mode.name)
                 .putString(KEY_START_ACCOUNT_PINNED, setting.pinnedAccountId)
+                .putBoolean(KEY_START_LAST_CHOSEN, setting.lastSelection != null)
+                .putString(KEY_START_LAST_ACCOUNT, setting.lastSelection?.accountId)
+                .putString(KEY_START_LAST_CURRENCY, setting.lastSelection?.currency)
                 .apply()
         }
     }

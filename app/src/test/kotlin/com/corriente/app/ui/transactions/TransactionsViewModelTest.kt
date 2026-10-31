@@ -196,6 +196,59 @@ class TransactionsViewModelTest {
         assertEquals("cash", filterAtStart(com.corriente.data.usecase.StartAccountSetting(com.corriente.data.usecase.StartAccountMode.PINNED, "cash")))
     }
 
+    @Test
+    fun `start currency, most used account and remembered selection reach the screen state`() = runTest(dispatcher) {
+        val accountDao = FakeAccountDao()
+        accountDao.insert(AccountEntity("cash", "Наличные", "RUB", AccountKind.CASH, 0, 0))
+        accountDao.insert(AccountEntity("usd", "Доллары", "USD", AccountKind.CASH, 0, 0))
+        val txns = TxnRepository(FakeTxnDao(), accountDao)
+        val usd = CurrencyCode("USD")
+        // cash — три операции за последние дни, usd — одна и самая свежая.
+        repeat(3) { txns.addIncome("cash", Money(Minor(10_00), rub), null, d2, null); Thread.sleep(2) }
+        txns.addIncome("usd", Money(Minor(5_00), usd), null, d2, null)
+
+        fun viewModel(settings: com.corriente.data.usecase.StartAccountSettings) = TransactionsViewModel(
+            txns, AccountRepository(accountDao), CategoryRepository(FakeCategoryDao()),
+            CurrencyRepository(FakeCurrencyDao(listOf(CurrencyEntity("RUB", 2, 2, "₽", true, 0), CurrencyEntity("USD", 2, 2, "$", true, 1)))),
+            today = { d2 }, startAccountSettings = settings,
+        )
+        fun settings(mode: com.corriente.data.usecase.StartAccountMode) =
+            com.corriente.data.usecase.InMemoryStartAccountSettings(com.corriente.data.usecase.StartAccountSetting(mode))
+
+        val currencyVm = viewModel(settings(com.corriente.data.usecase.StartAccountMode.LAST_CURRENCY))
+        backgroundScope.observe(currencyVm)
+        advanceUntilIdle()
+        assertEquals("USD", currencyVm.startCurrency.value)
+        assertEquals(null, currencyVm.uiState.value.filter.accountId)
+        currencyVm.consumeStartCurrency()
+        assertEquals(null, currencyVm.startCurrency.value)
+
+        val frequentVm = viewModel(settings(com.corriente.data.usecase.StartAccountMode.MOST_USED))
+        backgroundScope.observe(frequentVm)
+        advanceUntilIdle()
+        assertEquals("cash", frequentVm.uiState.value.filter.accountId)
+
+        // Выбор в шапке запоминается; следующий запуск в режиме «как оставил» восстанавливает его.
+        val remembering = settings(com.corriente.data.usecase.StartAccountMode.LAST_SELECTED)
+        val first = viewModel(remembering)
+        backgroundScope.observe(first)
+        advanceUntilIdle()
+        first.setAccountFilter("cash")
+        advanceUntilIdle()
+        val second = viewModel(remembering)
+        backgroundScope.observe(second)
+        advanceUntilIdle()
+        assertEquals("cash", second.uiState.value.filter.accountId)
+
+        first.setAccountFilter(null)
+        first.rememberAllAccounts("USD")
+        val third = viewModel(remembering)
+        backgroundScope.observe(third)
+        advanceUntilIdle()
+        assertEquals(null, third.uiState.value.filter.accountId)
+        assertEquals("USD", third.startCurrency.value)
+    }
+
     // U01: порог суммы в RUB не переинтерпретируется после выбора JPY-счёта; снятие счёта порог сохраняет.
     @Test
     fun `switching to an account in another currency clears the amount threshold with a message`() = runTest(dispatcher) {

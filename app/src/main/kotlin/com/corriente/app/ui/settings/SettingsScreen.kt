@@ -56,7 +56,6 @@ import com.corriente.app.ThemeMode
 import com.corriente.app.UiPrefs
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material.icons.outlined.AccountBalanceWallet
-import com.corriente.data.usecase.StartAccountSetting
 import com.corriente.data.usecase.StartAccountMode
 import com.corriente.app.R
 import com.corriente.app.backup.ShareBackupCache
@@ -206,12 +205,11 @@ fun SettingsScreen(
                     Icons.Outlined.AccountBalanceWallet, stringResource(R.string.start_account_title),
                     supporting = {
                         Text(
-                            when (startAccount.mode) {
-                                StartAccountMode.LAST_TRANSACTION -> stringResource(R.string.start_account_last)
-                                StartAccountMode.FIRST -> stringResource(R.string.start_account_first)
-                                StartAccountMode.PINNED ->
-                                    startAccounts.firstOrNull { it.id == startAccount.pinnedAccountId }?.name
-                                        ?: stringResource(R.string.start_account_pinned)
+                            if (startAccount.mode == StartAccountMode.PINNED) {
+                                startAccounts.firstOrNull { it.id == startAccount.pinnedAccountId }?.name
+                                    ?: stringResource(R.string.start_account_pinned)
+                            } else {
+                                startAccountModeLabel(startAccount.mode)
                             },
                         )
                     },
@@ -314,16 +312,16 @@ fun SettingsScreen(
                 Text(label, Modifier.padding(start = 12.dp, top = 12.dp, bottom = 12.dp))
             }
         }
+        val startSettings = UiPrefs.startAccountSettings(context)
         AlertDialog(
             onDismissRequest = { startAccountDialogOpen = false },
             title = { Text(stringResource(R.string.start_account_title)) },
             text = {
                 Column(Modifier.verticalScroll(rememberScrollState())) {
-                    OptionRow(setting.mode == StartAccountMode.LAST_TRANSACTION, stringResource(R.string.start_account_last)) {
-                        UiPrefs.startAccountSettings(context).set(StartAccountSetting(StartAccountMode.LAST_TRANSACTION))
-                    }
-                    OptionRow(setting.mode == StartAccountMode.FIRST, stringResource(R.string.start_account_first)) {
-                        UiPrefs.startAccountSettings(context).set(StartAccountSetting(StartAccountMode.FIRST))
+                    StartAccountMode.entries.filter { it != StartAccountMode.PINNED }.forEach { mode ->
+                        OptionRow(setting.mode == mode, startAccountModeLabel(mode)) {
+                            startSettings.update { it.copy(mode = mode) }
+                        }
                     }
                     if (accountsNow.isNotEmpty()) {
                         Text(
@@ -336,7 +334,7 @@ fun SettingsScreen(
                                 setting.mode == StartAccountMode.PINNED && setting.pinnedAccountId == account.id,
                                 "${account.name} · ${account.currency.code}",
                             ) {
-                                UiPrefs.startAccountSettings(context).set(StartAccountSetting(StartAccountMode.PINNED, account.id))
+                                startSettings.update { it.copy(mode = StartAccountMode.PINNED, pinnedAccountId = account.id) }
                             }
                         }
                     }
@@ -419,3 +417,15 @@ private fun languageLabel(tag: String): String = when (tag) {
     "ru" -> "Русский"
     else -> stringResource(R.string.language_system)
 }
+
+@Composable
+private fun startAccountModeLabel(mode: StartAccountMode): String = stringResource(
+    when (mode) {
+        StartAccountMode.LAST_TRANSACTION -> R.string.start_account_last
+        StartAccountMode.LAST_SELECTED -> R.string.start_account_last_selected
+        StartAccountMode.LAST_CURRENCY -> R.string.start_account_last_currency
+        StartAccountMode.MOST_USED -> R.string.start_account_most_used
+        StartAccountMode.FIRST -> R.string.start_account_first
+        StartAccountMode.PINNED -> R.string.start_account_pinned
+    },
+)

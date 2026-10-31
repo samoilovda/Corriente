@@ -70,6 +70,11 @@ class FakeTxnDao : TxnDao {
 
     override fun observeCount(): Flow<Int> = rows.map { it.size }
 
+    override suspend fun frequentAccountIds(since: String, limit: Int): List<String> =
+        rows.value.filter { it.date >= since }.groupBy { it.accountId }.entries
+            .sortedWith(compareByDescending<Map.Entry<String, List<TxnEntity>>> { it.value.size }.thenByDescending { e -> e.value.maxOf { it.createdAt } })
+            .take(limit).map { it.key }
+
     override suspend fun recentAccountIds(limit: Int): List<String> =
         rows.value.sortedByDescending { it.createdAt }.take(limit).map { it.accountId }
 
