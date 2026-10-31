@@ -582,6 +582,11 @@ class TxnEntryViewModel(
      */
     fun save(): Boolean = save(uiState.value.selectedCategoryId)
 
+    /** Перетаскивание в панели категорий: новый порядок показанных категорий одного вида (хранится в БД, синхронизируется). */
+    fun reorderCategories(orderedIds: List<String>) {
+        viewModelScope.launch { categories.reorder(orderedIds) }
+    }
+
     /**
      * Тап по категории при уже введённой сумме новой операции — сразу запись, как основная кнопка. Категорию
      * передаём в запись явно: [uiState] выводится из формы асинхронно и сразу после [selectCategory] её ещё не видит.

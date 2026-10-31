@@ -1,6 +1,13 @@
 package com.corriente.app.ui.txnentry
 
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.gestures.scrollBy
+import androidx.compose.foundation.lazy.grid.LazyGridItemInfo
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.ui.zIndex
+import androidx.compose.ui.graphics.graphicsLayer
+import kotlinx.coroutines.delay
 import androidx.activity.compose.BackHandler
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.geometry.Offset
@@ -446,6 +453,7 @@ fun TxnEntryScreen(
                                 CategoryGrid(
                                     categories = state.categories,
                                     onCreateCategory = onCreateCategory,
+                                    onReorder = viewModel::reorderCategories,
                                     selectedId = state.selectedCategoryId,
                                     onSelect = { id ->
                                         categoriesOpen = false
@@ -642,12 +650,53 @@ private fun CategoryGrid(
     selectedId: String?,
     onSelect: (String?) -> Unit,
     onCreateCategory: (() -> Unit)? = null,
+    onReorder: (List<String>) -> Unit = {},
 ) {
     val archivedFmt = stringResource(R.string.entry_archived_suffix, "%s")
     var query by remember { mutableStateOf("") }
     val shown = remember(categories, query) {
         val needle = query.trim().lowercase()
         if (needle.isEmpty()) categories else categories.filter { it.name.lowercase().contains(needle) }
+    }
+    val searching = query.isNotBlank()
+    // Перетаскивание как в лончере: долгое нажатие поднимает плитку, дальше она следует за пальцем, остальные
+    // расступаются. Порядок меняется локально во время жеста и уходит в БД одним вызовом при отпускании.
+    val gridState = rememberLazyGridState()
+    val haptics = LocalHapticFeedback.current
+    var order by remember(shown) { mutableStateOf(shown.map { it.id }) }
+    val byId = remember(shown) { shown.associateBy { it.id } }
+    var draggingId by remember { mutableStateOf<String?>(null) }
+    var dragPos by remember { mutableStateOf(Offset.Zero) }
+    fun cellAt(position: Offset): LazyGridItemInfo? = gridState.layoutInfo.visibleItemsInfo.firstOrNull { info ->
+        info.key != CATEGORY_NONE_KEY &&
+            position.x >= info.offset.x && position.x < info.offset.x + info.size.width &&
+            position.y >= info.offset.y && position.y < info.offset.y + info.size.height
+    }
+    fun moveDraggedUnderPointer() {
+        val dragged = draggingId ?: return
+        val target = cellAt(dragPos)?.key as? String ?: return
+        if (target == dragged) return
+        val from = order.indexOf(dragged)
+        val to = order.indexOf(target)
+        if (from < 0 || to < 0) return
+        order = order.toMutableList().apply { add(to, removeAt(from)) }
+    }
+    LaunchedEffect(draggingId) {
+        if (draggingId == null) return@LaunchedEffect
+        // Палец у края сетки — прокручиваем её к скрытым категориям, пока плитка не поставлена на место.
+        while (true) {
+            val height = gridState.layoutInfo.viewportSize.height
+            val step = when {
+                dragPos.y < CATEGORY_DRAG_EDGE_PX -> -CATEGORY_DRAG_SCROLL_PX
+                dragPos.y > height - CATEGORY_DRAG_EDGE_PX -> CATEGORY_DRAG_SCROLL_PX
+                else -> 0f
+            }
+            if (step != 0f) {
+                gridState.scrollBy(step)
+                moveDraggedUnderPointer()
+            }
+            delay(16)
+        }
     }
     Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         if (categories.size > CATEGORY_SEARCH_THRESHOLD) {
@@ -662,12 +711,43 @@ private fun CategoryGrid(
         }
         LazyVerticalGrid(
             columns = GridCells.Adaptive(minSize = 76.dp),
-            modifier = Modifier.fillMaxWidth().weight(1f),
+            state = gridState,
+            // Во время перетаскивания сетка не должна прокручиваться жестом — прокрутку делает край-триггер выше.
+            userScrollEnabled = draggingId == null,
+            modifier = Modifier.fillMaxWidth().weight(1f).pointerInput(shown, searching) {
+                if (searching) return@pointerInput
+                detectDragGesturesAfterLongPress(
+                    onDragStart = { offset ->
+                        val hit = cellAt(offset)?.key as? String
+                        if (hit != null) {
+                            draggingId = hit
+                            dragPos = offset
+                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                        }
+                    },
+                    onDrag = { change, amount ->
+                        if (draggingId != null) {
+                            change.consume()
+                            dragPos += amount
+                            moveDraggedUnderPointer()
+                        }
+                    },
+                    onDragEnd = {
+                        val newOrder = order
+                        draggingId = null
+                        if (newOrder != shown.map { it.id }) onReorder(newOrder)
+                    },
+                    onDragCancel = {
+                        draggingId = null
+                        order = shown.map { it.id }
+                    },
+                )
+            },
             horizontalArrangement = Arrangement.spacedBy(6.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp),
             contentPadding = PaddingValues(vertical = 2.dp),
         ) {
-            item(key = "none") {
+            item(key = CATEGORY_NONE_KEY) {
                 CategoryCell(
                     text = stringResource(R.string.txn_entry_no_category),
                     icon = null,
@@ -677,7 +757,9 @@ private fun CategoryGrid(
                     onClick = { onSelect(null) },
                 )
             }
-            items(shown, key = { it.id }) { category ->
+            items(order, key = { it }) { id ->
+                val category = byId[id] ?: return@items
+                val dragged = id == draggingId
                 CategoryCell(
                     text = if (category.isArchived) archivedFmt.format(category.name) else category.name,
                     icon = category.icon?.takeIf { it.isNotBlank() },
@@ -685,6 +767,21 @@ private fun CategoryGrid(
                     showGlyph = true,
                     selected = selectedId == category.id,
                     onClick = { onSelect(category.id) },
+                    modifier = if (dragged) {
+                        Modifier.zIndex(1f).graphicsLayer {
+                            // Поднятая плитка центрируется под пальцем, а не остаётся в своей ячейке.
+                            val info = gridState.layoutInfo.visibleItemsInfo.firstOrNull { it.key == id }
+                            if (info != null) {
+                                translationX = dragPos.x - (info.offset.x + info.size.width / 2f)
+                                translationY = dragPos.y - (info.offset.y + info.size.height / 2f)
+                            }
+                            scaleX = 1.08f
+                            scaleY = 1.08f
+                            alpha = 0.92f
+                        }
+                    } else {
+                        Modifier.animateItem()
+                    },
                 )
             }
         }
@@ -708,6 +805,13 @@ private fun CategoryGrid(
 /** U10: поиск появляется, когда категорий больше, чем помещается в пару рядов сетки. */
 private const val CATEGORY_SEARCH_THRESHOLD = 8
 
+/** Ключ плитки «Без категории» в сетке: её не переставляют и не подменяют при перетаскивании. */
+private const val CATEGORY_NONE_KEY = "none"
+
+/** Перетаскивание: расстояние до края сетки, с которого начинается автопрокрутка, и её шаг за кадр (px). */
+private const val CATEGORY_DRAG_EDGE_PX = 72f
+private const val CATEGORY_DRAG_SCROLL_PX = 14f
+
 @Composable
 private fun CategoryCell(
     text: String,
@@ -716,6 +820,7 @@ private fun CategoryCell(
     showGlyph: Boolean,
     selected: Boolean,
     onClick: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val shape = RoundedCornerShape(16.dp)
     val bgColor = if (selected) {
@@ -729,7 +834,7 @@ private fun CategoryCell(
         Modifier
     }
     Column(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .heightIn(min = 52.dp)
             .clip(shape)

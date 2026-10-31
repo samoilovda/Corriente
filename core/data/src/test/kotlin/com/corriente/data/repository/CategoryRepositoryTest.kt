@@ -117,4 +117,42 @@ class CategoryRepositoryTest {
         assertEquals(DeleteResult.Deleted, repository.deleteIfUnused(c.id))
         assertNull(repository.getById(c.id))
     }
+
+    @Test
+    fun `new categories go to the end of their kind`() = runTest {
+        val (repository, _) = repo()
+        val a = repository.create("A", CategoryKind.EXPENSE, color = 0)
+        val b = repository.create("B", CategoryKind.EXPENSE, color = 0)
+        val income = repository.create("Зарплата", CategoryKind.INCOME, color = 0)
+        val c = repository.create("C", CategoryKind.EXPENSE, color = 0)
+
+        assertEquals(listOf(a.id, b.id, c.id), repository.observeActive().first().filter { it.kind == CategoryKind.EXPENSE }.map { it.id })
+        assertEquals(0, income.displayOrder)
+        assertEquals(2, c.displayOrder)
+    }
+
+    @Test
+    fun `reorder writes positions in the given order`() = runTest {
+        val (repository, _) = repo()
+        val a = repository.create("A", CategoryKind.EXPENSE, color = 0)
+        val b = repository.create("B", CategoryKind.EXPENSE, color = 0)
+        val c = repository.create("C", CategoryKind.EXPENSE, color = 0)
+
+        repository.reorder(listOf(c.id, a.id, b.id))
+
+        assertEquals(listOf(c.id, a.id, b.id), repository.observeActive().first().map { it.id })
+        val late = repository.create("D", CategoryKind.EXPENSE, color = 0)
+        assertEquals(listOf(c.id, a.id, b.id, late.id), repository.observeActive().first().map { it.id })
+    }
+
+    @Test
+    fun `reorder ignores unknown ids and duplicates`() = runTest {
+        val (repository, _) = repo()
+        val a = repository.create("A", CategoryKind.EXPENSE, color = 0)
+        val b = repository.create("B", CategoryKind.EXPENSE, color = 0)
+
+        repository.reorder(listOf(b.id, "ghost", b.id, a.id))
+
+        assertEquals(listOf(b.id, a.id), repository.observeActive().first().map { it.id })
+    }
 }

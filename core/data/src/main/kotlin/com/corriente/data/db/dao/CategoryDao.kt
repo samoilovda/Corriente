@@ -7,6 +7,7 @@ import androidx.room.Query
 import androidx.room.Transaction
 import androidx.room.Update
 import com.corriente.data.db.entity.CategoryEntity
+import com.corriente.data.db.entity.CategoryKind
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -91,6 +92,19 @@ abstract class CategoryDao {
 
     @Query("INSERT OR REPLACE INTO category_redirect(from_id, into_id) VALUES (:fromId, :intoId)")
     protected abstract suspend fun recordRedirect(fromId: String, intoId: String)
+
+    /** Пишет только изменившуюся позицию — иначе каждая перестановка гнала бы в журнал синхронизации весь список. */
+    @Query("UPDATE category SET display_order = :order WHERE id = :id AND display_order <> :order")
+    abstract suspend fun setDisplayOrder(id: String, order: Int)
+
+    @Query("SELECT COALESCE(MAX(display_order), -1) FROM category WHERE kind = :kind")
+    abstract suspend fun maxDisplayOrder(kind: CategoryKind): Int
+
+    /** Ручной порядок категорий: позиция в [ids] становится `display_order`; одна транзакция — список не «мигает». */
+    @Transaction
+    open suspend fun reorder(ids: List<String>) {
+        ids.forEachIndexed { index, id -> setDisplayOrder(id, index) }
+    }
 
     @Query("DELETE FROM category")
     abstract suspend fun deleteAll()

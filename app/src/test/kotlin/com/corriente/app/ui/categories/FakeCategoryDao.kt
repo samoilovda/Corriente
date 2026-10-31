@@ -2,6 +2,7 @@ package com.corriente.app.ui.categories
 
 import com.corriente.data.db.dao.CategoryDao
 import com.corriente.data.db.entity.CategoryEntity
+import com.corriente.data.db.entity.CategoryKind
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.map
@@ -81,6 +82,13 @@ class FakeCategoryDao : CategoryDao() {
     override suspend fun recordRedirect(fromId: String, intoId: String) {
         redirects[fromId] = intoId
     }
+
+    override suspend fun setDisplayOrder(id: String, order: Int) {
+        rows.value = rows.value.map { if (it.id == id && it.displayOrder != order) it.copy(displayOrder = order) else it }
+    }
+
+    override suspend fun maxDisplayOrder(kind: CategoryKind): Int =
+        rows.value.filter { it.kind == kind }.maxOfOrNull { it.displayOrder } ?: -1
 
     override suspend fun deleteAll() {
         rows.value = emptyList()

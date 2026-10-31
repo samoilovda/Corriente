@@ -49,7 +49,8 @@ class CategoryRepository(private val dao: CategoryDao) {
             color = color,
             icon = icon,
             origin = origin,
-            displayOrder = 0,
+            // Новая категория — в конец своего вида: порядок настраивается перетаскиванием на экране ввода.
+            displayOrder = dao.maxDisplayOrder(kind) + 1,
             isArchived = false,
         )
         dao.insert(category.toEntity())
@@ -65,6 +66,12 @@ class CategoryRepository(private val dao: CategoryDao) {
         }
         dao.update(existing.copy(name = name, parentId = parentId, color = color, icon = icon))
     }
+
+    /**
+     * Ручной порядок: категории из [orderedIds] получают позиции 0, 1, 2… в этом порядке. Передавать нужно весь
+     * показанный список одного вида (расходы или доходы), иначе позиции пересекутся с не переданными.
+     */
+    suspend fun reorder(orderedIds: List<String>) = dao.reorder(orderedIds.distinct())
 
     suspend fun archive(id: String) {
         val existing = requireNotNull(dao.getById(id)) { "Category $id not found" }

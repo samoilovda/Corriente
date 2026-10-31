@@ -116,6 +116,23 @@ class TxnEntryViewModelTest {
         assertEquals(listOf("Зарплата"), model.uiState.value.categories.map { it.name })
     }
 
+    // Перетаскивание в панели категорий: новый порядок сохраняется в БД и приходит обратно в состояние формы.
+    @Test
+    fun `reordering categories changes the order shown in the form`() = runTest(dispatcher) {
+        val fakes = Fakes().apply { seed() }
+        fakes.categoryDao.insert(entityCategory("cat-taxi", "Такси", CategoryKind.EXPENSE))
+        fakes.categoryDao.insert(entityCategory("cat-cafe", "Кафе", CategoryKind.EXPENSE))
+        val model = vm(fakes)
+        backgroundScope.observe(model)
+        advanceUntilIdle()
+        assertEquals(listOf("cat-food", "cat-taxi", "cat-cafe"), model.uiState.value.categories.map { it.id })
+
+        model.reorderCategories(listOf("cat-cafe", "cat-food", "cat-taxi"))
+        advanceUntilIdle()
+
+        assertEquals(listOf("cat-cafe", "cat-food", "cat-taxi"), model.uiState.value.categories.map { it.id })
+    }
+
     // Тап по иконке категории на главном: форма открывается с этой категорией и выбранным в шапке счётом.
     @Test
     fun `preset category and account from the overview are applied to a new entry`() = runTest(dispatcher) {
