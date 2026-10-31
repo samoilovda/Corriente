@@ -16,7 +16,10 @@ import com.corriente.data.quickentry.FREQUENT_ENTRIES_WINDOW_DAYS
 import com.corriente.data.quickentry.FREQUENT_ENTRY_SUGGESTIONS_LIMIT
 import com.corriente.data.quickentry.FrequentEntry
 import com.corriente.data.quickentry.FrequentEntryKind
+import com.corriente.data.quickentry.FavouriteCategories
+import com.corriente.data.quickentry.InMemoryFavouriteCategories
 import com.corriente.data.quickentry.InMemoryPinnedEntries
+import com.corriente.data.quickentry.favouritesOfKind
 import com.corriente.data.quickentry.PINNED_ENTRIES_LIMIT
 import com.corriente.data.quickentry.PinnedEntries
 import com.corriente.data.quickentry.QuickEntrySlot
@@ -86,6 +89,9 @@ data class TxnEntryUiState(
     val accounts: List<AccountOption> = emptyList(),
     val selectedAccountId: String? = null,
     val categories: List<Category> = emptyList(),
+    /** Избранные категории выбранного вида для закреплённой строки; [favouritesEnabled] — настройка включена. */
+    val favouritesEnabled: Boolean = false,
+    val favouriteCategories: List<Category> = emptyList(),
     val selectedCategoryId: String? = null,
     val date: LocalDate = LocalDate.now(),
     val note: String = "",
@@ -179,6 +185,7 @@ class TxnEntryViewModel(
     private val savedStateHandle: SavedStateHandle = SavedStateHandle(),
     /** E1: закреплённые шаблоны; по умолчанию — в памяти (постоянное хранилище передаёт [factory]). */
     private val pinnedEntries: PinnedEntries = InMemoryPinnedEntries(),
+    private val favouriteCategories: FavouriteCategories = InMemoryFavouriteCategories(),
     /** Счёт (а с ним и валюта) последней записанной операции: новая форма открывается с ним. */
     private val lastAccount: LastAccountStore = LastAccountStore.None,
 ) : WritingViewModel() {
@@ -393,8 +400,8 @@ class TxnEntryViewModel(
         accounts.observeAll(),
         currencies.observeAll(),
         categories.observeAllForLookup(),
-        frequent,
-    ) { (f, dirty), allAccounts, allCurrencies, allCategories, frequentList ->
+        combine(frequent, favouriteCategories.state) { slots, favourites -> slots to favourites },
+    ) { (f, dirty), allAccounts, allCurrencies, allCategories, (frequentList, favouriteSettings) ->
         val byCode = allCurrencies.associateBy { it.code.code }
         fun option(account: Account) = AccountOption(
             id = account.id,
@@ -444,6 +451,9 @@ class TxnEntryViewModel(
             accounts = options,
             selectedAccountId = selectedAccountId,
             categories = kindCategories,
+            favouritesEnabled = favouriteSettings.enabled,
+            favouriteCategories = favouritesOfKind(favouriteSettings.ids, kindCategories.mapTo(HashSet()) { it.id })
+                .mapNotNull { id -> kindCategories.firstOrNull { it.id == id } },
             selectedCategoryId = f.selectedCategoryId?.takeIf { id -> kindCategories.any { it.id == id } },
             date = f.date,
             note = f.note,
@@ -582,6 +592,13 @@ class TxnEntryViewModel(
      */
     fun save(): Boolean = save(uiState.value.selectedCategoryId)
 
+    /** Избранная категория в закреплённую строку; лимит — [com.corriente.data.quickentry.FAVOURITE_CATEGORIES_LIMIT] на вид. */
+    fun addFavourite(id: String) {
+        favouriteCategories.add(id, uiState.value.categories.mapTo(HashSet()) { it.id })
+    }
+
+    fun removeFavourite(id: String) = favouriteCategories.remove(id)
+
     /** Перетаскивание в панели категорий: новый порядок показанных категорий одного вида (хранится в БД, синхронизируется). */
     fun reorderCategories(orderedIds: List<String>) {
         viewModelScope.launch { categories.reorder(orderedIds) }
@@ -688,6 +705,7 @@ class TxnEntryViewModel(
             initialAccountId: String? = null,
             repeatTxnId: String? = null,
             pinnedEntries: PinnedEntries = InMemoryPinnedEntries(),
+            favouriteCategories: FavouriteCategories = InMemoryFavouriteCategories(),
             lastAccount: LastAccountStore = LastAccountStore.None,
         ) = viewModelFactory {
             initializer {
@@ -700,6 +718,7 @@ class TxnEntryViewModel(
                     repeatTxnId = repeatTxnId,
                     savedStateHandle = createSavedStateHandle(),
                     pinnedEntries = pinnedEntries,
+                    favouriteCategories = favouriteCategories,
                     lastAccount = lastAccount,
                 )
             }

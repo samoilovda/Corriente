@@ -565,6 +565,10 @@
     <string name="adjust_upcoming">Already recorded for later: %1$s — not part of today’s balance.</string>
     <string name="adjust_sign_toggle">Flip sign (debt)</string>
     <string name="txn_saved_message">Saved: %1$s</string>
+    <string name="favourites_setting_title">Favourite categories</string>
+    <string name="favourites_setting_hint">Four pinned categories in a separate row above the category list on the entry screen</string>
+    <string name="txn_entry_favourite_add">Add to favourites</string>
+    <string name="txn_entry_favourite_remove">Remove from favourites</string>
     <string name="txn_entry_new_category">New category</string>
     <string name="adjust_actual">Actual balance</string>
     <string name="adjust_difference">Difference: %1$s</string>

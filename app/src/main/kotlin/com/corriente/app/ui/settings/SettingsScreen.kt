@@ -23,6 +23,7 @@ import androidx.compose.material.icons.outlined.Language
 import androidx.compose.material.icons.outlined.DarkMode
 import androidx.compose.material.icons.outlined.Palette
 import androidx.compose.material.icons.outlined.PanTool
+import androidx.compose.material.icons.outlined.Star
 import androidx.compose.material.icons.outlined.Widgets
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Info
@@ -217,6 +218,18 @@ fun SettingsScreen(
                         Switch(checked = leftHanded, onCheckedChange = { UiPrefs.setLeftHanded(context, it) })
                     },
                     onClick = { UiPrefs.setLeftHanded(context, !leftHanded) },
+                )
+                val favourites by remember(context) { UiPrefs.favouriteCategories(context).state }.collectAsState()
+                SettingsItem(
+                    Icons.Outlined.Star, stringResource(R.string.favourites_setting_title),
+                    supporting = { Text(stringResource(R.string.favourites_setting_hint)) },
+                    trailing = {
+                        Switch(
+                            checked = favourites.enabled,
+                            onCheckedChange = { UiPrefs.favouriteCategories(context).setEnabled(it) },
+                        )
+                    },
+                    onClick = { UiPrefs.favouriteCategories(context).setEnabled(!favourites.enabled) },
                 )
                 SettingsItem(
                     Icons.Outlined.Widgets, stringResource(R.string.widget_settings),

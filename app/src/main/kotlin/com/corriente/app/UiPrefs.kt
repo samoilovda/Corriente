@@ -1,7 +1,11 @@
 package com.corriente.app
 
 import android.content.Context
+import com.corriente.data.quickentry.FavouriteCategories
+import com.corriente.data.quickentry.FavouriteIdsCodec
+import com.corriente.data.quickentry.FavouriteSettings
 import com.corriente.data.quickentry.FrequentEntry
+import com.corriente.data.quickentry.InMemoryFavouriteCategories
 import com.corriente.data.quickentry.InMemoryPinnedEntries
 import com.corriente.data.quickentry.PinnedEntries
 import com.corriente.data.quickentry.PinnedEntryCodec
@@ -31,6 +35,8 @@ object UiPrefs {
     private const val KEY_DYNAMIC_COLOR = "dynamic_color"
     private const val KEY_START_CARD_DISMISSED = "start_card_dismissed"
     private const val KEY_PINNED_ENTRIES = "pinned_entries"
+    private const val KEY_FAVOURITES_ENABLED = "favourite_categories_enabled"
+    private const val KEY_FAVOURITE_IDS = "favourite_category_ids"
     private const val KEY_LAST_ACCOUNT = "last_entry_account"
     private const val KEY_KIND_LABELS_SEEN = "kind_labels_seen"
 
@@ -39,6 +45,7 @@ object UiPrefs {
     private var dynamicColorFlow: MutableStateFlow<Boolean>? = null
     private var startCardDismissedFlow: MutableStateFlow<Boolean>? = null
     private var pinnedEntries: PinnedEntries? = null
+    private var favouriteCategories: FavouriteCategories? = null
 
     /** Счёт последней записанной операции — форма ввода открывается с ним (и его валютой). */
     fun lastAccount(context: Context): com.corriente.app.ui.txnentry.LastAccountStore = object : com.corriente.app.ui.txnentry.LastAccountStore {
@@ -51,6 +58,34 @@ object UiPrefs {
     @Synchronized
     fun pinnedEntries(context: Context): PinnedEntries =
         pinnedEntries ?: PrefsPinnedEntries(prefs(context)).also { pinnedEntries = it }
+
+    /** Избранные категории экрана ввода (закреплённая строка) — на этом устройстве, вне БД, бэкапа и синхронизации. */
+    @Synchronized
+    fun favouriteCategories(context: Context): FavouriteCategories =
+        favouriteCategories ?: PrefsFavouriteCategories(prefs(context)).also { favouriteCategories = it }
+
+    private class PrefsFavouriteCategories(private val prefs: android.content.SharedPreferences) : InMemoryFavouriteCategories(
+        FavouriteSettings(
+            enabled = prefs.getBoolean(KEY_FAVOURITES_ENABLED, false),
+            ids = FavouriteIdsCodec.decode(prefs.getString(KEY_FAVOURITE_IDS, null)),
+        ),
+    ) {
+        private fun persist() {
+            prefs.edit()
+                .putBoolean(KEY_FAVOURITES_ENABLED, state.value.enabled)
+                .putString(KEY_FAVOURITE_IDS, FavouriteIdsCodec.encode(state.value.ids))
+                .apply()
+        }
+
+        @Synchronized
+        override fun setEnabled(value: Boolean) { super.setEnabled(value); persist() }
+
+        @Synchronized
+        override fun add(id: String, sameKindIds: Set<String>): Boolean = super.add(id, sameKindIds).also { persist() }
+
+        @Synchronized
+        override fun remove(id: String) { super.remove(id); persist() }
+    }
 
     private class PrefsPinnedEntries(private val prefs: android.content.SharedPreferences) : PinnedEntries {
         private val delegate = InMemoryPinnedEntries(

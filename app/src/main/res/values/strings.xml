@@ -573,6 +573,10 @@
     <string name="adjust_upcoming">Позже уже записано: %1$s — в остаток на сегодня не входит.</string>
     <string name="adjust_sign_toggle">Сменить знак (долг)</string>
     <string name="txn_saved_message">Записано: %1$s</string>
+    <string name="favourites_setting_title">Избранные категории</string>
+    <string name="favourites_setting_hint">Четыре закреплённые категории отдельной строкой над списком категорий на экране ввода</string>
+    <string name="txn_entry_favourite_add">Добавить в избранное</string>
+    <string name="txn_entry_favourite_remove">Убрать из избранного</string>
     <string name="txn_entry_new_category">Новая категория</string>
     <string name="adjust_actual">Фактический остаток</string>
     <string name="adjust_difference">Разница: %1$s</string>

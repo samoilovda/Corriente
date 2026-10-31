@@ -1,6 +1,10 @@
 package com.corriente.app.ui.txnentry
 
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.ui.semantics.selected
+import com.corriente.data.quickentry.FAVOURITE_CATEGORIES_LIMIT
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.lazy.grid.LazyGridItemInfo
@@ -170,6 +174,7 @@ fun TxnEntryScreen(
                 txnRepository, accountRepository, categoryRepository, currencyRepository, editingTxnId, initialKind,
                 initialCategoryId, initialAccountId, repeatTxnId,
                 pinnedEntries = UiPrefs.pinnedEntries(LocalContext.current),
+                favouriteCategories = UiPrefs.favouriteCategories(LocalContext.current),
                 lastAccount = UiPrefs.lastAccount(LocalContext.current),
             )
         },
@@ -454,6 +459,9 @@ fun TxnEntryScreen(
                                     categories = state.categories,
                                     onCreateCategory = onCreateCategory,
                                     onReorder = viewModel::reorderCategories,
+                                    favourites = state.favouriteCategories.takeIf { state.favouritesEnabled },
+                                    onAddFavourite = viewModel::addFavourite,
+                                    onRemoveFavourite = viewModel::removeFavourite,
                                     selectedId = state.selectedCategoryId,
                                     onSelect = { id ->
                                         categoriesOpen = false
@@ -651,14 +659,22 @@ private fun CategoryGrid(
     onSelect: (String?) -> Unit,
     onCreateCategory: (() -> Unit)? = null,
     onReorder: (List<String>) -> Unit = {},
+    favourites: List<Category>? = null,
+    onAddFavourite: (String) -> Unit = {},
+    onRemoveFavourite: (String) -> Unit = {},
 ) {
     val archivedFmt = stringResource(R.string.entry_archived_suffix, "%s")
     var query by remember { mutableStateOf("") }
-    val shown = remember(categories, query) {
-        val needle = query.trim().lowercase()
-        if (needle.isEmpty()) categories else categories.filter { it.name.lowercase().contains(needle) }
-    }
     val searching = query.isNotBlank()
+    // Избранные закреплены отдельной строкой над сеткой; при поиске строка прячется и ищем по всем категориям.
+    val favouritesShown = if (favourites != null && !searching) favourites else emptyList()
+    val favouriteIds = favouritesShown.map { it.id }
+    val shown = remember(categories, query, favouriteIds) {
+        val needle = query.trim().lowercase()
+        categories.filter { it.id !in favouriteIds && (needle.isEmpty() || it.name.lowercase().contains(needle)) }
+    }
+    var favouritePickerOpen by remember { mutableStateOf(false) }
+    var favouriteMenuId by remember { mutableStateOf<String?>(null) }
     // Перетаскивание как в лончере: долгое нажатие поднимает плитку, дальше она следует за пальцем, остальные
     // расступаются. Порядок меняется локально во время жеста и уходит в БД одним вызовом при отпускании.
     val gridState = rememberLazyGridState()
@@ -709,6 +725,45 @@ private fun CategoryGrid(
                 modifier = Modifier.fillMaxWidth(),
             )
         }
+        if (favourites != null && !searching) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                repeat(FAVOURITE_CATEGORIES_LIMIT) { index ->
+                    val favourite = favourites.getOrNull(index)
+                    Box(Modifier.weight(1f)) {
+                        if (favourite != null) {
+                            CategoryCell(
+                                text = favourite.name,
+                                icon = favourite.icon?.takeIf { it.isNotBlank() },
+                                color = favourite.color,
+                                showGlyph = true,
+                                selected = selectedId == favourite.id,
+                                onClick = { onSelect(favourite.id) },
+                                onLongClick = { favouriteMenuId = favourite.id },
+                            )
+                            DropdownMenu(expanded = favouriteMenuId == favourite.id, onDismissRequest = { favouriteMenuId = null }) {
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.txn_entry_favourite_remove)) },
+                                    onClick = { favouriteMenuId = null; onRemoveFavourite(favourite.id) },
+                                )
+                            }
+                        } else {
+                            val addDescription = stringResource(R.string.txn_entry_favourite_add)
+                            Box(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .heightIn(min = 52.dp)
+                                    .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(16.dp))
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .clickable(onClickLabel = addDescription) { favouritePickerOpen = true },
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Icon(Icons.Outlined.Add, contentDescription = addDescription, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                    }
+                }
+            }
+        }
         LazyVerticalGrid(
             columns = GridCells.Adaptive(minSize = 76.dp),
             state = gridState,
@@ -735,7 +790,8 @@ private fun CategoryGrid(
                     onDragEnd = {
                         val newOrder = order
                         draggingId = null
-                        if (newOrder != shown.map { it.id }) onReorder(newOrder)
+                        // Избранные идут первыми: так порядок остаётся цельным, если настройку потом выключить.
+                        if (newOrder != shown.map { it.id }) onReorder(favouriteIds + newOrder)
                     },
                     onDragCancel = {
                         draggingId = null
@@ -800,6 +856,34 @@ private fun CategoryGrid(
             )
         }
     }
+    if (favouritePickerOpen) {
+        AlertDialog(
+            onDismissRequest = { favouritePickerOpen = false },
+            title = { Text(stringResource(R.string.txn_entry_favourite_add)) },
+            text = {
+                Column(Modifier.verticalScroll(rememberScrollState())) {
+                    categories.filter { it.id !in favouriteIds }.forEach { category ->
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .clickable { favouritePickerOpen = false; onAddFavourite(category.id) }
+                                .padding(vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        ) {
+                            val tint = if (category.color != 0) Color(category.color) else MaterialTheme.colorScheme.onSurfaceVariant
+                            Box(Modifier.size(32.dp).background(tint.copy(alpha = 0.18f), CircleShape), contentAlignment = Alignment.Center) {
+                                CategoryGlyph(category.icon?.takeIf { it.isNotBlank() }, category.name, tint, size = 18.dp)
+                            }
+                            Text(category.name)
+                        }
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = { TextButton(onClick = { favouritePickerOpen = false }) { Text(stringResource(R.string.cancel)) } },
+        )
+    }
 }
 
 /** U10: поиск появляется, когда категорий больше, чем помещается в пару рядов сетки. */
@@ -821,6 +905,7 @@ private fun CategoryCell(
     selected: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    onLongClick: (() -> Unit)? = null,
 ) {
     val shape = RoundedCornerShape(16.dp)
     val bgColor = if (selected) {
@@ -841,7 +926,14 @@ private fun CategoryCell(
             .background(bgColor, shape)
             .then(borderModifier)
             // U08: TalkBack слышит «выбрано» — выбор виден не только рамкой.
-            .selectable(selected = selected, role = Role.RadioButton, onClick = onClick)
+            .then(
+                if (onLongClick == null) {
+                    Modifier.selectable(selected = selected, role = Role.RadioButton, onClick = onClick)
+                } else {
+                    Modifier.combinedClickable(role = Role.RadioButton, onClick = onClick, onLongClick = onLongClick)
+                        .semantics { this.selected = selected }
+                },
+            )
             .padding(vertical = 8.dp, horizontal = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(4.dp),

@@ -117,6 +117,7 @@ private fun EntryPane(entry: Detail.Entry, onDone: () -> Unit, onCreateAccount: 
                     txnRepository, accountRepository, categoryRepository, currencyRepository,
                     entry.editingId, entry.kind, entry.categoryId, entry.accountId, entry.repeatId,
                     pinnedEntries = UiPrefs.pinnedEntries(LocalContext.current),
+                favouriteCategories = UiPrefs.favouriteCategories(LocalContext.current),
                     lastAccount = UiPrefs.lastAccount(LocalContext.current),
                 )
             },

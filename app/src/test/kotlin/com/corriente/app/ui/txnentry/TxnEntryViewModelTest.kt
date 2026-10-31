@@ -78,6 +78,7 @@ class TxnEntryViewModelTest {
         initialAccountId: String? = null,
         repeatTxnId: String? = null,
         pinned: com.corriente.data.quickentry.PinnedEntries = com.corriente.data.quickentry.InMemoryPinnedEntries(),
+        favourites: com.corriente.data.quickentry.FavouriteCategories = com.corriente.data.quickentry.InMemoryFavouriteCategories(),
         lastAccount: LastAccountStore = LastAccountStore.None,
     ): TxnEntryViewModel = TxnEntryViewModel(
         txns = TxnRepository(fakes.txnDao, fakes.accountDao),
@@ -92,6 +93,7 @@ class TxnEntryViewModelTest {
         repeatTxnId = repeatTxnId,
         savedStateHandle = savedStateHandle,
         pinnedEntries = pinned,
+        favouriteCategories = favourites,
         lastAccount = lastAccount,
     )
 
@@ -131,6 +133,32 @@ class TxnEntryViewModelTest {
         advanceUntilIdle()
 
         assertEquals(listOf("cat-cafe", "cat-food", "cat-taxi"), model.uiState.value.categories.map { it.id })
+    }
+
+    @Test
+    fun `favourite categories follow the setting, keep a limit of four per kind and drop with the kind`() = runTest(dispatcher) {
+        val fakes = Fakes().apply { seed() }
+        listOf("a", "b", "c", "d", "e").forEach { fakes.categoryDao.insert(entityCategory("cat-$it", it.uppercase(), CategoryKind.EXPENSE)) }
+        val favourites = com.corriente.data.quickentry.InMemoryFavouriteCategories()
+        val model = vm(fakes, favourites = favourites)
+        backgroundScope.observe(model)
+        advanceUntilIdle()
+        assertFalse(model.uiState.value.favouritesEnabled)
+
+        favourites.setEnabled(true)
+        listOf("cat-c", "cat-a", "cat-e", "cat-b", "cat-d").forEach { model.addFavourite(it) }
+        advanceUntilIdle()
+
+        assertTrue(model.uiState.value.favouritesEnabled)
+        assertEquals(listOf("cat-c", "cat-a", "cat-e", "cat-b"), model.uiState.value.favouriteCategories.map { it.id })
+
+        model.removeFavourite("cat-a")
+        advanceUntilIdle()
+        assertEquals(listOf("cat-c", "cat-e", "cat-b"), model.uiState.value.favouriteCategories.map { it.id })
+
+        model.setKind(EntryKind.INCOME)
+        advanceUntilIdle()
+        assertEquals(emptyList<String>(), model.uiState.value.favouriteCategories.map { it.id })
     }
 
     // Тап по иконке категории на главном: форма открывается с этой категорией и выбранным в шапке счётом.
