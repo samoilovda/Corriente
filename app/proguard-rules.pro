@@ -51,3 +51,11 @@
 -keep public class * extends androidx.work.ListenableWorker {
     public <init>(android.content.Context, androidx.work.WorkerParameters);
 }
+
+# --- Glance (widget/: CorrienteWidget, QuickAddWidget, QuickAddIncomeWidget, QuickAddExpenseWidget) ---
+# Glance пересоздаёт GlanceAppWidget по имени класса через пустой конструктор (имя хранит в своём
+# DataStore). Без keep R8 сливает похожие виджеты в один класс с `$r8$classId`, пустой конструктор
+# даёт classId первого — и кнопки 1×1 «+» и «−» рисовали двойной виджет «−/+» (сборка daily, 03.11).
+-keep public class * extends androidx.glance.appwidget.GlanceAppWidget {
+    public <init>();
+}
