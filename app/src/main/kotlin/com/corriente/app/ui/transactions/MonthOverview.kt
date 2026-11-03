@@ -85,6 +85,11 @@ class MonthOverviewViewModel(
     fun shiftMonth(delta: Long) = month.update { it.plusMonths(delta) }
 
     fun setAccount(id: String?) {
+        if (id == null && accountId.value != null) {
+            // Счёт сняли (чип, «Сбросить фильтры»): остаёмся в его валюте — «Все счета» в UZS, а не прыжок к валюте
+            // первого счёта в списке.
+            uiState.value.overview?.currencyCode?.let { currency.value = it }
+        }
         accountId.value = id
     }
 

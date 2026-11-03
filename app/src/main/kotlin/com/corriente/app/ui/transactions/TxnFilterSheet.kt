@@ -340,10 +340,12 @@ internal fun ActiveFilterChips(
     onRemoveAmount: () -> Unit,
     onClearAll: () -> Unit,
     modifier: Modifier = Modifier,
+    /** false — счёт уже виден (и меняется) в шапке «Операций»: чип не дублирует его и не отнимает место у экрана. */
+    showAccountChip: Boolean = true,
 ) {
     val filter = state.filter
     val chips = buildList {
-        filter.accountId?.let { id ->
+        filter.accountId?.takeIf { showAccountChip }?.let { id ->
             add((state.accounts.firstOrNull { it.id == id }?.name ?: id) to onRemoveAccount)
         }
         filter.currencyCode?.let { add(it to onRemoveCurrency) }

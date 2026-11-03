@@ -418,6 +418,7 @@ fun TransactionsScreen(
                 onRemovePeriod = { viewModel.setPeriod(null, null) },
                 onRemoveAmount = viewModel::clearAmountFilter,
                 onClearAll = viewModel::clearFilters,
+                showAccountChip = overview.overview == null || state.filter.query.isNotBlank(),
             )
 
             // Шапка с кольцом — первым элементом списка: уезжает вверх при прокрутке, кнопки «−»/«+» остаются.

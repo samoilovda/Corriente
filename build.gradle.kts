@@ -28,10 +28,11 @@ val verifyInvariantGuards by tasks.registering {
     val kotlinSources = fileTree(rootDir) {
         include("**/src/main/**/*.kt", "**/src/test/**/*.kt")
         exclude("**/build/**", "buildSrc/**") // buildSrc — сам скан и его тест-фикстуры
+        exclude(".claude/**") // рабочие копии других сессий агента (git worktree) — не исходники этого дерева
     }
     val manifests = fileTree(rootDir) {
         include("**/AndroidManifest.xml")
-        exclude("**/build/**", "buildSrc/**")
+        exclude("**/build/**", "buildSrc/**", ".claude/**")
     }
     val root = rootDir
 

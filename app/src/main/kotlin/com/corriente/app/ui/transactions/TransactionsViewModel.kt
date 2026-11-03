@@ -528,8 +528,21 @@ class TransactionsViewModel(
 
     /** Выбор счёта пользователем (шапка, чип): запоминается для режима «Как оставил» в «Счёте при запуске». */
     fun setAccountFilter(accountId: String?) {
+        val previous = filter.value.accountId
         changeCurrencyContext { it.copy(accountId = accountId) }
-        startSettings?.rememberSelection(com.corriente.data.usecase.StartSelection(accountId = accountId))
+        rememberAccountChoice(accountId, previous)
+    }
+
+    /** Снятый счёт запоминается как «Все счета» в его валюте — так же, как шапка остаётся в этой валюте. */
+    private fun rememberAccountChoice(accountId: String?, previous: String?) {
+        val selection = if (accountId != null) {
+            com.corriente.data.usecase.StartSelection(accountId = accountId)
+        } else {
+            com.corriente.data.usecase.StartSelection(
+                currency = previous?.let { id -> knownAccounts.value.firstOrNull { it.id == id }?.currency?.code },
+            )
+        }
+        startSettings?.rememberSelection(selection)
     }
 
     /** «Все счета» в валюте [code] выбраны в шапке — тоже запоминаем (счёт при этом уже снят через [setAccountFilter]). */
@@ -568,7 +581,11 @@ class TransactionsViewModel(
 
     fun setPeriod(from: LocalDate?, to: LocalDate?) = filter.update { it.copy(from = from, to = to) }
 
-    fun clearFilters() = filter.update { TxnFilter() }
+    fun clearFilters() {
+        val previous = filter.value.accountId
+        filter.update { TxnFilter() }
+        if (previous != null) rememberAccountChoice(null, previous)
+    }
 
     /**
      * R3.3: CSV списка операций с уже применёнными на экране фильтрами — ровно то, что видно

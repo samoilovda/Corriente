@@ -240,6 +240,14 @@ class TransactionsViewModelTest {
         advanceUntilIdle()
         assertEquals("cash", second.uiState.value.filter.accountId)
 
+        // Снятый чипом счёт запоминается как «Все счета» в его валюте.
+        first.setAccountFilter("usd")
+        first.setAccountFilter(null)
+        assertEquals(com.corriente.data.usecase.StartSelection(currency = "USD"), remembering.state.value.lastSelection)
+        first.setAccountFilter("cash")
+        first.clearFilters()
+        assertEquals(com.corriente.data.usecase.StartSelection(currency = "RUB"), remembering.state.value.lastSelection)
+
         first.setAccountFilter(null)
         first.rememberAllAccounts("USD")
         val third = viewModel(remembering)
