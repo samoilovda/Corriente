@@ -123,31 +123,25 @@ interface TxnDao {
     @Query("SELECT COUNT(*) FROM txn")
     fun observeCount(): Flow<Int>
 
-    @Query("SELECT COUNT(*) FROM txn WHERE import_hash = :importHash")
-    suspend fun countByImportHash(importHash: String): Int
-
-    @Query("DELETE FROM txn WHERE import_batch_id = :batchId")
-    suspend fun deleteByImportBatch(batchId: String)
-
     @Query("DELETE FROM txn")
     suspend fun deleteAll()
 
     /**
-     * R2.1: полнотекстовый поиск по заметке (через `txn_fts` MATCH) плюс подстрока по названию
-     * счёта/категории — эти справочники малы, `LIKE` по ним не требует индекса FTS. [ftsQuery] —
-     * уже подготовленный MATCH-запрос ([com.corriente.data.db.buildFtsPrefixQuery]), [likePattern] —
-     * `%подстрока%` в нижнем регистре. Не участвует в окне `observeRange` намеренно: поиск ищет
-     * по всей истории, а не только по подгруженным месяцам (критерий приёмки R2.1).
+     * R2.1: полнотекстовый поиск по заметке (через `txn_fts` MATCH) плюс операции счетов [accountIds] и категорий
+     * [categoryIds] — их подбирает по названию вызывающий ([com.corriente.data.repository.TxnRepository.search], W11:
+     * регистр кириллицы SQLite без ICU не сворачивает). [ftsQuery] — уже подготовленный MATCH-запрос
+     * ([com.corriente.data.db.buildFtsPrefixQuery]). Не участвует в окне `observeRange` намеренно: поиск ищет по всей
+     * истории, а не только по подгруженным месяцам (критерий приёмки R2.1).
      */
     @Query(
         """
         SELECT * FROM txn
         WHERE (:ftsQuery != '' AND rowid IN (SELECT docid FROM txn_fts WHERE txn_fts MATCH :ftsQuery))
-           OR account_id IN (SELECT id FROM account WHERE LOWER(name) LIKE :likePattern)
-           OR to_account_id IN (SELECT id FROM account WHERE LOWER(name) LIKE :likePattern)
-           OR category_id IN (SELECT id FROM category WHERE LOWER(name) LIKE :likePattern)
+           OR account_id IN (:accountIds)
+           OR to_account_id IN (:accountIds)
+           OR category_id IN (:categoryIds)
         ORDER BY date DESC, created_at DESC
         """,
     )
-    fun search(ftsQuery: String, likePattern: String): Flow<List<TxnEntity>>
+    fun search(ftsQuery: String, accountIds: List<String>, categoryIds: List<String>): Flow<List<TxnEntity>>
 }

@@ -1,9 +1,11 @@
 package com.corriente.data.db
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** R2.1 — чистые функции построения MATCH/LIKE запросов поиска (без Room). */
+/** R2.1 — чистые функции поиска: MATCH-запрос и сравнение названий (без Room). */
 class TxnSearchTest {
 
     @Test
@@ -32,8 +34,13 @@ class TxnSearchTest {
         assertEquals("\"a\"\"b*\"", buildFtsPrefixQuery("a\"b"))
     }
 
+    // W11: регистр кириллицы сворачивается в Kotlin — SQLite без ICU (десктоп) этого не умеет.
     @Test
-    fun `like pattern wraps a lowercased trimmed needle`() {
-        assertEquals("%тинькофф%", buildLikePattern("  Тинькофф  "))
+    fun `name matching ignores case of cyrillic and trims the query`() {
+        assertTrue(nameMatchesQuery("Тинькофф", "  тинькофф  "))
+        assertTrue(nameMatchesQuery("Продукты", "ПРОДУК"))
+        assertTrue(nameMatchesQuery("Tinkoff", "tink"))
+        assertFalse(nameMatchesQuery("Наличные", "карта"))
+        assertFalse(nameMatchesQuery("Наличные", "   "))
     }
 }

@@ -1,7 +1,7 @@
 package com.corriente.data.repository
 
 import com.corriente.data.db.buildFtsPrefixQuery
-import com.corriente.data.db.buildLikePattern
+import com.corriente.data.db.nameMatchesQuery
 import com.corriente.data.db.dao.AccountDao
 import com.corriente.data.db.dao.CategoryDao
 import com.corriente.data.db.dao.TxnDao
@@ -11,7 +11,12 @@ import com.corriente.data.model.Txn
 import com.corriente.data.model.toDomain
 import com.corriente.data.model.toEntity
 import com.corriente.money.Money
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import java.time.LocalDate
 import java.util.UUID
@@ -73,16 +78,24 @@ class TxnRepository(
     fun observeForAccount(accountId: String): Flow<List<Txn>> =
         txnDao.observeForAccount(accountId).map { list -> list.map { it.toDomain() } }
 
-    /**
-     * R2.1: полнотекстовый поиск по всей истории (не ограничен окном `observeRange`) — заметка
-     * через FTS4 `MATCH`, название счёта/категории через `LIKE`. Пустая строка не должна сюда
-     * попадать — вызывающий (`TransactionsViewModel`) переключается на неё только когда есть
-     * непустой текст запроса.
-     */
     fun observeAdjustments(): Flow<List<Txn>> = txnDao.observeAdjustments().map { list -> list.map { it.toDomain() } }
 
-    fun search(query: String): Flow<List<Txn>> =
-        txnDao.search(buildFtsPrefixQuery(query), buildLikePattern(query)).map { list -> list.map { it.toDomain() } }
+    /**
+     * R2.1: полнотекстовый поиск по всей истории (не ограничен окном `observeRange`) — заметка через FTS4 `MATCH`,
+     * название счёта/категории — подстрокой без учёта регистра ([nameMatchesQuery], W11). Пустая строка не должна сюда
+     * попадать — вызывающий (`TransactionsViewModel`) переключается на неё только когда есть непустой текст запроса.
+     */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    fun search(query: String): Flow<List<Txn>> {
+        val categories = categoryDao?.observeAll() ?: flowOf(emptyList())
+        return combine(accountDao.observeAll(), categories) { accounts, cats ->
+            accounts.filter { nameMatchesQuery(it.name, query) }.map { it.id } to
+                cats.filter { nameMatchesQuery(it.name, query) }.map { it.id }
+        }
+            .distinctUntilChanged()
+            .flatMapLatest { (accountIds, categoryIds) -> txnDao.search(buildFtsPrefixQuery(query), accountIds, categoryIds) }
+            .map { list -> list.map { it.toDomain() } }
+    }
 
     suspend fun addExpense(
         accountId: String,
