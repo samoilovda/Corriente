@@ -203,8 +203,11 @@ fun TransactionsScreen(
         com.corriente.app.ui.common.JustSaved.pending.collect { saved ->
             if (saved == null) return@collect
             com.corriente.app.ui.common.JustSaved.pending.value = null
+            // W8: устаревшую весточку (запись с виджета, приложение открыто позже) не показываем.
+            val remaining = saved.remainingMs(System.currentTimeMillis())
+            if (remaining == 0L) return@collect
             scope.launch {
-                val result = withTimeoutOrNull(UNDO_WINDOW_MS) {
+                val result = withTimeoutOrNull(remaining) {
                     snackbarState.showSnackbar(savedFormat.format(saved.text), undoLabel, duration = SnackbarDuration.Indefinite)
                 }
                 if (result == SnackbarResult.ActionPerformed) viewModel.deleteSilently(saved.txnId)
