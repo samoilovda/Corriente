@@ -277,4 +277,21 @@ class TransferEntryViewModelTest {
         advanceUntilIdle()
         assertEquals(false, model.uiState.value.rateError)
     }
+
+    // W6: второй save() до пересчёта uiState (флаг saving ещё не виден в нём) не создаёт второй перевод.
+    @Test
+    fun `double save writes one transfer`() = runTest(dispatcher) {
+        val fakes = Fakes().apply { seed() }
+        val model = vm(fakes)
+        backgroundScope.observe(model)
+        advanceUntilIdle()
+        model.setFromAmount("1500")
+        advanceUntilIdle()
+
+        assertTrue(model.save())
+        assertFalse(model.save())
+        advanceUntilIdle()
+
+        assertEquals(1, fakes.txnDao.rows.value.size)
+    }
 }

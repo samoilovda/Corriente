@@ -7,6 +7,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.io.OutputStream
 import kotlin.coroutines.CoroutineContext
@@ -94,19 +95,41 @@ abstract class WritingViewModel(
     protected fun launchWrite(
         onError: (Throwable) -> UiMessage,
         onSuccess: () -> Unit = {},
+        /**
+         * W14: ключ записи «в полёте». Пока запись с этим ключом не завершилась, повторный вызов с тем же ключом
+         * игнорируется (двойной тап по «Сохранить» иначе писал дубль); занятость видна в [writing].
+         */
+        key: String? = null,
         block: suspend () -> Unit,
-    ) {
+    ): Boolean {
+        if (key != null) {
+            // Атомарно: проверка и захват — одним update, второй вызов до завершения первого видит ключ занятым.
+            var claimed = false
+            _writing.update { busy ->
+                claimed = key !in busy
+                if (claimed) busy + key else busy
+            }
+            if (!claimed) return false
+        }
         viewModelScope.launch {
             try {
                 block()
                 onSuccess()
             } catch (e: CancellationException) {
                 throw e
-            } catch (e: Throwable) {
+            } catch (e: Exception) {
                 _messages.value = onError(e)
+            } finally {
+                if (key != null) _writing.update { it - key }
             }
         }
+        return true
     }
+
+    private val _writing = MutableStateFlow<Set<String>>(emptySet())
+
+    /** W14: ключи записей, которые сейчас идут ([launchWrite] с `key`) — экран выключает по ним кнопку. */
+    val writing: StateFlow<Set<String>> = _writing
 }
 
 /**
