@@ -82,3 +82,10 @@ fun dayLabel(date: LocalDate, today: LocalDate = LocalDate.now()): String = when
     today.minusDays(1) -> "Вчера"
     else -> "%02d.%02d.%d, %s".format(java.util.Locale.ROOT, date.dayOfMonth, date.monthValue, date.year, WEEKDAYS[date.dayOfWeek.value - 1])
 }
+
+/**
+ * W21: какой месяц показывать, когда «сейчас» сменилось с [previousCurrent] на [current]: если пользователь смотрел
+ * текущий месяц — новый текущий, иначе — то, что он выбрал сам.
+ */
+fun followCurrentMonth(shown: java.time.YearMonth, previousCurrent: java.time.YearMonth, current: java.time.YearMonth): java.time.YearMonth =
+    if (shown == previousCurrent) current else shown

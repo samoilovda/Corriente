@@ -11,6 +11,7 @@ import com.corriente.data.usecase.AccountBalanceUseCase
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import java.io.File
 
 /**
@@ -28,6 +29,21 @@ class DesktopContainer(val dataDir: File = defaultDataDir()) {
     val balances = AccountBalanceUseCase(accounts, txns)
     val backup = BackupRepository(database)
     val overviewSettings = OverviewCategoriesSettings(database.appSettingDao())
+    /**
+     * W21: текущий месяц, обновляется раз в минуту — окно, открытое через границу месяца, переходит на новый (как V18 на
+     * телефоне). Тикает в [scope] (реальное время), а не в композиции: бесконечный `delay` в эффекте мешал бы UI-тестам.
+     */
+    val currentMonth = kotlinx.coroutines.flow.MutableStateFlow(java.time.YearMonth.now())
+
+    init {
+        scope.launch {
+            while (true) {
+                kotlinx.coroutines.delay(60_000)
+                currentMonth.value = java.time.YearMonth.now()
+            }
+        }
+    }
+
     val sync = DesktopSync(database, scope) {
         val dir = File(dataDir, "backups").apply { mkdirs() }
         File(dir, "before-sync-join-${System.currentTimeMillis()}.json").outputStream().use { backup.export(it) }

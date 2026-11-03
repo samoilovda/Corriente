@@ -40,6 +40,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -63,7 +64,14 @@ sealed interface EntryRequest {
 
 @Composable
 fun TransactionsScreen(c: DesktopContainer, onEntry: (EntryRequest) -> Unit) {
-    var month by remember { mutableStateOf(YearMonth.now()) }
+    var month by remember { mutableStateOf(c.currentMonth.value) }
+    // W21: наступил новый месяц — шапка, стоявшая на «текущем», переходит на него; пролистанную вручную не трогаем.
+    val currentMonth by c.currentMonth.collectAsState()
+    var seenMonth by remember { mutableStateOf(currentMonth) }
+    LaunchedEffect(currentMonth) {
+        month = followCurrentMonth(month, seenMonth, currentMonth)
+        seenMonth = currentMonth
+    }
     var accountId by remember { mutableStateOf<String?>(null) }
     var currency by remember { mutableStateOf<String?>(null) }
     // U13: поиск — та же область, что на Android (заметка, категория, счёт; TxnRepository.search) и по всей истории.
