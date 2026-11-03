@@ -46,18 +46,3 @@
   `TxnFilterSheetInstrumentedTest` (две гонки: экран сам выбирал засеянный счёт из-за настройки «Счёт при запуске» —
   тест теперь ставит режим «Первый в списке»; текст в поле порога иногда не вводился — ввод проверяется и повторяется).
   После правок 12 прогонов фильтр-теста и 4 полных `connectedCheck` подряд зелёные.
-- **`SyncConvergenceInstrumentedTest.randomOperationsOnThreeDevicesConverge` иногда не сходится** (проверено на `bad27e3`,
-  до правок порядка категорий: при `-Pandroid.testInstrumentationRunnerArguments.syncSeeds=40` падает на сидах 28 и 33,
-  при обычных 6 сидах — примерно раз в 5–10 прогонов): после синхронизации у одного устройства нет категории, которая есть
-  у другого (`b6 differs: category … b6: []`). Сид случайности фиксирован, но id категорий — `UUID.randomUUID()`,
-  поэтому исход плавает. Скорее всего это слияние одноимённых категорий (`resolveCategoryNameClash`, `category_redirect`);
-  причина не изучалась. Запуск для воспроизведения: `./gradlew :core:data:connectedDebugAndroidTest
-  -Pandroid.testInstrumentationRunnerArguments.class=com.corriente.data.sync.SyncConvergenceInstrumentedTest
-  -Pandroid.testInstrumentationRunnerArguments.syncSeeds=40`.
-
-  **Уточнение по сходимости (разбор лога сида 33):** устройство `b` получило удаление категории (слитой в другую
-  `mergeInto`, есть `category_redirect`), но «ссылка сильнее удаления» (`applyDelete`: на строку уже ссылается операция) —
-  `b` оставило категорию и записало meta с `deleted = 0` под тем же HLC, что у удаления на `a` и `c`; итог — у `b`
-  категория жива, у `a` и `c` удалена, а перерассылка (`rebroadcast`) расхождение не закрыла. Похоже на гонку «слияние
-  категорий ⇄ операция в этой категории на другом устройстве». Нужна отдельная правка движка (`SyncEngine.applyDelete` /
-  применение `category_redirect`) и тест на детерминированных id вместо `UUID.randomUUID()`.

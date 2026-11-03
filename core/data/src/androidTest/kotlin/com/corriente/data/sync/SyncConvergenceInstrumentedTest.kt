@@ -128,7 +128,20 @@ class SyncConvergenceInstrumentedTest {
                         }
                     }
                 }
-                throw AssertionError("${d.name} differs:\n${diff.joinToString("\n")}\n$meta\n$rowMeta")
+                val refs = ids.joinToString("\n") { id ->
+                    devices.joinToString("; ", prefix = "refs[$id]: ") { dev ->
+                        val q = dev.db.openHelper.writableDatabase
+                        fun n(sqlText: String) = q.query(sqlText).use { c -> c.moveToFirst(); c.getInt(0) }
+                        "${dev.name}=txn ${n("SELECT COUNT(*) FROM txn WHERE category_id='$id'")} " +
+                            "kids ${n("SELECT COUNT(*) FROM category WHERE parent_id='$id'")} " +
+                            "bud ${n("SELECT COUNT(*) FROM budget WHERE category_id='$id'")} " +
+                            "rec ${n("SELECT COUNT(*) FROM recurrence WHERE category_id='$id'")} " +
+                            "redir " + q.query("SELECT from_id||'->'||into_id FROM category_redirect WHERE from_id='$id' OR into_id='$id'").use { c ->
+                                buildList { while (c.moveToNext()) add(c.getString(0)) }
+                            }
+                    }
+                }
+                throw AssertionError("${d.name} differs:\n${diff.joinToString("\n")}\n$meta\n$rowMeta\n$refs")
             }
         }
         devices.forEach { d ->
@@ -196,6 +209,36 @@ class SyncConvergenceInstrumentedTest {
         assertEquals(winner, (phone.txns.getById(ta.id) as com.corriente.data.model.Txn.Expense).categoryId)
         assertEquals(winner, (phone.txns.getById(tb.id) as com.corriente.data.model.Txn.Expense).categoryId)
     }
+
+    // Проигравшая одноимённая категория: надгробие, поставленное на устройстве-победителе под версией автора (у него она
+    // жива), обязано разойтись новой версией — иначе версии равны при разном состоянии и никто не исправит расхождение.
+    @Test
+    fun loserOfCategoryNameClashTombstoneIsRebroadcast() = runBlocking {
+        val phone = newDevice("phone")
+        val tablet = newDevice("tablet")
+        val watch = newDevice("watch")
+        val cash = phone.accounts.create("Нал", rub, AccountKind.CASH, Money(Minor(0), rub), 0)
+        join(phone, tablet, watch)
+
+        val winner = "cat-a"
+        val loser = "cat-z"
+        // watch получает проигравшую категорию раньше победителя и тратит в неё
+        tablet.db.categoryDao().insert(testCategory(loser))
+        tablet.engine.sync()
+        watch.engine.sync()
+        watch.txns.addExpense(cash.id, Money(Minor(5), rub), loser, LocalDate.of(2026, 10, 4))
+        phone.db.categoryDao().insert(testCategory(winner))
+        phone.engine.sync() // принимает loser: проигрывает по id, ставит надгробие
+
+        val pending = phone.db.syncDao().outbox().map { it.tableName to it.pk }
+        assertTrue("tombstone of the loser must be re-sent: $pending", ("category" to loser) in pending)
+        assertConverged()
+        assertEquals(listOf(winner), phone.categories.observeActive().first().filter { it.name == "Такси" }.map { it.id })
+    }
+
+    private fun testCategory(id: String) = com.corriente.data.db.entity.CategoryEntity(
+        id = id, name = "Такси", kind = CategoryKind.EXPENSE, color = 0, displayOrder = 100,
+    )
 
     // T3 (SYNC_DESIGN §4): бюджет одной категории и валюты, созданный на двух устройствах, — один, побеждает меньший id.
     @Test
