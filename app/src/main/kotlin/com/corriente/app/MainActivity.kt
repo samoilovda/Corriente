@@ -54,7 +54,10 @@ class MainActivity : FragmentActivity() {
         super.onCreate(savedInstanceState)
         // A2.8: при пересоздании (поворот, смерть процесса) intent ярлыка всё ещё лежит в getIntent() —
         // повторно его обрабатывать нельзя: стек навигации сбросился бы на экран ярлыка.
-        if (savedInstanceState == null) pendingDeepLinkIntent = intent
+        // Запуск с виджета «−/+» — форма ввода стартовым экраном, без deep link. Читается и при пересоздании:
+        // стартовый экран графа должен остаться тем же, иначе восстановленный стек не совпадёт с графом.
+        val widgetEntry = com.corriente.app.navigation.widgetEntryKind(intent.dataString)
+        if (savedInstanceState == null && widgetEntry == null) pendingDeepLinkIntent = intent
         // «Первый запуск» для подписей переключателя расход/доход отмечается здесь, при открытии приложения,
         // а не при первом заходе на экран ввода.
         UiPrefs.showKindLabels(this)
@@ -74,6 +77,7 @@ class MainActivity : FragmentActivity() {
                     // за ним тем более.
                     AppLockGate {
                         CorrienteNavHost(
+                            widgetEntry = widgetEntry,
                             deepLinkIntent = pendingDeepLinkIntent,
                             onDeepLinkConsumed = {
                                 pendingDeepLinkIntent = null

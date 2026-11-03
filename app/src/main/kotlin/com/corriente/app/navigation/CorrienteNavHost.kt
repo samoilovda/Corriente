@@ -84,6 +84,8 @@ private const val RECURRING_ROUTE = "recurring"
 private const val FX_REPORT_ROUTE = "fx_report"
 private const val ACCOUNT_BALANCE_ROUTE = "account_balance"
 private const val TXN_ENTRY_ROUTE = "txn_entry"
+/** Форма ввода, открытая с виджета «−/+», — стартовый экран графа (см. [widgetEntryKind]). */
+private const val WIDGET_ENTRY_ROUTE = "widget_entry"
 private const val TXN_EDIT_ROUTE = "txn_edit"
 private const val TRANSFER_ROUTE = "transfer"
 private const val TRANSFER_EDIT_ROUTE = "transfer_edit"
@@ -98,9 +100,10 @@ private const val DEEP_LINK_SCHEME = "corriente"
  * @param deepLinkIntent intent ярлыка приложения (R4.4) — с холодного старта [com.corriente.app.MainActivity.onCreate],
  *   при уже запущенной Activity — [com.corriente.app.MainActivity.onNewIntent]. `null`, если Activity
  *   открыта обычным способом (лаунчер/бэкстек).
+ * @param widgetEntry форма, открытая с виджета «−/+» ([widgetEntryKind]): она — стартовый экран, без «Операций» под ней.
  */
 @Composable
-fun CorrienteNavHost(deepLinkIntent: Intent? = null, onDeepLinkConsumed: () -> Unit = {}) {
+fun CorrienteNavHost(widgetEntry: EntryKind? = null, deepLinkIntent: Intent? = null, onDeepLinkConsumed: () -> Unit = {}) {
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = backStackEntry?.destination
@@ -193,7 +196,7 @@ fun CorrienteNavHost(deepLinkIntent: Intent? = null, onDeepLinkConsumed: () -> U
             Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.TopCenter) {
         NavHost(
             navController = navController,
-            startDestination = CorrienteDestination.TRANSACTIONS.route,
+            startDestination = if (widgetEntry != null) WIDGET_ENTRY_ROUTE else CorrienteDestination.TRANSACTIONS.route,
             // Переходы: между вкладками — быстрое затухание; в форму/вложенный экран — выезд снизу, назад — уезжает вниз.
             // (По умолчанию NavHost делает 0,7-секундный кроссфейд: два экрана просвечивают друг сквозь друга.)
             enterTransition = {
@@ -324,6 +327,31 @@ fun CorrienteNavHost(deepLinkIntent: Intent? = null, onDeepLinkConsumed: () -> U
             }
             composable(CATEGORIES_ROUTE) {
                 CategoriesScreen(onBack = { navController.popBackStack() })
+            }
+            composable(WIDGET_ENTRY_ROUTE) {
+                // Ввод с виджета: записал (или передумал) — приложение закрывается, возвращая на рабочий стол.
+                val activity = generateSequence(LocalContext.current) { (it as? android.content.ContextWrapper)?.baseContext }
+                    .firstOrNull { it is android.app.Activity } as? android.app.Activity
+                TxnEntryScreen(
+                    onDone = { if (activity != null) activity.finish() else navController.popBackStack() },
+                    onCreateCategory = { navController.navigate(CATEGORIES_ROUTE) },
+                    onCreateAccount = {
+                        // Дальше пользователь уже в приложении: стек — как при обычном запуске, «Операции» в основании.
+                        navController.graph.setStartDestination(CorrienteDestination.TRANSACTIONS.route)
+                        navController.navigate(CorrienteDestination.TRANSACTIONS.route) {
+                            popUpTo(WIDGET_ENTRY_ROUTE) { inclusive = true }
+                        }
+                        navController.navigate(CorrienteDestination.ACCOUNTS.route) {
+                            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    },
+                    initialKind = widgetEntry ?: EntryKind.EXPENSE,
+                    initialCategoryId = null,
+                    initialAccountId = null,
+                    repeatTxnId = null,
+                )
             }
             composable(
                 "$TXN_ENTRY_ROUTE?kind={kind}&category={category}&account={account}&repeat={repeat}&from={from}",

@@ -39,6 +39,7 @@ import androidx.compose.material.icons.outlined.Repeat
 import androidx.compose.material.icons.outlined.Savings
 import androidx.compose.material.icons.outlined.EventRepeat
 import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxState
 import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.material3.SnackbarDuration
@@ -94,8 +95,11 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.SnackbarHost
 import com.corriente.app.ui.common.rememberMessageSnackbarState
 import androidx.compose.runtime.Composable
+import kotlin.math.roundToInt
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -794,18 +798,26 @@ private fun SwipeableTxnRow(
     modifier: Modifier = Modifier,
 ) {
     val canRepeat = row.editable && !row.isTransfer
-    val state = rememberSwipeToDismissBoxState(
+    // Свайп срабатывает только на половине ширины строки (swipeCommits): иначе взмах при прокрутке удалял операцию.
+    var widthPx by remember { mutableIntStateOf(0) }
+    lateinit var state: SwipeToDismissBoxState
+    state = rememberSwipeToDismissBoxState(
         confirmValueChange = { value ->
-            when (value) {
-                SwipeToDismissBoxValue.EndToStart -> { onDelete(); true }
-                SwipeToDismissBoxValue.StartToEnd -> { onRepeat(); false } // строка возвращается на место
-                SwipeToDismissBoxValue.Settled -> false
+            if (value != SwipeToDismissBoxValue.Settled && !swipeCommits(state.requireOffset().roundToInt(), widthPx)) {
+                false
+            } else {
+                when (value) {
+                    SwipeToDismissBoxValue.EndToStart -> { onDelete(); true }
+                    SwipeToDismissBoxValue.StartToEnd -> { onRepeat(); false } // строка возвращается на место
+                    SwipeToDismissBoxValue.Settled -> false
+                }
             }
         },
+        positionalThreshold = { totalDistance -> totalDistance * SWIPE_COMMIT_PERCENT / 100 },
     )
     SwipeToDismissBox(
         state = state,
-        modifier = modifier,
+        modifier = modifier.onSizeChanged { widthPx = it.width },
         enableDismissFromStartToEnd = canRepeat,
         enableDismissFromEndToStart = true,
         backgroundContent = {
