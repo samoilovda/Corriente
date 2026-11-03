@@ -101,6 +101,13 @@ interface SyncDao {
     @Query("SELECT * FROM category_redirect")
     suspend fun categoryRedirects(): List<CategoryRedirectEntity>
 
+    /**
+     * W4: перенаправления из категорий, которые снова существуют (восстановление бэкапа вернуло слитую категорию), —
+     * иначе следующий обмен слил бы её повторно. Остальные перенаправления нужны опоздавшим операциям — их не трогаем.
+     */
+    @Query("DELETE FROM category_redirect WHERE from_id IN (SELECT id FROM category)")
+    suspend fun dropRedirectsFromExistingCategories()
+
     @Query("SELECT * FROM sync_deferred")
     suspend fun deferred(): List<SyncDeferredEntity>
 

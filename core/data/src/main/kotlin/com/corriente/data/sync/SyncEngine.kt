@@ -97,12 +97,21 @@ class SyncEngine(
     /** Один обмен: выгрузить своё, применить чужое. */
     suspend fun sync(): Result {
         check(isEnabled()) { "sync is not enabled" }
-        val exported = db.writeTransaction { export() }
-        val result = db.writeTransaction {
-            // Правка, сделанная между двумя транзакциями, должна получить версию до сравнения с чужими.
-            val again = export()
-            import().copy(exported = exported + again)
+        var exported = exportStep()
+        var applied: Result? = null
+        for (attempt in 1..IMPORT_ATTEMPTS) {
+            // Применять чужое можно только при пустом outbox: своя правка, сделанная после выгрузки, должна сперва
+            // получить версию, иначе её сравнили бы с чужой по старой версии строки. Внутри транзакции записи никто больше
+            // не пишет — проверка и применение атомарны; правка «между» — ещё одна выгрузка и повтор.
+            applied = db.writeTransaction { if (attempt < IMPORT_ATTEMPTS && dao.outbox().isNotEmpty()) null else import() }
+            if (applied != null) break
+            exported += exportStep()
         }
+        // W4: производные правки применения (перенос по перенаправлению, разрешение одноимённых, переразосланные строки)
+        // выгружаются сразу — с версией момента, когда они сделаны. Иначе версию они получили бы только при следующем
+        // обмене и перекрыли бы более новые правки других устройств, сделанные в промежутке.
+        exported += exportStep()
+        val result = requireNotNull(applied).copy(exported = exported)
         // S5: карточка устройства «живая», даже если ничего не менялось, — иначе простаивающее устройство через 90 дней
         // сочли бы пропавшим. Раз в сутки — автоматическая очистка, если своих пачек накопилось много.
         db.writeTransaction { heartbeat() }
@@ -180,7 +189,24 @@ class SyncEngine(
 
     // ---------------------------------------------------------------- выгрузка
 
-    private suspend fun export(): Int {
+    /**
+     * W5: выгрузка в две транзакции. Номер пачки сначала фиксируется в БД (своя транзакция), потом пишется файл. Если
+     * вторая транзакция откатится уже после записи файла (ошибка, процесс убит), номер всё равно занят: следующая
+     * выгрузка возьмёт новый, а не перезапишет файл, который другие устройства, возможно, уже применили. Пропуск номера
+     * безопасен — чтение идёт по существующим файлам.
+     */
+    private suspend fun exportStep(): Int {
+        val seq = db.writeTransaction {
+            if (dao.outbox().isEmpty()) {
+                null
+            } else {
+                ((settings.get(KEY_SEQ)?.toLongOrNull() ?: 0L) + 1).also { set(KEY_SEQ, it.toString()) }
+            }
+        } ?: return 0
+        return db.writeTransaction { export(seq) }
+    }
+
+    private suspend fun export(seq: Long): Int {
         val pending = dao.outbox()
         if (pending.isEmpty()) return 0
         val me = requireNotNull(deviceId())
@@ -192,10 +218,8 @@ class SyncEngine(
             dao.setMeta(SyncRowMetaEntity(item.tableName, item.pk, hlc, deleted = row == null))
             RowChange(item.tableName, item.pk, hlc, deleted = row == null, row = row)
         }
-        val seq = (settings.get(KEY_SEQ)?.toLongOrNull() ?: 0L) + 1
         val file = ChangeFile(schemaVersion = AppDatabase.SCHEMA_VERSION, deviceId = me, seq = seq, changes = changes)
         folder.write(SyncPaths.changeFile(me, seq), syncJson.encodeToString(ChangeFile.serializer(), file).toByteArray())
-        set(KEY_SEQ, seq.toString())
         saveClock(clock)
         pending.forEach { dao.removeFromOutbox(it.tableName, it.pk) }
         writeDeviceInfo(me)
@@ -286,10 +310,18 @@ class SyncEngine(
         sql.exec("PRAGMA defer_foreign_keys = ON")
         val redirects = dao.categoryRedirects().associate { it.fromId to it.intoId }.toMutableMap()
 
+        // W4: удалённые перенаправления — раньше вставок: иначе пришедшие в той же пачке строки (категория, вернувшаяся
+        // восстановлением бэкапа на другом устройстве, и её операции) были бы переписаны по уже отменённому перенаправлению.
+        val redirectDeletes = latest.filter { it.deleted && it.table == "category_redirect" }
+        redirectDeletes.forEach { change ->
+            applyDelete(change, counters)
+            if (readRow("category_redirect", change.pk) == null) redirects.remove(change.pk)
+        }
+
         latest.filter { !it.deleted }
             .sortedWith(compareBy({ TABLE_ORDER.indexOf(it.table) }, { if (it.table == "category" && it.row.str("parent_id") != null) 1 else 0 }))
             .forEach { applyUpsert(it, redirects, counters) }
-        latest.filter { it.deleted }
+        latest.filter { it.deleted && it.table != "category_redirect" }
             .sortedByDescending { TABLE_ORDER.indexOf(it.table) }
             .forEach { applyDelete(it, counters) }
 
@@ -564,7 +596,9 @@ class SyncEngine(
     private suspend fun changesCurrencyOfUsedAccount(id: String, row: JsonObject): Boolean {
         val local = sql.query("SELECT currency_code FROM account WHERE id = ?", id) { it.getText(0) }.firstOrNull() ?: return false
         if (local == row.str("currency_code")) return false
-        return sql.exists("SELECT 1 FROM txn WHERE account_id = ? OR to_account_id = ? LIMIT 1", id, id)
+        // W17: как `AccountRepository.isInUse` (A1.6) — повторяющееся правило тоже фиксирует валюту счёта.
+        return sql.exists("SELECT 1 FROM txn WHERE account_id = ? OR to_account_id = ? LIMIT 1", id, id) ||
+            sql.exists("SELECT 1 FROM recurrence WHERE account_id = ? LIMIT 1", id)
     }
 
     /**
@@ -665,6 +699,8 @@ class SyncEngine(
         private const val HEARTBEAT_MS = 12L * 60 * 60 * 1000
         /** Насколько чужие часы могут опережать наши, чтобы мы под них подстраивались (сутки). */
         private const val MAX_CLOCK_LEAD_MS = 24L * 60 * 60 * 1000
+        /** Сколько раз пробовать применить чужое при пустом outbox; последняя попытка применяет в любом случае. */
+        private const val IMPORT_ATTEMPTS = 5
         private fun cursorKey(device: String) = "sync.cursor.$device"
 
         /** Порядок применения вставок/правок (родители раньше детей); удаления — в обратном. */

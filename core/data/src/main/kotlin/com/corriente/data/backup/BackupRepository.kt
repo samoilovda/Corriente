@@ -142,6 +142,9 @@ class BackupRepository(private val db: AppDatabase) : BackupIo {
             keptDeviceSettings.forEach { db.appSettingDao().set(it) }
             payload.budgets.forEach { db.budgetDao().insert(it.toEntity()) }
             payload.recurrences.forEach { db.recurrenceDao().insert(it.toEntity()) }
+            // W4: `category_redirect` — служебная таблица синхронизации, в файл не входит и восстановлением не
+            // очищается. Перенаправление из категории, которую файл вернул, слило бы её повторно при следующем обмене.
+            db.syncDao().dropRedirectsFromExistingCategories()
         }
     }
 
