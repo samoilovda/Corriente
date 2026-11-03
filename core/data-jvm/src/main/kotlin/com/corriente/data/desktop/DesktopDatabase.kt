@@ -13,17 +13,42 @@ import kotlinx.coroutines.Dispatchers
 import java.io.File
 
 /**
- * База десктопа: тот же [AppDatabase] (схема 8), файл SQLite через встроенный драйвер. При создании файла — тот же засев,
+ * База десктопа: тот же [AppDatabase] (версия — [AppDatabase.SCHEMA_VERSION]), файл SQLite через встроенный драйвер. При
+ * создании файла — тот же засев,
  * что на Android (`seedCallback`): справочник ISO-4217 (активны RUB и USD), типовые категории с детерминированными id
  * (`seed-…`, I-27 — на телефоне те же, синхронизация сольёт их) и триггеры захвата изменений.
  *
- * Миграций у десктопа пока нет: он начинается со схемы 8. Следующая версия схемы обязана добавить миграцию и сюда.
+ * Десктоп начинается со схемы 8: его миграции — [DESKTOP_MIGRATIONS] (`DesktopMigrations.kt`), каждая следующая версия схемы
+ * обязана добавить миграцию и туда. Перед миграцией файл копируется (I-20, [copyBeforeMigration]).
  */
 object DesktopDatabase {
 
     fun open(file: File): AppDatabase {
         file.parentFile?.mkdirs()
-        return Room.databaseBuilder<AppDatabase>(name = file.absolutePath).configure()
+        copyBeforeMigration(file)
+        return Room.databaseBuilder<AppDatabase>(name = file.absolutePath).addMigrations(*DESKTOP_MIGRATIONS).configure()
+    }
+
+    /**
+     * I-20: файл старой версии схемы копируется до того, как Room применит миграции, — в `backups/` рядом с базой
+     * (`pre-migration-v<версия>-<время>.db`). Новый файл (версия 0) и файл текущей версии не копируются.
+     * @return копия или null, если копировать не нужно.
+     */
+    fun copyBeforeMigration(file: File, now: Long = System.currentTimeMillis()): File? {
+        if (!file.isFile) return null
+        val version = BundledSQLiteDriver().open(file.absolutePath).use { connection ->
+            val v = connection.prepare("PRAGMA user_version").use { st -> if (st.step()) st.getLong(0).toInt() else 0 }
+            // WAL сливаем в основной файл, иначе копия одного файла потеряла бы последние записи.
+            if (v in 1 until AppDatabase.SCHEMA_VERSION) {
+                connection.prepare("PRAGMA wal_checkpoint(TRUNCATE)").use { st -> st.step() }
+            }
+            v
+        }
+        if (version == 0 || version >= AppDatabase.SCHEMA_VERSION) return null
+        val dir = File(file.parentFile, "backups").apply { mkdirs() }
+        val copy = File(dir, "pre-migration-v$version-$now.db")
+        file.copyTo(copy, overwrite = true)
+        return copy
     }
 
     /** Для тестов. */
