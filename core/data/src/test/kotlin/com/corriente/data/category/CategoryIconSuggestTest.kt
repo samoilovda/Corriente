@@ -24,6 +24,10 @@ class CategoryIconSuggestTest {
     @Test
     fun wordsNotSubstrings() {
         assertEquals("spa", key("Beauty & care")) // не «car»
+        // W16: «автобус» начинается с «авто», но это транспорт; «card» — не «car».
+        assertEquals("directions_bus", key("Автобус"))
+        assertEquals("directions_car", key("Автомобиль"))
+        assertEquals("account_balance", key("Credit card")) // «кредит», а не машина
         assertEquals("content_cut", key("Барбершоп"))
         assertEquals("content_cut", key("Barber")) // не «bar»
         assertEquals("pets", key("Домашние животные")) // не «дом»
