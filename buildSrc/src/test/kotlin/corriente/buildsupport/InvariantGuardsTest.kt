@@ -132,7 +132,7 @@ class InvariantGuardsTest {
 
         val violations = mutableListOf<String>()
         repoRoot.walkTopDown()
-            .onEnter { it.name != "build" && it.name != ".git" && it.name != "buildSrc" }
+            .onEnter { it.name != "build" && it.name != ".git" && it.name != "buildSrc" && it.name != ".claude" }
             .filter { it.isFile }
             .forEach { file ->
                 val rel = file.relativeTo(repoRoot).path.replace(File.separatorChar, '/')

@@ -100,6 +100,7 @@ import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.material3.DropdownMenu
@@ -406,29 +407,13 @@ fun TxnEntryScreen(
                     }
 
                     Spacer(Modifier.height(8.dp))
-                    // Свайп вниз по списку категорий (когда он уже в начале) возвращает клавиатуру.
-                    val closeThresholdPx = with(LocalDensity.current) { CATEGORY_SWIPE_THRESHOLD.toPx() }
-                    val closeOnPullDown = remember(closeThresholdPx) {
-                        object : NestedScrollConnection {
-                            var pulled = 0f
-                            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
-                                if (available.y < 0f) pulled = 0f
-                                return Offset.Zero
-                            }
-                            override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
-                                if (source == NestedScrollSource.UserInput && available.y > 0f) pulled += available.y
-                                return Offset.Zero
-                            }
-                            override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity {
-                                if (pulled >= closeThresholdPx) categoriesOpen = false
-                                pulled = 0f
-                                return Velocity.Zero
-                            }
-                        }
-                    }
+                    // Панель категорий тянется вниз за пальцем (ручка под суммой или потяг списка) — см. CategoryPanelDrag.
+                    val panelDrag = rememberCategoryPanelDrag(onClose = { categoriesOpen = false })
+                    LaunchedEffect(categoriesOpen) { if (categoriesOpen) panelDrag.reset() }
                     // Категории занимают место клавиатуры: она уезжает вверх, панель выезжает снизу.
                     AnimatedContent(
-                        modifier = if (categoriesOpen && !compact) Modifier.weight(1f) else Modifier,
+                        // Стянутая вниз панель не наезжает на поле категории и кнопку записи под ней.
+                        modifier = (if (categoriesOpen && !compact) Modifier.weight(1f) else Modifier).clipToBounds(),
                         targetState = categoriesOpen,
                         transitionSpec = {
                             if (targetState) {
@@ -442,11 +427,12 @@ fun TxnEntryScreen(
                         if (showCategories) {
                             Column(
                                 (if (compact) Modifier.fillMaxWidth().height(keyHeight * 4 + 24.dp) else Modifier.fillMaxSize())
-                                    .nestedScroll(closeOnPullDown),
+                                    .then(panelDrag.panelModifier())
+                                    .nestedScroll(panelDrag.nestedScroll),
                             ) {
                                 Box(
-                                    Modifier.fillMaxWidth().height(20.dp)
-                                        .verticalSwipe(true, CATEGORY_SWIPE_THRESHOLD, onUp = {}, onDown = { categoriesOpen = false }),
+                                    // Ручка повыше полоски — за неё удобно взяться пальцем.
+                                    Modifier.fillMaxWidth().height(28.dp).then(panelDrag.handleModifier()),
                                     contentAlignment = Alignment.Center,
                                 ) {
                                     Box(

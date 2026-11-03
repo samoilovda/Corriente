@@ -33,6 +33,8 @@ object InvariantGuards {
         "app/src/main/kotlin/com/corriente/app/ui/transactions/MonthOverviewHeader.kt",
         // UI-1.1: контраст цветов по WCAG — яркость цвета это Float; к деньгам отношения не имеет.
         "app/src/main/kotlin/com/corriente/app/ui/theme/Contrast.kt",
+        // Экран ввода: стягивание панели категорий пальцем — пиксели и скорость жеста, сумм там нет.
+        "app/src/main/kotlin/com/corriente/app/ui/txnentry/CategoryPanelDrag.kt",
         // То же кольцо в окне для компьютера.
         "desktop/src/main/kotlin/com/corriente/desktop/RingCanvas.kt",
     )
