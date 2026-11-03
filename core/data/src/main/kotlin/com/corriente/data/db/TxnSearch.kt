@@ -24,8 +24,11 @@ fun buildFtsPrefixQuery(rawQuery: String): String {
 }
 
 /**
- * `LIKE`-паттерн по подстроке, без учёта регистра (сравнение делается в SQL через `LOWER`).
- * `%`/`_` пользователя не экранируются — это фильтр по названию счёта/категории, а не место,
- * где неэкранированный спецсимвол может стать угрозой; в худшем случае найдёт чуть больше строк.
+ * W11: подходит ли название счёта/категории под поисковый запрос — подстрока без учёта регистра. Сравнение в Kotlin, а
+ * не `LOWER(name) LIKE` в SQL: встроенные в SQLite `LOWER()` и `LIKE` сворачивают регистр только у ASCII, и на десктопе
+ * (SQLite без ICU) «тинькофф» не находил «Тинькофф». Справочники маленькие — фильтр в памяти ничего не стоит.
  */
-fun buildLikePattern(rawQuery: String): String = "%${rawQuery.trim().lowercase()}%"
+fun nameMatchesQuery(name: String, rawQuery: String): Boolean {
+    val needle = rawQuery.trim().lowercase()
+    return needle.isNotEmpty() && name.lowercase().contains(needle)
+}

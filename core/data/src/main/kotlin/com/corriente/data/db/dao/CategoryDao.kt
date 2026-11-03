@@ -26,13 +26,13 @@ abstract class CategoryDao {
     @Delete
     abstract suspend fun delete(category: CategoryEntity)
 
-    @Query("SELECT * FROM category WHERE is_archived = 0 ORDER BY display_order")
+    @Query("SELECT * FROM category WHERE is_archived = 0 ORDER BY display_order, name, id")
     abstract fun observeActive(): Flow<List<CategoryEntity>>
 
-    @Query("SELECT * FROM category WHERE is_archived = 1 ORDER BY display_order")
+    @Query("SELECT * FROM category WHERE is_archived = 1 ORDER BY display_order, name, id")
     abstract fun observeArchived(): Flow<List<CategoryEntity>>
 
-    @Query("SELECT * FROM category ORDER BY display_order")
+    @Query("SELECT * FROM category ORDER BY display_order, name, id")
     abstract fun observeAll(): Flow<List<CategoryEntity>>
 
     @Query("SELECT * FROM category WHERE id = :id")

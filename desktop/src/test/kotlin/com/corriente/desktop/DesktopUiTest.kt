@@ -231,4 +231,22 @@ class DesktopUiTest {
         rule.waitForIdle()
         assertEquals(1, txns().size)
     }
+
+    // W2: при правке расход меняется на доход с категорией доходов (как V5 на Android).
+    @Test fun editChangesExpenseToIncome() {
+        val acc = account()
+        runBlocking { c.txns.addExpense(acc.id, Money(Minor(1000), acc.currency), categoryId("Продукты"), java.time.LocalDate.now(), "зарплата") }
+        val incomeCategory = runBlocking { c.categories.observeActive().first().first { it.kind == com.corriente.data.db.entity.CategoryKind.INCOME } }
+        show()
+        rule.waitUntil(5_000) { rule.onAllNodesWithText("зарплата", substring = true).fetchSemanticsNodes().isNotEmpty() }
+        rule.onAllNodesWithText("зарплата", substring = true).onFirst().performClick()
+        rule.waitUntilExists("amount")
+        rule.onNodeWithText("Доход").performClick()
+        rule.onNodeWithTag("cat-${incomeCategory.id}").performClick()
+        rule.onNodeWithText("Сохранить").performClick()
+        rule.waitUntil(5_000) { txns().singleOrNull() is Txn.Income }
+        val t = txns().single() as Txn.Income
+        assertEquals(incomeCategory.id, t.categoryId)
+        assertEquals(1000L, t.amount.amount.raw)
+    }
 }

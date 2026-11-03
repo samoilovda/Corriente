@@ -16,6 +16,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.corriente.app.R
 import com.corriente.data.category.materialIconKey
+import com.corriente.data.category.suggestCategoryIcon
 
 /** Раздел выбора иконок: подпись и ключи (`mi:<ключ>` в `category.icon`). */
 data class IconSection(@StringRes val titleRes: Int, val keys: List<String>)
@@ -46,35 +47,12 @@ object CategoryIconCatalog {
 
     fun vector(key: String): ImageVector? = vectors[key]
 
-    /** M-1: подбор подходящей иконки для стандартных категорий, если иконка не была явно выбрана. */
-    fun fallbackVectorForName(name: String): ImageVector? {
-        val lower = name.trim().lowercase()
-        return when {
-            lower.contains("продукт") || lower.contains("grocer") -> vectors["local_grocery_store"]
-            lower.contains("кафе") || lower.contains("кофе") || lower.contains("cafe") || lower.contains("coffee") -> vectors["local_cafe"]
-            lower.contains("ресторан") || lower.contains("еда") || lower.contains("обед") || lower.contains("eating") || lower.contains("dining") || lower.contains("food") -> vectors["restaurant"]
-            lower.contains("такси") || lower.contains("taxi") -> vectors["local_taxi"]
-            lower.contains("авто") || lower.contains("машин") || lower.contains("car") -> vectors["directions_car"]
-            lower.contains("транспорт") || lower.contains("автобус") || lower.contains("bus") -> vectors["directions_bus"]
-            lower.contains("метро") || lower.contains("subway") -> vectors["subway"]
-            lower.contains("поезд") || lower.contains("train") -> vectors["train"]
-            lower.contains("дом") || lower.contains("квартир") || lower.contains("аренд") || lower.contains("home") || lower.contains("rent") -> vectors["home"]
-            lower.contains("аптек") || lower.contains("здоров") || lower.contains("врач") || lower.contains("health") -> vectors["medication"]
-            lower.contains("спорт") || lower.contains("фитнес") || lower.contains("sport") || lower.contains("gym") -> vectors["fitness_center"]
-            lower.contains("связь") || lower.contains("телефон") || lower.contains("phone") -> vectors["phone_android"]
-            lower.contains("интернет") || lower.contains("wifi") -> vectors["wifi"]
-            lower.contains("зарплат") || lower.contains("salary") -> vectors["payments"]
-            lower.contains("перевод") || lower.contains("transfer") -> vectors["swap_horiz"]
-            lower.contains("подар") || lower.contains("gift") -> vectors["card_giftcard"]
-            lower.contains("подписк") || lower.contains("subscription") -> vectors["subscriptions"]
-            lower.contains("развлечен") || lower.contains("кино") || lower.contains("movie") -> vectors["movie"]
-            lower.contains("одежд") || lower.contains("обувь") || lower.contains("cloth") -> vectors["checkroom"]
-            lower.contains("питом") || lower.contains("животн") || lower.contains("pet") -> vectors["pets"]
-            lower.contains("ремонт") || lower.contains("repair") -> vectors["build"]
-            lower.contains("путешеств") || lower.contains("travel") -> vectors["flight"]
-            else -> null
-        }
-    }
+    /**
+     * M-1: иконка для категории без своей иконки — по названию. W16: та же эвристика, что при создании категории
+     * ([suggestCategoryIcon], по словам, а не подстроке: «Автобус» — не машина, «Credit card» — не машина).
+     */
+    fun fallbackVectorForName(name: String): ImageVector? =
+        materialIconKey(suggestCategoryIcon(name))?.let(vectors::get)
 }
 
 /** Эмодзи для вкладки «Эмодзи» выбора иконки; свой эмодзи можно вписать там же. */

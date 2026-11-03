@@ -108,7 +108,7 @@ internal fun openingBalanceMinor(text: String, currency: Currency): Minor {
 internal fun openingBalanceText(minor: Minor, currency: Currency): String {
     if (minor.raw == 0L) return ""
     val negative = minor.raw < 0
-    val digits = (if (negative) -minor.raw else minor.raw).toString().padStart(currency.minorUnits + 1, '0')
+    val digits = (if (negative) Math.negateExact(minor.raw) else minor.raw).toString().padStart(currency.minorUnits + 1, '0')
     val body = if (currency.minorUnits == 0) {
         digits
     } else {
@@ -227,25 +227,26 @@ class AccountsViewModel(
     /**
      * Записать корректировку так, чтобы остаток счёта стал [actualText] (поле «фактический остаток», знак «−» —
      * долг). Разница с расчётным остатком сохраняется как отдельная запись, не доход и не расход.
-     * @return false, если число не разобрано; совпадающий остаток просто закрывает диалог.
+     * @return false, если число не разобрано или запись уже идёт; совпадающий остаток просто закрывает диалог.
      */
     fun saveAdjust(actualText: String): Boolean {
         val target = _adjust.value ?: return false
         val repo = txns ?: return false
         if (!hasAmountDigits(actualText)) return false
         val actual = openingBalanceMinor(actualText, target.currency)
-        val delta = Math.subtractExact(actual.raw, target.balance.amount.raw) // I-3
+        val delta = (Money(actual, target.currency.code) - target.balance).amount.raw // I-3: через Money
         if (delta == 0L) {
             _adjust.value = null
             return true
         }
-        launchWrite(
+        // W3: повторный тап до конца записи не пишет вторую поправку от того же остатка.
+        return launchWrite(
             onError = { uiMessage(R.string.adjust_error_save) },
             onSuccess = { _adjust.value = null },
+            key = WRITE_ADJUST,
         ) {
             repo.addAdjustment(target.account.id, Money(Minor(delta), target.currency.code), today())
         }
-        return true
     }
 
     /** @return false, если форма невалидна (пустое имя или не выбрана валюта) — редактор остаётся открыт. */
@@ -306,6 +307,9 @@ class AccountsViewModel(
     }
 
     companion object {
+        /** Ключ записи корректировки для [writing] (W3). */
+        const val WRITE_ADJUST = "adjust"
+
         fun factory(
             accounts: AccountRepository,
             currencies: CurrencyRepository,

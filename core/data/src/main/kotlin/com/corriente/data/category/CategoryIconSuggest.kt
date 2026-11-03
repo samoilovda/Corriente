@@ -13,7 +13,7 @@ fun materialIconKey(icon: String?): String? = icon?.takeIf { it.startsWith(MATER
 
 /**
  * Правила подбора иконки по названию: первое совпадение побеждает, поэтому частное — раньше общего («такси» раньше
- * «транспорта», «кафе» раньше «еды», «питомцы» раньше «дома»). Как сравниваются слова — см. [matches].
+ * «транспорта», «кафе» раньше «еды», «питомцы» раньше «дома», «автобус» раньше «авто»). Как сравниваются слова — см. [matches].
  */
 val CATEGORY_ICON_RULES: List<Pair<List<String>, String>> = listOf(
     listOf("такси", "taxi", "uber", "яндекс го") to "local_taxi",
@@ -24,8 +24,8 @@ val CATEGORY_ICON_RULES: List<Pair<List<String>, String>> = listOf(
     listOf("метро", "subway", "metro") to "subway",
     listOf("путешеств", "отпуск", "travel", "vacation", "trip", "отел", "hotel") to "luggage",
     listOf("ремонт авто", "автосервис", "car repair", "шиномонтаж") to "car_repair",
-    listOf("машин", "авто", "car", "vehicle") to "directions_car",
     listOf("транспорт", "проезд", "автобус", "transport", "bus", "commute") to "directions_bus",
+    listOf("машин", "авто", "car", "vehicle") to "directions_car",
     listOf("кафе", "кофе", "cafe", "coffee") to "local_cafe",
     listOf("ресторан", "restaurant", "dining", "обед", "lunch") to "restaurant",
     listOf("фастфуд", "fast food", "fastfood", "доставка еды") to "fastfood",
@@ -73,7 +73,8 @@ val CATEGORY_ICON_RULES: List<Pair<List<String>, String>> = listOf(
 
 /**
  * Иконка для категории без своей иконки — по названию; null, если ни одно правило не подошло (тогда экран
- * рисует первую букву названия).
+ * рисует первую букву названия). Единственная эвристика подбора: ей пользуются и запись категории, и показ категории
+ * без иконки на телефоне и десктопе (W16).
  */
 fun suggestCategoryIcon(name: String): String? {
     val tokens = name.lowercase().split(Regex("[^\\p{L}\\p{N}]+")).filter { it.isNotEmpty() }

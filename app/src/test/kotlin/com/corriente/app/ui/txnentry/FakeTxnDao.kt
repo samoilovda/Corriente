@@ -95,26 +95,27 @@ class FakeTxnDao : TxnDao {
 
     override suspend fun getById(id: String): TxnEntity? = rows.value.firstOrNull { it.id == id }
 
-    override suspend fun countByImportHash(importHash: String): Int = rows.value.count { it.importHash == importHash }
-
-    override suspend fun deleteByImportBatch(batchId: String) {
-        rows.value = rows.value.filterNot { it.importBatchId == batchId }
-    }
-
     override suspend fun deleteAll() {
         rows.value = emptyList()
     }
 
     /**
      * Упрощённая замена FTS/LIKE для юнит-теста (без Room): совпадение по заметке через
-     * подстроку из [likePattern]. Поиск по названию счёта/категории проверяется отдельным
+     * слова MATCH-запроса подстрокой. Поиск по названию счёта/категории проверяется отдельным
      * `[БД]`-тестом ([com.corriente.data.db.TxnDaoSearchInstrumentedTest]) на настоящем FTS4.
      */
     override fun observeAdjustments(): Flow<List<TxnEntity>> =
         rows.map { list -> list.filter { it.kind == TxnKind.ADJUSTMENT } }
 
-    override fun search(ftsQuery: String, likePattern: String): Flow<List<TxnEntity>> {
-        val needle = likePattern.removePrefix("%").removeSuffix("%")
-        return rows.map { list -> list.filter { needle.isNotEmpty() && it.note?.lowercase()?.contains(needle) == true } }
+    override fun search(ftsQuery: String, accountIds: List<String>, categoryIds: List<String>): Flow<List<TxnEntity>> {
+        // Слова из MATCH-запроса (`"слово*"`) — подстрокой по заметке; счета и категории — по переданным id.
+        val words = ftsQuery.split(' ').map { it.removePrefix("\"").removeSuffix("\"").removeSuffix("*").replace("\"\"", "\"") }
+            .filter { it.isNotEmpty() }
+        return rows.map { list ->
+            list.filter { t ->
+                (words.isNotEmpty() && words.all { w -> t.note?.lowercase()?.contains(w) == true }) ||
+                    t.accountId in accountIds || t.toAccountId in accountIds || t.categoryId in categoryIds
+            }
+        }
     }
 }

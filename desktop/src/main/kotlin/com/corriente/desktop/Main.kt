@@ -29,6 +29,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.system.exitProcess
 
 private enum class Section(val title: String) { TRANSACTIONS("Операции"), ACCOUNTS("Счета"), SYNC("Синхронизация") }
@@ -94,6 +96,8 @@ private val DesktopShapes = Shapes(
     large = RoundedCornerShape(24.dp),
 )
 
+private const val EXIT_SYNC_TIMEOUT_MS = 10_000L
+
 fun main() {
     // Имя в меню macOS при запуске из Gradle (в собранном .dmg оно уже «Corriente»); до создания окна.
     System.setProperty("apple.awt.application.name", "Corriente")
@@ -113,7 +117,9 @@ fun main() {
             }
         }
     }
-    // Фоновый обмен идёт в своих потоках — закрытие окна завершает процесс сразу.
+    // W21: перед выходом — последний обмен (не дольше 10 с): он дожидается идущего обмена, а не обрывает его посреди
+    // записи, и выгружает правки последних секунд, которые иначе ушли бы только при следующем запуске.
+    runBlocking { withTimeoutOrNull(EXIT_SYNC_TIMEOUT_MS) { runCatching { container.sync.runOnce() } } }
     exitProcess(0)
 }
 

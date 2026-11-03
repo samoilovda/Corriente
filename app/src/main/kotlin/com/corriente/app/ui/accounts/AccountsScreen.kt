@@ -201,7 +201,13 @@ fun AccountsScreen(
     }
 
     adjust?.let { target ->
-        AdjustBalanceDialog(target = target, onDismiss = viewModel::closeAdjust, onSave = viewModel::saveAdjust)
+        val writing by viewModel.writing.collectAsState()
+        AdjustBalanceDialog(
+            target = target,
+            saving = AccountsViewModel.WRITE_ADJUST in writing,
+            onDismiss = viewModel::closeAdjust,
+            onSave = viewModel::saveAdjust,
+        )
     }
 
     editor?.let { current ->
@@ -513,7 +519,7 @@ private fun EnumDropdown(
  * отдельной записью — не доход и не расход, мимо категорий, отчётов и бюджетов.
  */
 @Composable
-private fun AdjustBalanceDialog(target: AdjustTarget, onDismiss: () -> Unit, onSave: (String) -> Boolean) {
+private fun AdjustBalanceDialog(target: AdjustTarget, saving: Boolean, onDismiss: () -> Unit, onSave: (String) -> Boolean) {
     val currency = target.currency
     // Поле открывается с выделенным текущим остатком — набранное число заменяет его, а не вклеивается внутрь.
     val initialText = remember(target.account.id) { openingBalanceText(target.balance.amount, currency) }
@@ -525,7 +531,7 @@ private fun AdjustBalanceDialog(target: AdjustTarget, onDismiss: () -> Unit, onS
     LaunchedEffect(Unit) { focus.requestFocus() }
     val actual = remember(text) { text.takeIf { hasAmountDigits(it) }?.let { openingBalanceMinor(it, currency) } }
     val signToggle = stringResource(R.string.adjust_sign_toggle)
-    val delta = actual?.let { Money(Minor(it.raw - target.balance.amount.raw), currency.code) }
+    val delta = actual?.let { Money(it, currency.code) - target.balance } // I-3: через Money
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.adjust_title)) },
@@ -585,7 +591,7 @@ private fun AdjustBalanceDialog(target: AdjustTarget, onDismiss: () -> Unit, onS
             }
         },
         confirmButton = {
-            TextButton(enabled = actual != null && delta?.amount?.raw != 0L, onClick = { onSave(text) }) {
+            TextButton(enabled = !saving && actual != null && delta?.amount?.raw != 0L, onClick = { onSave(text) }) {
                 Text(stringResource(R.string.save))
             }
         },

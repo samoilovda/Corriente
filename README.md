@@ -15,7 +15,7 @@ permission in the built app (ADR-013/I-24; the build checks the merged manifest;
   because it has no way to.
 * **Status:** `BUILD_PLAN.md` stages 1–5, all of `FIX_PLAN.md`, and
   `ROADMAP.md` stages R1–R6 are closed. All modules (`:core:money`,
-  `:core:data`, `:app`, `:widget`) build and are tested.
+  `:core:data`, `:core:data-jvm`, `:app`, `:widget`, `:desktop`) build and are tested.
 * **Versioning:** `versionCode`/`versionName` live in
   `gradle/libs.versions.toml`; the rule and history are in the "Версии"
   section below and in [`CHANGELOG.md`](CHANGELOG.md).
@@ -26,7 +26,7 @@ permission in the built app (ADR-013/I-24; the build checks the merged manifest;
 * **Dependencies:** Kotlin stdlib/coroutines, AndroidX (Compose, Room,
   Navigation, Lifecycle, WorkManager, DataStore, Biometric, Glance,
   ui-test), `kotlinx-serialization`, and `kotlin-csv-jvm` for CSV
-  import/export — all open source (Apache-2.0/MIT-style licenses), none of
+  export — all open source (Apache-2.0/MIT-style licenses), none of
   it Play Services, Firebase, or any other proprietary or networking SDK.
   The full, current list is `gradle/libs.versions.toml`'s `[libraries]`
   table; `docs/BUILD_PLAN.md` §1.3 is the policy that keeps it that way (new
@@ -57,7 +57,7 @@ translating if you're evaluating the project seriously.
 
 Статус: все этапы `BUILD_PLAN.md` (1–5) и `FIX_PLAN.md` закрыты, `ROADMAP.md` — R1–R6
 (R6.5, профиль запуска, отложен: берётся только по факту измерения холодного старта,
-не превентивно). Все модули (`:core:money`, `:core:data`, `:app`, `:widget`) собираются
+не превентивно). Все модули (`:core:money`, `:core:data`, `:core:data-jvm`, `:app`, `:widget`, `:desktop`) собираются
 и тестируются. Лицензия — [`LICENSE`](LICENSE) (MIT); политика приватности —
 [`PRIVACY.md`](PRIVACY.md).
 
@@ -70,9 +70,9 @@ translating if you're evaluating the project seriously.
 * [`docs/ROADMAP.md`](docs/ROADMAP.md) — дорожная карта развития: этапы `R1`–`R6`, правила
   добавления зависимостей, и явные списки того, что отложено и что отвергнуто.
 * [`docs/INVARIANTS.md`](docs/INVARIANTS.md) — короткий чек-лист инвариантов для ревью кода.
-* [`docs/MONEFY_IMPORT.md`](docs/MONEFY_IMPORT.md) — спецификация формата экспорта Monefy,
+* [`docs/MONEFY_IMPORT.md`](docs/MONEFY_IMPORT.md) — историческая (импорт удалён 19.10.2026) спецификация формата экспорта Monefy,
   проверенная на реальном файле, и алгоритм импорта.
-* [`testdata/`](testdata) — синтетический экспорт Monefy для приёмочных тестов парсера
+* [`testdata/`](testdata) — синтетический экспорт Monefy (парсер удалён вместе с импортом; файл читает тест остатков)
   (личных данных не содержит).
 
 ## Сборка
@@ -198,7 +198,7 @@ shrinkResources; при первой реальной сборке вне пес
   закрытые Play Services/Firebase (тех нет вообще, `com.google.android.gms.*`
   и `com.google.firebase.*` в зависимостях не встречаются — проверяется чтением
   `build.gradle.kts` всех модулей и самого `libs.versions.toml`).
-* `kotlin-csv-jvm` (`com.github.doyaaaaaken`) — импорт/экспорт CSV, MIT.
+* `kotlin-csv-jvm` (`com.github.doyaaaaaken`) — экспорт CSV, MIT.
 
 В исходных манифестах (`app/`, `widget/`) нет ни одного `<uses-permission>` (I-24; допускается
 только `tools:node="remove"` для лишних разрешений из зависимостей), а итоговый манифест каждого варианта сборки

@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.Uri
 import android.provider.DocumentsContract
 import com.corriente.data.sync.SyncFolder
+import com.corriente.data.sync.SyncFolderUnavailableException
 
 /**
  * Общая папка синхронизации (docs/SYNC_DESIGN.md §3) через SAF-дерево, выбранное пользователем, — обычно папка, которую
@@ -15,7 +16,7 @@ import com.corriente.data.sync.SyncFolder
 class SafSyncFolder(private val context: Context, private val treeUri: Uri) : SyncFolder {
 
     private val resolver get() = context.contentResolver
-    private val rootId = DocumentsContract.getTreeDocumentId(treeUri)
+    private val rootId = folderOp { DocumentsContract.getTreeDocumentId(treeUri) }
     private val ids = HashMap<String, String>().apply { put("", rootId) }
 
     private fun docUri(id: String) = DocumentsContract.buildDocumentUriUsingTree(treeUri, id)
@@ -57,16 +58,18 @@ class SafSyncFolder(private val context: Context, private val treeUri: Uri) : Sy
     override fun list(dir: String): List<String> =
         runCatching { find(dir)?.let { children(it).map(Child::name) } }.getOrNull().orEmpty()
 
-    override fun read(path: String): ByteArray? {
-        val id = find(path) ?: return null
-        return resolver.openInputStream(docUri(id))?.use { it.readBytes() }
+    override fun read(path: String): ByteArray? = folderOp {
+        val id = find(path) ?: return@folderOp null
+        resolver.openInputStream(docUri(id))?.use { it.readBytes() }
     }
 
     /**
      * Атомарно: пишем во временный документ и переименовываем. Провайдер без переименования — пишем поверх целевого
      * (недописанный файл движок пропустит до следующего обмена: битый JSON не применяется).
      */
-    override fun write(path: String, bytes: ByteArray) {
+    override fun write(path: String, bytes: ByteArray) = folderOp { writeUnchecked(path, bytes) }
+
+    private fun writeUnchecked(path: String, bytes: ByteArray) {
         val (parent, name) = split(path)
         val dirId = ensureDir(parent)
         val tmpName = ".$name.tmp"
@@ -93,9 +96,19 @@ class SafSyncFolder(private val context: Context, private val treeUri: Uri) : Sy
         }
     }
 
-    override fun delete(path: String) {
-        val id = find(path) ?: return
+    override fun delete(path: String) = folderOp {
+        val id = find(path) ?: return@folderOp
         runCatching { DocumentsContract.deleteDocument(resolver, docUri(id)) }
         ids.remove(path)
+        Unit
     }
+}
+
+/** W10: любая ошибка провайдера документов при работе с папкой — «папка недоступна» ([SyncFolderUnavailableException]). */
+private inline fun <T> folderOp(block: () -> T): T = try {
+    block()
+} catch (e: SyncFolderUnavailableException) {
+    throw e
+} catch (e: Exception) {
+    throw SyncFolderUnavailableException(e)
 }

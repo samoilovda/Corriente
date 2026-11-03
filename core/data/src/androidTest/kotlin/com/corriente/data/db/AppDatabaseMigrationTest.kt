@@ -370,7 +370,7 @@ class AppDatabaseMigrationTest {
             db.accountDao().observeAll().first()
             db.categoryDao().observeAll().first()
             db.txnDao().observeAll().first()
-            db.txnDao().search("a*", "%a%").first()
+            db.txnDao().search("a*", listOf("acc"), listOf("cat")).first()
             db.importBatchDao().getAll()
             db.importAliasDao().getForApp("MONEFY", com.corriente.data.db.entity.ImportAliasKind.CATEGORY)
             db.appSettingDao().getAll()

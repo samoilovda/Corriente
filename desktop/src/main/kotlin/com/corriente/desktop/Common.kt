@@ -17,6 +17,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.corriente.app.ui.common.CategoryIconVectors
+import com.corriente.data.category.suggestCategoryIcon
 import com.corriente.data.category.materialIconKey
 import com.corriente.money.Currency
 import com.corriente.money.CurrencyCode
@@ -39,32 +40,9 @@ private val FALLBACK = listOf(
 
 fun categoryColor(argb: Int, index: Int = 0): Color = if (argb != 0) Color(argb) else FALLBACK[index % FALLBACK.size]
 
-private fun fallbackVectorForName(name: String): ImageVector? {
-    val lower = name.trim().lowercase()
-    val vectors = CategoryIconVectors.byKey
-    return when {
-        lower.contains("продукт") || lower.contains("grocer") -> vectors["local_grocery_store"]
-        lower.contains("кафе") || lower.contains("кофе") || lower.contains("cafe") || lower.contains("coffee") -> vectors["local_cafe"]
-        lower.contains("ресторан") || lower.contains("еда") || lower.contains("обед") || lower.contains("food") -> vectors["restaurant"]
-        lower.contains("такси") || lower.contains("taxi") -> vectors["local_taxi"]
-        lower.contains("авто") || lower.contains("машин") || lower.contains("car") -> vectors["directions_car"]
-        lower.contains("транспорт") || lower.contains("автобус") || lower.contains("bus") -> vectors["directions_bus"]
-        lower.contains("метро") || lower.contains("subway") -> vectors["subway"]
-        lower.contains("поезд") || lower.contains("train") -> vectors["train"]
-        lower.contains("дом") || lower.contains("квартир") || lower.contains("аренд") || lower.contains("home") || lower.contains("rent") -> vectors["home"]
-        lower.contains("аптек") || lower.contains("здоров") || lower.contains("врач") || lower.contains("health") -> vectors["medication"]
-        lower.contains("спорт") || lower.contains("фитнес") || lower.contains("sport") || lower.contains("gym") -> vectors["fitness_center"]
-        lower.contains("связь") || lower.contains("телефон") || lower.contains("phone") -> vectors["phone_android"]
-        lower.contains("интернет") || lower.contains("wifi") -> vectors["wifi"]
-        lower.contains("зарплат") || lower.contains("salary") -> vectors["payments"]
-        lower.contains("подар") || lower.contains("gift") -> vectors["card_giftcard"]
-        lower.contains("подписк") || lower.contains("subscription") -> vectors["subscriptions"]
-        lower.contains("развлечен") || lower.contains("кино") || lower.contains("movie") -> vectors["movie"]
-        lower.contains("одежд") || lower.contains("обувь") || lower.contains("cloth") -> vectors["checkroom"]
-        lower.contains("питом") || lower.contains("животн") || lower.contains("pet") -> vectors["pets"]
-        else -> null
-    }
-}
+/** W16: та же эвристика, что на телефоне ([suggestCategoryIcon] из :core:data). */
+private fun fallbackVectorForName(name: String): ImageVector? =
+    materialIconKey(suggestCategoryIcon(name))?.let { CategoryIconVectors.byKey[it] }
 
 /** Иконка категории — как на телефоне: линейная (`mi:<ключ>`), эмодзи, автоподбор по имени или первая буква. */
 @Composable
@@ -104,3 +82,10 @@ fun dayLabel(date: LocalDate, today: LocalDate = LocalDate.now()): String = when
     today.minusDays(1) -> "Вчера"
     else -> "%02d.%02d.%d, %s".format(java.util.Locale.ROOT, date.dayOfMonth, date.monthValue, date.year, WEEKDAYS[date.dayOfWeek.value - 1])
 }
+
+/**
+ * W21: какой месяц показывать, когда «сейчас» сменилось с [previousCurrent] на [current]: если пользователь смотрел
+ * текущий месяц — новый текущий, иначе — то, что он выбрал сам.
+ */
+fun followCurrentMonth(shown: java.time.YearMonth, previousCurrent: java.time.YearMonth, current: java.time.YearMonth): java.time.YearMonth =
+    if (shown == previousCurrent) current else shown

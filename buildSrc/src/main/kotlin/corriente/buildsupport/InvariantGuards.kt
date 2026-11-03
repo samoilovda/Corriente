@@ -74,6 +74,12 @@ object InvariantGuards {
             Regex("""\bLong::(plus|minus|times|div)\b"""),
             "Long::plus/minus/times как ссылка на функцию рядом с суммами — арифметика денег в обход Money/Math.*Exact (I-3)",
         ),
+        // W15: инфиксные `+ - *` над `.raw` (минорными единицами `Minor`) — та же арифметика в обход Money. Унарный
+        // минус после `else`/`return` и `-x.raw` в начале выражения не ловим: это знак, а не сложение.
+        Rule(
+            Regex("""\.raw\s*[-+*]\s*[\w(]|[\w)\]](?<!\belse)(?<!\breturn)\s*[-+*]\s*\w+(?:\.\w+)*\.raw\b"""),
+            "арифметика над .raw (минорные единицы) в обход Money/Math.*Exact (I-3)",
+        ),
     )
 
     private val moneyContentMarker = Regex("""\b(Minor|amountMinor|toAmountMinor|amount\.raw|amount\.amount\.raw)\b""")

@@ -48,6 +48,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.corriente.data.db.entity.CategoryKind
+import com.corriente.data.db.entity.TxnKind
 import com.corriente.data.model.Txn
 import com.corriente.money.AmountInput
 import com.corriente.money.AmountParse
@@ -157,11 +158,14 @@ fun EntryDialog(c: DesktopContainer, request: EntryRequest, onDone: () -> Unit) 
         scope.launch {
             runCatching {
                 when {
-                    editing != null -> c.txns.updateEntry(editing.id, account.id, money, cat, date, text)
+                    editing != null -> c.txns.updateEntry(
+                        editing.id, account.id, money, cat, date, text,
+                        kind = if (income) TxnKind.INCOME else TxnKind.EXPENSE,
+                    )
                     income -> c.txns.addIncome(account.id, money, cat, date, text)
                     else -> c.txns.addExpense(account.id, money, cat, date, text)
                 }
-            }.onSuccess { onDone() }.onFailure { saving = false; error = it.message ?: "Не удалось сохранить" }
+            }.onSuccess { onDone() }.onFailure { saving = false; error = "Не удалось сохранить операцию" }
         }
     }
 
@@ -198,11 +202,10 @@ fun EntryDialog(c: DesktopContainer, request: EntryRequest, onDone: () -> Unit) 
                 },
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                if (editing == null) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        FilterChip(selected = !income, onClick = { income = false; categoryId = null }, label = { Text("Расход") })
-                        FilterChip(selected = income, onClick = { income = true; categoryId = null }, label = { Text("Доход") })
-                    }
+                // Вид меняется и при правке (как V5 на Android): «записал доход как расход» исправляется без удаления.
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(selected = !income, onClick = { if (income) categoryId = null; income = false }, label = { Text("Расход") })
+                    FilterChip(selected = income, onClick = { if (!income) categoryId = null; income = true }, label = { Text("Доход") })
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
                     OutlinedTextField(
@@ -260,7 +263,7 @@ fun EntryDialog(c: DesktopContainer, request: EntryRequest, onDone: () -> Unit) 
             Row {
                 if (editing != null) {
                     TextButton(onClick = {
-                        scope.launch { runCatching { c.txns.deleteById(editing.id) }.onSuccess { onDone() }.onFailure { error = it.message } }
+                        scope.launch { runCatching { c.txns.deleteById(editing.id) }.onSuccess { onDone() }.onFailure { error = "Не удалось удалить операцию" } }
                     }) { Text("Удалить", color = MaterialTheme.colorScheme.error) }
                 }
                 TextButton(onClick = ::requestClose) { Text("Отмена") }

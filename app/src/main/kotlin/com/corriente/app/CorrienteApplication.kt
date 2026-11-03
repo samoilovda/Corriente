@@ -53,6 +53,12 @@ class CorrienteApplication : Application() {
 
         // R2.4: воркер материализации повторяющихся операций — раз в сутки, безусловно.
         RecurrenceScheduler.apply(this)
+        // W7: новое или изменённое правило с наступившей датой — операция появляется сразу, а не со следующей суточной.
+        container.recurrenceRepository.observeAll()
+            .map { rules -> com.corriente.app.recurring.anyRecurrenceDue(rules, java.time.LocalDate.now()) }
+            .filter { it }
+            .onEach { RecurrenceScheduler.runNow(this) }
+            .launchIn(appScope)
 
         // R1.2: временные файлы «Отправить бэкап» старше суток чистятся на следующем запуске,
         // а не сразу после отправки — принимающее приложение читает URI асинхронно.

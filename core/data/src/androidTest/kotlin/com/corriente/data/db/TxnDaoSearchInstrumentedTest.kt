@@ -61,18 +61,22 @@ class TxnDaoSearchInstrumentedTest {
     @After
     fun tearDown() = db.close()
 
+    /** Поиск — через репозиторий: названия счетов и категорий он подбирает сам (W11), DAO получает их id. */
+    private fun search(query: String) =
+        com.corriente.data.repository.TxnRepository(db.txnDao(), db.accountDao(), db.categoryDao()).search(query)
+
     @Test
     fun findsByNoteAccountNameAndCategoryName() = runBlocking {
-        val byNote = db.txnDao().search(buildFtsPrefixQuery("кофе"), buildLikePattern("кофе")).first()
+        val byNote = search("кофе").first()
         assertEquals(listOf("byNote"), byNote.map { it.id })
 
-        val byAccount = db.txnDao().search(buildFtsPrefixQuery("тинькофф"), buildLikePattern("тинькофф")).first()
+        val byAccount = search("тинькофф").first()
         assertEquals(listOf("byAccount"), byAccount.map { it.id })
 
-        val byCategory = db.txnDao().search(buildFtsPrefixQuery("такси"), buildLikePattern("такси")).first()
+        val byCategory = search("такси").first()
         assertEquals(setOf("byAccount", "byCategory"), byCategory.map { it.id }.toSet())
 
-        val noMatch = db.txnDao().search(buildFtsPrefixQuery("зпрлдг"), buildLikePattern("зпрлдг")).first()
+        val noMatch = search("зпрлдг").first()
         assertTrue(noMatch.isEmpty())
     }
 
@@ -83,10 +87,10 @@ class TxnDaoSearchInstrumentedTest {
         val original = db.txnDao().getById("byNote")!!
         db.txnDao().update(original.copy(note = "новый текст"))
 
-        assertTrue(db.txnDao().search(buildFtsPrefixQuery("кофе"), buildLikePattern("кофе")).first().isEmpty())
+        assertTrue(search("кофе").first().isEmpty())
         assertEquals(
             listOf("byNote"),
-            db.txnDao().search(buildFtsPrefixQuery("новый"), buildLikePattern("новый")).first().map { it.id },
+            search("новый").first().map { it.id },
         )
     }
 
@@ -99,11 +103,11 @@ class TxnDaoSearchInstrumentedTest {
 
         assertEquals(
             listOf("byNote"),
-            db.txnDao().search(buildFtsPrefixQuery("кофе"), buildLikePattern("кофе")).first().map { it.id },
+            search("кофе").first().map { it.id },
         )
         assertEquals(
             listOf("byNote"),
-            db.txnDao().search(buildFtsPrefixQuery("МОЛОК"), buildLikePattern("МОЛОК")).first().map { it.id },
+            search("МОЛОК").first().map { it.id },
         )
     }
 
@@ -117,9 +121,9 @@ class TxnDaoSearchInstrumentedTest {
 
         assertEquals(
             listOf("byNote"),
-            db.txnDao().search(buildFtsPrefixQuery("ёлка"), buildLikePattern("ёлка")).first().map { it.id },
+            search("ёлка").first().map { it.id },
         )
-        assertTrue(db.txnDao().search(buildFtsPrefixQuery("елка"), buildLikePattern("елка")).first().isEmpty())
+        assertTrue(search("елка").first().isEmpty())
     }
 
     // A1.10: поиск префиксный — «молок» находит «молоком» (форма `"молок"*` находила только точное слово).
@@ -127,7 +131,7 @@ class TxnDaoSearchInstrumentedTest {
     fun noteSearchMatchesWordPrefixes() = runBlocking {
         assertEquals(
             listOf("byNote"),
-            db.txnDao().search(buildFtsPrefixQuery("молок"), buildLikePattern("молок")).first().map { it.id },
+            search("молок").first().map { it.id },
         )
     }
 }

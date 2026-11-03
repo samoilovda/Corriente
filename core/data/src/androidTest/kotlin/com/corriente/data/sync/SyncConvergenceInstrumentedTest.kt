@@ -230,8 +230,12 @@ class SyncConvergenceInstrumentedTest {
         phone.db.categoryDao().insert(testCategory(winner))
         phone.engine.sync() // принимает loser: проигрывает по id, ставит надгробие
 
-        val pending = phone.db.syncDao().outbox().map { it.tableName to it.pk }
-        assertTrue("tombstone of the loser must be re-sent: $pending", ("category" to loser) in pending)
+        // Надгробие рассылается заново — в том же обмене (W4: производные правки выгружаются сразу после применения).
+        val phoneId = phone.engine.deviceId()!!
+        val resent = File(folderRoot, "changes/$phoneId").listFiles().orEmpty().maxBy { it.name }
+            .readText().let { kotlinx.serialization.json.Json.decodeFromString(ChangeFile.serializer(), it) }
+            .changes.filter { it.table == "category" && it.pk == loser }
+        assertTrue("tombstone of the loser must be re-sent: $resent", resent.singleOrNull()?.deleted == true)
         assertConverged()
         assertEquals(listOf(winner), phone.categories.observeActive().first().filter { it.name == "Такси" }.map { it.id })
     }

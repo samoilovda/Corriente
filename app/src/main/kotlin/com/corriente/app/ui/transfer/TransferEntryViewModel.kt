@@ -227,7 +227,14 @@ class TransferEntryViewModel(
         val fromMoney = Money(s.fromMinor ?: return false, fromCur.code)
         val toMoney = Money(s.toMinor ?: return false, toCur.code)
         val note = s.note.trim().ifBlank { null }
-        form.update { it.copy(saving = true) }
+        // W6: флаг ставится атомарно на самой форме — uiState выводится асинхронно, и второй тап до его пересчёта
+        // видел бы ещё saving = false (тот же приём, что в TxnEntryViewModel.save).
+        var claimed = false
+        form.update {
+            claimed = !it.saving
+            if (claimed) it.copy(saving = true) else it
+        }
+        if (!claimed) return false
         launchWrite(
             onError = { form.update { f -> f.copy(saving = false) }; uiMessage(R.string.transfer_error_save) },
             onSuccess = { _finished.value = true },

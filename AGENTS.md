@@ -39,7 +39,7 @@ Needs JDK 17+ per README (CI uses 21), Android SDK (platform 37, build-tools 36)
 
 ## DB schema changes
 - Current version: `AppDatabase.SCHEMA_VERSION` (`core/data/.../db/AppDatabase.kt`), 9 now. 
-- Bump the version, add an explicit `Migration` in `AppDatabaseAndroid.kt` and append it to `ALL_MIGRATIONS`. `fallbackToDestructiveMigration` is forbidden (I-20, scanned).
+- Bump the version, add an explicit `Migration` in `AppDatabaseAndroid.kt` and append it to `ALL_MIGRATIONS`. Add the same migration on `SQLiteConnection` to `DESKTOP_MIGRATIONS` (`core/data-jvm/.../desktop/DesktopMigrations.kt`): the desktop does not compile `AppDatabaseAndroid.kt`, and without it an existing desktop database fails to open (`DesktopMigrationTest` checks the chain). `fallbackToDestructiveMigration` is forbidden (I-20, scanned).
 - Commit the generated `core/data/schemas/com.corriente.data.db.AppDatabase/<N>.json`.
 - Add a migration test in `AppDatabaseMigrationTest` (androidTest), then run `connectedCheck`.
 - A new row kind/field that older apps would misread: bump the version even if the migration is empty (precedent: 8→9 for `ADJUSTMENT`); old phone/desktop builds then refuse newer backups and sync files. Phone and desktop must be updated together.

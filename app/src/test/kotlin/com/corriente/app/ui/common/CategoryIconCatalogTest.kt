@@ -21,4 +21,12 @@ class CategoryIconCatalogTest {
         assertEquals(inSections.size, inSections.toSet().size)
         assertEquals(CategoryIconCatalog.keys, inSections.toSet())
     }
+
+    // W16: показ категории без иконки — та же эвристика по словам, что при создании категории.
+    @Test
+    fun fallbackUsesTheSharedWordHeuristic() {
+        assertEquals(CategoryIconCatalog.vector("directions_bus"), CategoryIconCatalog.fallbackVectorForName("Автобус"))
+        assertEquals(CategoryIconCatalog.vector("local_taxi"), CategoryIconCatalog.fallbackVectorForName("Такси"))
+        assertEquals(null, CategoryIconCatalog.fallbackVectorForName("Scarf"))
+    }
 }

@@ -22,6 +22,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -103,9 +105,18 @@ class BudgetsViewModel(
     txns: com.corriente.data.repository.TxnRepository? = null,
 ) : WritingViewModel() {
 
-    private val month = java.time.YearMonth.from(today())
-    private val monthTxns = txns?.observeRange(month.atDay(1), month.atEndOfMonth())
-        ?: kotlinx.coroutines.flow.flowOf(emptyList())
+    /** W12: месяц «сейчас» — сдвигается [refreshToday], если экран пережил границу месяца. */
+    private val currentMonth = MutableStateFlow(java.time.YearMonth.from(today()))
+
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    private val monthTxns = currentMonth.flatMapLatest { m ->
+        (txns?.observeRange(m.atDay(1), m.atEndOfMonth()) ?: kotlinx.coroutines.flow.flowOf(emptyList())).map { m to it }
+    }
+
+    /** W12: экран вернулся на передний план — если месяц сменился (открыт 31-го, смотрим 1-го), считаем новый. */
+    fun refreshToday() {
+        currentMonth.value = java.time.YearMonth.from(today())
+    }
 
     private val editorState = MutableStateFlow<BudgetEditor?>(null)
 
@@ -115,7 +126,7 @@ class BudgetsViewModel(
         currencyRepository.observeActive(),
         editorState,
         monthTxns,
-    ) { allBudgets, allCategories, allCurrencies, editor, txnsOfMonth ->
+    ) { allBudgets, allCategories, allCurrencies, editor, (month, txnsOfMonth) ->
         val byCode = allCurrencies.associateBy { it.code.code }
         val progressById = com.corriente.data.usecase.monthBudgetProgress(allBudgets, txnsOfMonth, month)
             .associateBy { it.budget.id }

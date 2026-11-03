@@ -56,12 +56,22 @@ data class CsvHeaders(val report: List<String>, val transactions: List<String>) 
 object CsvExport {
 
     fun reportCsv(rows: List<ReportCsvRow>, headers: CsvHeaders = CsvHeaders.ENGLISH): String = csvWriter().writeAllAsString(
-        listOf(headers.report) + rows.map { r -> listOf(r.category, r.amountText, r.amountValue, r.currency, r.sharePercent.toString(), r.changeText) },
+        listOf(headers.report) + rows.map { r -> listOf(textCell(r.category), r.amountText, r.amountValue, r.currency, r.sharePercent.toString(), r.changeText) },
     )
 
     fun txnCsv(rows: List<TxnCsvRow>, headers: CsvHeaders = CsvHeaders.ENGLISH): String = csvWriter().writeAllAsString(
-        listOf(headers.transactions) + rows.map { r -> listOf(r.date, r.account, r.category, r.note, r.amountText, r.amountValue, r.currency) },
+        listOf(headers.transactions) + rows.map { r -> listOf(r.date, textCell(r.account), textCell(r.category), textCell(r.note), r.amountText, r.amountValue, r.currency) },
     )
+
+    /**
+     * W18: текст пользователя (название, заметка), начинающийся с `=`, `+`, `-`, `@` или табуляции, Excel/LibreOffice
+     * считают формулой («=HYPERLINK(...)», «+7 999 …»). Апостроф впереди — общепринятый способ показать его как текст.
+     * Столбцы сумм не трогаем: их пишет приложение.
+     */
+    fun textCell(text: String): String =
+        if (text.isNotEmpty() && text[0] in FORMULA_STARTS) "'$text" else text
+
+    private val FORMULA_STARTS = setOf('=', '+', '-', '@', '\t', '\r')
 
     /**
      * A3.15: байты файла — UTF-8 **с BOM**: без него Excel на Windows открывает кириллицу «кракозябрами». BOM живёт

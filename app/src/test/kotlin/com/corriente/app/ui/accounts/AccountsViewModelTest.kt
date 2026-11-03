@@ -392,4 +392,24 @@ class AccountsViewModelTest {
         assertEquals(-5_000L, openingBalanceMinor("−50", rub).raw)
         assertTrue(txnRepository.observeAll().first().isEmpty())
     }
+
+    // W3: двойной тап по «Сохранить» до конца записи — одна поправка, а не две от того же остатка.
+    @Test
+    fun `double save of an adjustment writes one entry`() = runTest(dispatcher) {
+        val (vm, _, _) = build()
+        backgroundScope.observe(vm)
+        backgroundScope.launch { vm.adjust.collect {} }
+        vm.startCreate(); advanceUntilIdle()
+        vm.save(AccountForm("Наличные", CurrencyCode("RUB"), AccountKind.CASH, "7000", includeInTotal = true)); advanceUntilIdle()
+        vm.startAdjust(activeRows(vm).single().account.id); advanceUntilIdle()
+
+        assertTrue(vm.saveAdjust("10000"))
+        assertTrue(AccountsViewModel.WRITE_ADJUST in vm.writing.value)
+        assertFalse(vm.saveAdjust("10000"))
+        advanceUntilIdle()
+
+        assertEquals(1, txnRepository.observeAll().first().filterIsInstance<Txn.Adjustment>().size)
+        assertEquals(1_000_000L, activeRows(vm).single().balance!!.amount.raw)
+        assertTrue(vm.writing.value.isEmpty())
+    }
 }

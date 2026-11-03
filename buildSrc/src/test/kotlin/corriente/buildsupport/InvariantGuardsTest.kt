@@ -78,6 +78,27 @@ class InvariantGuardsTest {
         assertEquals(1, InvariantGuards.scanKotlin("app/src/main/kotlin/com/corriente/app/ui/T.kt", bad).size)
     }
 
+    // W15: инфиксная арифметика над минорными единицами — тоже обход Money.
+    @Test
+    fun `flags infix arithmetic over raw minor units`() {
+        val path = "app/src/main/kotlin/com/corriente/app/ui/T3.kt"
+        assertEquals(1, InvariantGuards.scanKotlin(path, "val d = Minor(it.raw - target.balance.amount.raw)").size)
+        assertEquals(1, InvariantGuards.scanKotlin(path, "val s = Minor(a.amount.raw + 1)").size)
+        assertEquals(1, InvariantGuards.scanKotlin(path, "val s = Minor(1 + a.amount.raw)").size)
+    }
+
+    @Test
+    fun `does not flag sign or Money arithmetic around raw`() {
+        val path = "app/src/main/kotlin/com/corriente/app/ui/T4.kt"
+        val ok = """
+            val delta = (Money(actual, code) - target.balance).amount.raw
+            val v = if (t.kind == INCOME) t.amount.raw else -t.amount.raw
+            val m = Minor(if (negative) Math.negateExact(minor.raw) else minor.raw)
+            val p = Math.multiplyExact(spent.amount.raw, 100L) / budget.amount.amount.raw
+        """.trimIndent()
+        assertEquals(emptyList<String>(), InvariantGuards.scanKotlin(path, ok))
+    }
+
     @Test
     fun `does not flag Long plus reference in a file with no money content`() {
         val ok = "val n = counts.fold(0L, Long::plus)"
