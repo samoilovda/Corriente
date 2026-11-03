@@ -82,6 +82,16 @@ class MonthOverviewViewModel(
         lastToday = now
     }
 
+    /** Ключ кольца, для которого анимация уже проиграна: живёт с экраном, а не с его композицией. */
+    private var revealedRingKey: Any? = null
+
+    /** true — кольцо для [key] ещё не показывалось: «вырастить» его; запоминает ключ. */
+    fun shouldRevealRing(key: Any): Boolean {
+        if (key == revealedRingKey) return false
+        revealedRingKey = key
+        return true
+    }
+
     fun shiftMonth(delta: Long) = month.update { it.plusMonths(delta) }
 
     fun setAccount(id: String?) {

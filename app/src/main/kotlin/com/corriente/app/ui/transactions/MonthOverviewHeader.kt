@@ -119,6 +119,11 @@ fun MonthOverviewHeader(
     onSelectAllAccounts: (String) -> Unit,
     onCategoryClick: (EntryKind, String) -> Unit,
     onBalanceClick: () -> Unit,
+    /**
+     * Нужно ли заново «выращивать» кольцо для этого ключа (вкладка, месяц, счёт, режим). По умолчанию — всегда;
+     * экран передаёт память из ViewModel, чтобы возврат из формы и новая операция не проигрывали анимацию снова.
+     */
+    shouldRevealRing: (Any) -> Boolean = { true },
     /** Список операций стоит в самом начале: свайп вниз по кольцу его не прокручивает, и жест можно отдать «Расходы» ⇄ «Доходы». */
     isListAtTop: () -> Boolean = { false },
 ) {
@@ -222,6 +227,8 @@ fun MonthOverviewHeader(
             ) {
             Ring(
                 segments = segments,
+                revealKey = listOf(com.corriente.app.ui.common.TabEnter.version, overview.month, overview.accountId, overview.currencyCode, displayIncome),
+                shouldReveal = shouldRevealRing,
                 onAdd = { id -> onCategoryClick(kind, id) },
                 modifier = Modifier.size(ringWidth, ringHeight).clearAndSetSemantics { contentDescription = ringDescription },
             )
@@ -366,14 +373,21 @@ private fun segmentName(segment: RingSegment): String = when {
  * списком вошедших категорий); тап по строке окна — ввод в эту категорию. Остальные полоски при этом приглушаются.
  */
 @Composable
-private fun Ring(segments: List<RingSegment>, onAdd: (String) -> Unit, modifier: Modifier) {
+private fun Ring(
+    segments: List<RingSegment>,
+    revealKey: Any,
+    shouldReveal: (Any) -> Boolean,
+    onAdd: (String) -> Unit,
+    modifier: Modifier,
+) {
     val trackColor = MaterialTheme.colorScheme.surfaceContainerHighest
     val neutral = MaterialTheme.colorScheme.outline
     // Float — только координаты отрисовки (I-1); доли считаются из уже посчитанных Long.
     val fractions = com.corriente.app.ui.report.ChartGeometry.fractionsOfTotal(segments.map { it.valueMinor })
-    // UI-3.1: дуги «вырастают» при каждом новом наборе долей (смена месяца/счёта/режима).
-    val reveal = remember(segments) { Animatable(0f) }
-    LaunchedEffect(reveal) { reveal.animateTo(1f, tween(durationMillis = 600)) }
+    // UI-3.1: дуги «вырастают» при старте, при переходе с другой вкладки и при смене месяца/счёта/режима — но не при
+    // возврате из формы ввода и не когда просто добавилась операция (ключ тот же, кольцо уже показано).
+    val reveal = remember(revealKey) { Animatable(if (shouldReveal(revealKey)) 0f else 1f) }
+    LaunchedEffect(reveal) { if (reveal.value < 1f) reveal.animateTo(1f, tween(durationMillis = 600)) }
     var selected by remember(segments) { mutableStateOf<Int?>(null) }
     val activeCount = fractions.count { it > 0.0 }
     val separator = MaterialTheme.colorScheme.background

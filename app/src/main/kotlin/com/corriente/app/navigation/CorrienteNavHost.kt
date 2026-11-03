@@ -13,6 +13,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.foundation.layout.calculateEndPadding
+import androidx.compose.foundation.layout.calculateStartPadding
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
 import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.EnterTransition
@@ -117,6 +121,7 @@ fun CorrienteNavHost(deepLinkIntent: Intent? = null, onDeepLinkConsumed: () -> U
     val layout = navLayoutFor(LocalConfiguration.current.screenWidthDp)
     val topLevel = CorrienteDestination.isTopLevelRoute(currentDestination?.route)
     val navigateTo: (CorrienteDestination) -> Unit = { destination ->
+        com.corriente.app.ui.common.TabEnter.onTabSwitched()
         navController.navigate(destination.route) {
             popUpTo(navController.graph.findStartDestination().id) { saveState = true }
             launchSingleTop = true
@@ -156,7 +161,20 @@ fun CorrienteNavHost(deepLinkIntent: Intent? = null, onDeepLinkConsumed: () -> U
     ) { padding ->
         // F2.4: корневой Scaffold отвечает за нижнюю панель; вложенные Scaffold'ы экранов
         // применяют оставшиеся вставки к своим TopAppBar — consumeWindowInsets убирает двойной учёт.
-        Row(Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding)) {
+        // Нижний отступ (панель разделов) получают только сами разделы, и он постоянный: иначе область NavHost
+        // меняла высоту, пока панель уезжала/появлялась, и выезжающая форма в конце перехода прыгала вниз.
+        // Вложенные экраны занимают всю высоту и сами учитывают системную навигацию своими Scaffold.
+        val layoutDirection = LocalLayoutDirection.current
+        val hostPadding = PaddingValues(
+            start = padding.calculateStartPadding(layoutDirection),
+            top = padding.calculateTopPadding(),
+            end = padding.calculateEndPadding(layoutDirection),
+        )
+        var barInset by remember { mutableStateOf(0.dp) }
+        val bottomNow = padding.calculateBottomPadding()
+        if (topLevel && bottomNow > barInset) barInset = bottomNow
+        val topLevelBottom = if (layout == NavLayout.BOTTOM_BAR) barInset else bottomNow
+        Row(Modifier.fillMaxSize().padding(hostPadding).consumeWindowInsets(hostPadding)) {
             if (layout != NavLayout.BOTTOM_BAR && topLevel) {
                 NavigationRail {
                     CorrienteDestination.entries.forEach { destination ->
@@ -212,6 +230,7 @@ fun CorrienteNavHost(deepLinkIntent: Intent? = null, onDeepLinkConsumed: () -> U
             modifier = if (twoPane) Modifier.fillMaxSize() else Modifier.fillMaxHeight().widthIn(max = 840.dp).fillMaxWidth(),
         ) {
             composable(CorrienteDestination.TRANSACTIONS.route) {
+                TopLevelInset(topLevelBottom) {
                 if (twoPane) {
                     TransactionsTwoPane(
                         onCreateAccount = { navigateTo(CorrienteDestination.ACCOUNTS) },
@@ -219,7 +238,7 @@ fun CorrienteNavHost(deepLinkIntent: Intent? = null, onDeepLinkConsumed: () -> U
                         onOpenRecurring = { navController.navigate(RECURRING_ROUTE) },
                         onOpenBackup = { navigateTo(CorrienteDestination.SETTINGS) },
                     )
-                    return@composable
+                    return@TopLevelInset
                 }
                 TransactionsScreen(
                     onAddExpense = { navController.navigate("$TXN_ENTRY_ROUTE?kind=${EntryKind.EXPENSE.name}") },
@@ -237,12 +256,15 @@ fun CorrienteNavHost(deepLinkIntent: Intent? = null, onDeepLinkConsumed: () -> U
                     onCreateAccount = { navigateTo(CorrienteDestination.ACCOUNTS) },
                     onOpenBackup = { navigateTo(CorrienteDestination.SETTINGS) },
                 )
+                }
             }
             composable(CorrienteDestination.ACCOUNTS.route) {
+                TopLevelInset(topLevelBottom) {
                 AccountsScreen(
                     onOpenAutoBackup = { navController.navigate(AUTOBACKUP_ROUTE) },
                     onOpenAccountBalance = { accountId -> navController.navigate("$ACCOUNT_BALANCE_ROUTE/$accountId") },
                 )
+                }
             }
             composable(
                 "$ACCOUNT_BALANCE_ROUTE/{accountId}",
@@ -254,16 +276,19 @@ fun CorrienteNavHost(deepLinkIntent: Intent? = null, onDeepLinkConsumed: () -> U
                 )
             }
             composable(CorrienteDestination.REPORT.route) {
+                TopLevelInset(topLevelBottom) {
                 ReportScreen(
                     onEditTransaction = { id -> navController.navigate("$TXN_EDIT_ROUTE/$id") },
                     onOpenFxReport = { navController.navigate(FX_REPORT_ROUTE) },
                     onOpenBudgets = { navController.navigate(BUDGETS_ROUTE) },
                 )
+                }
             }
             composable(FX_REPORT_ROUTE) {
                 FxReportScreen(onBack = { navController.popBackStack() })
             }
             composable(CorrienteDestination.SETTINGS.route) {
+                TopLevelInset(topLevelBottom) {
                 SettingsScreen(
                     onOpenCurrencies = { navController.navigate(CURRENCIES_ROUTE) },
                     onOpenCategories = { navController.navigate(CATEGORIES_ROUTE) },
@@ -274,6 +299,7 @@ fun CorrienteNavHost(deepLinkIntent: Intent? = null, onDeepLinkConsumed: () -> U
                     onOpenAppLock = { navController.navigate(APP_LOCK_ROUTE) },
                     onOpenSync = { navController.navigate(SYNC_ROUTE) },
                 )
+                }
             }
             composable(SYNC_ROUTE) {
                 com.corriente.app.ui.sync.SyncScreen(onBack = { navController.popBackStack() })
@@ -393,4 +419,11 @@ private fun NavLabel(text: String) {
             }
         },
     )
+}
+
+/** Отступ снизу под панель разделов — только для корневых экранов (см. комментарий у `hostPadding`). */
+@Composable
+private fun TopLevelInset(bottom: androidx.compose.ui.unit.Dp, content: @Composable () -> Unit) {
+    val inset = PaddingValues(bottom = bottom)
+    Box(Modifier.fillMaxSize().padding(inset).consumeWindowInsets(inset)) { content() }
 }

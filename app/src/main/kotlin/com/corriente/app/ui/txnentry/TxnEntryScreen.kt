@@ -258,7 +258,9 @@ fun TxnEntryScreen(
                             Text(stringResource(R.string.txn_entry_no_accounts), style = MaterialTheme.typography.bodyMedium)
                             Button(onClick = onCreateAccount) { Text(stringResource(R.string.txn_entry_create_account)) }
                         }
-                    } else if (state.loaded) {
+                    } else {
+                        // Форма рисуется сразу, не дожидаясь первой выборки из БД: иначе экран выезжал пустым и
+                        // содержимое появлялось рывком. До загрузки нет только чипа счёта, «частых» и суммы в валюте.
                         // UI-1.2 / UI-2.7: дата и счёт — чипами рядом. U03: у счёта всегда имя и валюта —
                         // два RUB-счёта различимы не по цвету, а по подписи.
                         FlowRow(
@@ -381,7 +383,7 @@ fun TxnEntryScreen(
                     }
                 }
 
-                if (state.loaded && state.accounts.isNotEmpty()) {
+                if (!(state.loaded && state.accounts.isEmpty())) {
                     // U06: сумма закреплена над клавиатурой — при крупном шрифте прокручивается только верх формы.
                     AmountBar(
                         amountText = state.amountText,
