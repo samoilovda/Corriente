@@ -18,6 +18,12 @@ interface SyncFolder {
     fun delete(path: String)
 }
 
+/**
+ * W10: общая папка недоступна (нет разрешения, папку удалили, провайдер отказал). Реализации [SyncFolder] заворачивают
+ * в него ошибки доступа, чтобы экран отличал «папка недоступна» от ошибок самой синхронизации.
+ */
+class SyncFolderUnavailableException(cause: Throwable) : java.io.IOException(cause.message, cause)
+
 class FileSyncFolder(private val root: File) : SyncFolder {
     override fun list(dir: String): List<String> = File(root, dir).list()?.toList().orEmpty()
     override fun read(path: String): ByteArray? = File(root, path).takeIf { it.isFile }?.readBytes()

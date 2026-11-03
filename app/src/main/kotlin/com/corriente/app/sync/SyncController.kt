@@ -41,6 +41,17 @@ sealed interface SyncError {
     data class Other(val message: String) : SyncError
 }
 
+/**
+ * W10: что показать по исключению обмена. «Папка недоступна» — только ошибки доступа к папке; `require`/`check` движка
+ * (`IllegalArgumentException`) — это ошибка синхронизации, а не папки, и раньше вводила в заблуждение.
+ */
+fun classifySyncError(e: Throwable): SyncError = when (e) {
+    is SyncIntegrityException -> SyncError.Integrity
+    is com.corriente.data.sync.SyncFolderUnavailableException, is SecurityException, is java.io.FileNotFoundException ->
+        SyncError.FolderUnavailable
+    else -> SyncError.Other(e.message ?: e.javaClass.simpleName)
+}
+
 /** Как подключить устройство, на котором уже есть свои данные (§6). */
 enum class JoinMode { MERGE, REPLACE }
 
@@ -132,13 +143,7 @@ class SyncController(private val context: Context, private val db: AppDatabase) 
         val engine = engine() ?: return@withLock null
         if (!engine.isEnabled()) return@withLock null
         withContext(Dispatchers.IO) {
-            val error = runCatching { engine.cleanup() }.exceptionOrNull()?.let { e ->
-                when (e) {
-                    is SyncIntegrityException -> SyncError.Integrity
-                    is SecurityException, is java.io.FileNotFoundException, is IllegalArgumentException -> SyncError.FolderUnavailable
-                    else -> SyncError.Other(e.message ?: e.javaClass.simpleName)
-                }
-            }
+            val error = runCatching { engine.cleanup() }.exceptionOrNull()?.let(::classifySyncError)
             settings.set(AppSettingEntity(KEY_LAST_RUN, System.currentTimeMillis().toString()))
             settings.set(AppSettingEntity(KEY_LAST_ERROR, encodeError(error)))
             error
@@ -153,13 +158,7 @@ class SyncController(private val context: Context, private val db: AppDatabase) 
 
     private suspend fun runLocked(engine: SyncEngine): SyncError? = withContext(Dispatchers.IO) {
         val outcome = runCatching { engine.sync() }
-        val error = outcome.exceptionOrNull()?.let { e ->
-            when (e) {
-                is SyncIntegrityException -> SyncError.Integrity
-                is SecurityException, is java.io.FileNotFoundException, is IllegalArgumentException -> SyncError.FolderUnavailable
-                else -> SyncError.Other(e.message ?: e.javaClass.simpleName)
-            }
-        }
+        val error = outcome.exceptionOrNull()?.let(::classifySyncError)
         val result = outcome.getOrNull()
         val newer = result?.newerSchemaDevices.orEmpty().let { ids ->
             if (ids.isEmpty()) emptyList() else engine.devices().filter { it.deviceId in ids }.map { it.name.ifBlank { it.deviceId.take(8) } }
