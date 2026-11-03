@@ -69,6 +69,15 @@ fun BudgetsScreen(
     val message by viewModel.messages.collectAsState()
     val snackbarState = rememberMessageSnackbarState(message, viewModel::consumeMessage)
     var pendingDeleteId by remember { mutableStateOf<String?>(null) }
+    // W12: экран, переживший полночь последнего дня месяца, считает «потрачено» уже за новый месяц.
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    androidx.compose.runtime.DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) viewModel.refreshToday()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarState) },

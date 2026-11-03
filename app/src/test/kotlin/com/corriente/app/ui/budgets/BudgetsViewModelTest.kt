@@ -81,6 +81,35 @@ class BudgetsViewModelTest {
         assertEquals(java.time.YearMonth.of(2026, 9), model.uiState.value.month)
     }
 
+    // W12: экран открыт 30 сентября, вернулись 1 октября — «потрачено» уже за октябрь.
+    @Test
+    fun `month moves forward after refreshToday crosses the month boundary`() = runTest(dispatcher) {
+        val fakes = Fakes().apply { seed() }
+        val txnDao = com.corriente.app.ui.txnentry.FakeTxnDao()
+        val accountDao = com.corriente.app.ui.accounts.FakeAccountDao()
+        accountDao.insert(com.corriente.data.db.entity.AccountEntity("cash", "Наличные", "RUB", com.corriente.data.db.entity.AccountKind.CASH, 0, 0))
+        val txns = com.corriente.data.repository.TxnRepository(txnDao, accountDao)
+        val rub = com.corriente.money.CurrencyCode("RUB")
+        var now = LocalDate.of(2026, 9, 30)
+        txns.addExpense("cash", com.corriente.money.Money(com.corriente.money.Minor(120_00), rub), "food", now, null)
+        val model = BudgetsViewModel(
+            BudgetRepository(fakes.budgetDao), CategoryRepository(fakes.categoryDao), CurrencyRepository(fakes.currencyDao),
+            today = { now }, txns = txns,
+        )
+        backgroundScope.observe(model)
+        advanceUntilIdle()
+        model.startCreate(); model.setCategory("food"); model.setAmountText("100"); model.save()
+        advanceUntilIdle()
+        assertEquals("120.00\u00A0₽", model.uiState.value.rows.single().progress!!.spentText)
+
+        now = LocalDate.of(2026, 10, 1)
+        model.refreshToday()
+        advanceUntilIdle()
+
+        assertEquals(java.time.YearMonth.of(2026, 10), model.uiState.value.month)
+        assertEquals("0.00\u00A0₽", model.uiState.value.rows.single().progress!!.spentText)
+    }
+
     @Test
     fun `creating a budget adds it to the list, formatted`() = runTest(dispatcher) {
         val fakes = Fakes().apply { seed() }
