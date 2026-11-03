@@ -7,7 +7,7 @@ import org.junit.Test
 /**
  * R3.3: генерация CSV — числа уже строки [MoneyFormatter]-формата (I-25), здесь проверяем
  * только сборку строк и то, что запятые/кавычки в пользовательском тексте не ломают структуру
- * файла — раунд-трип через тот же `kotlin-csv-jvm` (`csvReader`, как в `MonefyCsvParser`).
+ * файла — раунд-трип через тот же `kotlin-csv-jvm` (`csvReader`).
  */
 class CsvExportTest {
 
@@ -93,5 +93,16 @@ class CsvExportTest {
         assertEquals(listOf(0xEF, 0xBB, 0xBF), bytes.take(3).map { it.toInt() and 0xFF })
         assertEquals(csv, String(bytes, 3, bytes.size - 3, Charsets.UTF_8))
         assertEquals(listOf("2026-03-05", "Нал", "Еда", "", "-1 234.56 ₽", "-1234.56", "RUB"), parse(csv).drop(1).single())
+    }
+
+    // W18: заметка или название, похожие на формулу, не исполняются таблицей — впереди апостроф.
+    @Test
+    fun `text that looks like a formula is written as text`() {
+        val rows = listOf(TxnCsvRow("2026-11-01", "=Карта", "+7 999", "=HYPERLINK(\"http://x\")", "−5.00 ₽", "-5.00", "RUB"))
+        val parsed = parse(CsvExport.txnCsv(rows)).drop(1).single()
+        assertEquals(listOf("2026-11-01", "'=Карта", "'+7 999", "'=HYPERLINK(\"http://x\")", "−5.00 ₽", "-5.00", "RUB"), parsed)
+        assertEquals("Обед", CsvExport.textCell("Обед"))
+        assertEquals("'@cmd", CsvExport.textCell("@cmd"))
+        assertEquals("", CsvExport.textCell(""))
     }
 }
