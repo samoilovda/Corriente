@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Сборка debug и установка на телефон по Wi-Fi (adb «Беспроводная отладка»). Данные приложения сохраняются.
+# Сборка daily (как release, но с debug-ключом) и установка на телефон по Wi-Fi (adb «Беспроводная отладка»). Данные приложения сохраняются.
 #
 #   scripts/deploy.sh pair  <ip:порт_сопряжения> <код>   # один раз
 #   scripts/deploy.sh connect <ip:порт>                  # если телефон не нашёлся сам (порт меняется после перезагрузки)
 #   scripts/deploy.sh                                    # собрать, установить, запустить
 #
-# Устанавливается debug-сборка с этого компьютера: подпись debug-ключа та же, поэтому это именно обновление
+# Устанавливается сборка с debug-ключом этого компьютера: подпись та же, что у прежней debug/daily, поэтому это обновление
 # поверх прежней. Если на телефоне стоит сборка с другой подписью, Android откажет — сначала экспорт в JSON.
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -60,6 +60,7 @@ if [ -z "${ANDROID_SERIAL:-}" ]; then
 fi
 echo "Устройство: $ANDROID_SERIAL"
 
-./gradlew :app:installDebug
+# daily — как release (R8, не debuggable — без рывков debug-сборки), но с debug-ключом: обновляет прежнюю установку.
+./gradlew :app:installDaily
 "$ADB" shell am start -n "$PKG/.MainActivity" >/dev/null
 echo "Установлено и запущено."

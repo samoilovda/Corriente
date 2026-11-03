@@ -21,7 +21,7 @@ Needs JDK 17+ per README (CI uses 21), Android SDK (platform 37, build-tools 36)
 - `./gradlew :desktop:packageDmg` — macOS installer, `desktop/build/compose/binaries/main/dmg/Corriente-<ver>.dmg`. `.msi` and `.deb` must be built on Windows/Linux (not run: no such machine).
 - `./gradlew :desktop:run` — run desktop from sources (not run: GUI). `CORRIENTE_DATA_DIR=/path` points it at other data.
 - `./gradlew assembleRelease` — signed minified APK (not run: needs a keystore). Fails by design without `RELEASE_STORE_FILE`/`RELEASE_STORE_PASSWORD`/`RELEASE_KEY_ALIAS`/`RELEASE_KEY_PASSWORD` (in `local.properties`, or `CORRIENTE_`-prefixed env vars). No fallback to debug signing.
-- `scripts/deploy.sh` — build debug and install on a paired phone (not run: needs a phone).
+- `scripts/deploy.sh` — build the `daily` variant (release-like: R8, not debuggable, but signed with the local debug key, so it updates a debug install keeping data) and install it on the connected phone; `ANDROID_SERIAL=<serial>` picks the device. Verified over USB.
 - `adb shell input text` cannot type Cyrillic: use Latin in emulator smoke tests.
 
 ## Working rules

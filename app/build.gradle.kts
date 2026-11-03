@@ -98,6 +98,14 @@ android {
             // даст дойти до сборки в этом случае, а если бы дал — установка неподписанного
             // релизного APK честно падает, а не молча ставится debug-ключом.
         }
+        // Сборка для своего телефона (`scripts/deploy.sh`): как release — R8, без debuggable, поэтому заметно плавнее
+        // debug, — но подписана debug-ключом этого компьютера и ставится поверх debug-сборки без потери данных.
+        // Не для публикации: для неё — `assembleRelease` со своим ключом.
+        create("daily") {
+            initWith(getByName("release"))
+            signingConfig = signingConfigs.getByName("debug")
+            matchingFallbacks += listOf("release")
+        }
     }
 
     compileOptions {
