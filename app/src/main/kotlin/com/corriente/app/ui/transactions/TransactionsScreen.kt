@@ -74,6 +74,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FabPosition
 import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -336,7 +337,11 @@ fun TransactionsScreen(
             // Правша: «+» доход слева, «−» расход справа (у thumb-зоны). Левша: у левого края, порядок «−», «+».
             // Расход — самый частый сценарий, основная кнопка; «+» вторичного цвета.
             // UI-2.2: «+» — малая кнопка; долгий тап открывает меню «Доход / Перевод».
-            // U09: обе кнопки подписаны словами — значок «+»/«−» без подписи приходилось угадывать.
+            // U09: в первый запуск обе кнопки подписаны словами — значок «+»/«−» без подписи приходилось угадывать.
+            // Дальше ([UiPrefs.showKindLabels], как переключатель на экране ввода) — квадратные «+» и «−»: меньше места
+            // поверх списка; подпись остаётся для TalkBack.
+            val showFabLabels = UiPrefs.showKindLabels(LocalContext.current)
+            val incomeLabel = stringResource(R.string.txn_add_income)
             val income = @Composable {
                 Box {
                     Surface(
@@ -349,15 +354,21 @@ fun TransactionsScreen(
                             onLongClick = { incomeMenuOpen = true },
                             onLongClickLabel = stringResource(R.string.txn_add_income_more),
                             role = Role.Button,
-                        ),
+                        ).semantics { contentDescription = incomeLabel },
                     ) {
-                        Row(
-                            Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        ) {
-                            Icon(Icons.Outlined.Add, contentDescription = null)
-                            Text(stringResource(R.string.txn_fab_income), style = MaterialTheme.typography.labelLarge)
+                        if (showFabLabels) {
+                            Row(
+                                Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            ) {
+                                Icon(Icons.Outlined.Add, contentDescription = null)
+                                Text(stringResource(R.string.txn_fab_income), style = MaterialTheme.typography.labelLarge)
+                            }
+                        } else {
+                            Box(Modifier.size(56.dp), contentAlignment = Alignment.Center) {
+                                Icon(Icons.Outlined.Add, contentDescription = null)
+                            }
                         }
                     }
                     DropdownMenu(expanded = incomeMenuOpen, onDismissRequest = { incomeMenuOpen = false }) {
@@ -376,12 +387,19 @@ fun TransactionsScreen(
             }
             val expenseLabel = stringResource(R.string.txn_add_expense)
             val expense = @Composable {
-                ExtendedFloatingActionButton(
-                    onClick = onAddExpense,
-                    icon = { Icon(Icons.Outlined.Remove, contentDescription = null) },
-                    text = { Text(stringResource(R.string.txn_fab_expense)) },
-                    modifier = Modifier.semantics { contentDescription = expenseLabel },
-                )
+                if (showFabLabels) {
+                    ExtendedFloatingActionButton(
+                        onClick = onAddExpense,
+                        icon = { Icon(Icons.Outlined.Remove, contentDescription = null) },
+                        text = { Text(stringResource(R.string.txn_fab_expense)) },
+                        modifier = Modifier.semantics { contentDescription = expenseLabel },
+                    )
+                } else {
+                    FloatingActionButton(
+                        onClick = onAddExpense,
+                        modifier = Modifier.semantics { contentDescription = expenseLabel },
+                    ) { Icon(Icons.Outlined.Remove, contentDescription = null) }
+                }
             }
             AnimatedVisibility(
                 visible = fabVisible,
