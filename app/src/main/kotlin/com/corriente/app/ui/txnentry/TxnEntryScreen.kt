@@ -30,6 +30,8 @@ import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FilterChipDefaults
@@ -97,9 +99,6 @@ import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -499,10 +498,13 @@ fun TxnEntryScreen(
                             onSwipeDown = { categoriesOpen = false },
                             modifier = Modifier.weight(1f).fillMaxHeight(),
                         )
+                        // Основная кнопка — цвета вида: «Добавить расход» красноватая, «Добавить доход» зеленоватая.
+                        val saveTone = if (state.kind == EntryKind.INCOME) LocalCorrienteColors.current.income else LocalCorrienteColors.current.expense
                         Button(
                             onClick = { viewModel.save() },
                             enabled = state.canSave && interactive,
                             shape = MaterialTheme.shapes.large,
+                            colors = ButtonDefaults.buttonColors(containerColor = saveTone, contentColor = MaterialTheme.colorScheme.surface),
                             modifier = Modifier.weight(1f).heightIn(min = 56.dp).fillMaxHeight(),
                         ) {
                             if (state.saving) {
@@ -997,8 +999,9 @@ private fun AccountMenu(
 
 /**
  * Плашка суммы: слева «таблетка» счёта с кодом валюты (выбор счёта), справа сумма и «⌫».
- * Цвета — из темы (Material You): расход — основной контейнер, доход — третичный (контраст on*Container
- * к своему контейнеру в схемах Material — не ниже 4.5:1, жёстких цветов здесь нет).
+ * Цвет — цвет денег вида ([LocalCorrienteColors]): расход красноватый, доход зеленоватый, лёгкой подложкой поверх
+ * поверхности темы; текст — обычный onSurface, поэтому контраст не зависит от обоев (Material You давал доходу
+ * третичный цвет — с иными обоями он выходил красным).
  * U03: TalkBack слышит имя счёта и валюту, а не только код.
  */
 @Composable
@@ -1016,9 +1019,10 @@ private fun AmountBar(
     val currencyCode = account?.currency?.code?.code.orEmpty()
     val accountDescription = account?.let { stringResource(R.string.txn_entry_account_cd, it.name, currencyCode) }
         ?: stringResource(R.string.txn_entry_account)
+    val tone = if (isIncome) LocalCorrienteColors.current.income else LocalCorrienteColors.current.expense
     Surface(
-        color = if (isIncome) colors.tertiaryContainer else colors.primaryContainer,
-        contentColor = if (isIncome) colors.onTertiaryContainer else colors.onPrimaryContainer,
+        color = tone.copy(alpha = 0.2f).compositeOver(colors.surfaceContainerHigh),
+        contentColor = colors.onSurface,
         shape = RoundedCornerShape(28.dp),
         modifier = Modifier.fillMaxWidth().heightIn(min = 76.dp),
     ) {
@@ -1202,46 +1206,53 @@ private fun Modifier.longPressInInitialPass(onLongPress: () -> Unit): Modifier =
 }
 
 /**
- * Переключатель расход/доход. В первый запуск ([UiPrefs.showKindLabels]) — во всю ширину со словами, дальше —
- * компактная пара «−»/«+». Обе кнопки слегка тонированы цветами денег темы: расход красноватый, доход зеленоватый;
- * выбранная — насыщеннее.
+ * Переключатель расход/доход в стиле соседних чипов даты и счёта: та же высота, форма и обводка. Выбранная половина
+ * залита цветом денег вида (расход красноватый, доход зеленоватый), невыбранная — прозрачная с приглушённым знаком.
+ * В первый запуск ([UiPrefs.showKindLabels]) рядом со знаком — слово.
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun KindToggle(kind: EntryKind, enabled: Boolean, showLabels: Boolean, onKind: (EntryKind) -> Unit) {
     val money = LocalCorrienteColors.current
-    // В одну строку с чипами даты и счёта — той же высоты (32dp), без отдельной полосы над формой.
-    val rowModifier = if (showLabels) Modifier.width(COMPACT_TOGGLE_WIDTH + 40.dp) else Modifier.width(COMPACT_TOGGLE_WIDTH)
-    SingleChoiceSegmentedButtonRow(rowModifier.height(32.dp)) {
+    val colors = MaterialTheme.colorScheme
+    val shape = RoundedCornerShape(8.dp)
+    Row(
+        Modifier
+            .height(32.dp)
+            .clip(shape)
+            .border(1.dp, colors.outline, shape)
+            .selectableGroup(),
+    ) {
         listOf(EntryKind.EXPENSE, EntryKind.INCOME).forEachIndexed { index, option ->
+            if (index > 0) Box(Modifier.width(1.dp).fillMaxHeight().background(colors.outline))
+            val selected = kind == option
             val tone = if (option == EntryKind.EXPENSE) money.expense else money.income
             val label = stringResource(
                 if (option == EntryKind.EXPENSE) R.string.category_kind_expense else R.string.category_kind_income,
             )
-            SegmentedButton(
-                selected = kind == option,
-                enabled = enabled,
-                onClick = { onKind(option) },
-                shape = SegmentedButtonDefaults.itemShape(index = index, count = 2),
-                colors = SegmentedButtonDefaults.colors(
-                    activeContainerColor = tone.copy(alpha = 0.22f),
-                    activeContentColor = tone,
-                    inactiveContainerColor = tone.copy(alpha = 0.12f),
-                    inactiveContentColor = tone,
-                ),
-                // Компактно — без галочки выбранного: её место съело бы «−»/«+», выбор и так виден по заливке.
-                icon = { if (showLabels) SegmentedButtonDefaults.Icon(active = kind == option) },
-                contentPadding = PaddingValues(horizontal = 4.dp),
-                modifier = Modifier.semantics { contentDescription = label },
+            Row(
+                Modifier
+                    .fillMaxHeight()
+                    .widthIn(min = 44.dp)
+                    .background(if (selected) tone.copy(alpha = 0.22f) else Color.Transparent)
+                    .selectable(selected = selected, enabled = enabled, role = Role.Tab, onClick = { onKind(option) })
+                    .semantics { contentDescription = label }
+                    .padding(horizontal = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center,
             ) {
+                val content = if (selected) tone else colors.onSurfaceVariant
+                Text(
+                    if (option == EntryKind.EXPENSE) "−" else "+",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                    color = content,
+                )
                 if (showLabels) {
-                    Text(label, style = MaterialTheme.typography.labelLarge, maxLines = 1)
-                } else {
-                    Text(if (option == EntryKind.EXPENSE) "−" else "+", style = MaterialTheme.typography.titleMedium)
+                    Spacer(Modifier.width(6.dp))
+                    Text(label, style = MaterialTheme.typography.labelLarge, color = content, maxLines = 1)
                 }
             }
         }
     }
 }
 
-private val COMPACT_TOGGLE_WIDTH = 88.dp
