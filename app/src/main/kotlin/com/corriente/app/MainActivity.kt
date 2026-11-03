@@ -19,6 +19,7 @@ import androidx.fragment.app.FragmentActivity
 import com.corriente.app.applock.AppLockGate
 import com.corriente.app.navigation.CorrienteNavHost
 import com.corriente.app.ui.theme.CorrienteTheme
+import com.corriente.app.ui.txnentry.EntryKind
 
 /**
  * R5.2: наследуется от [FragmentActivity], а не `ComponentActivity` — этого требует
@@ -38,6 +39,14 @@ class MainActivity : FragmentActivity() {
      */
     private var pendingDeepLinkIntent by mutableStateOf<Intent?>(null)
 
+    /** Форма, открытая с виджета «−/+», — стартовый экран навигации (см. `widgetEntryKind`). */
+    private var widgetEntry: EntryKind? = null
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        widgetEntry?.let { outState.putString(WIDGET_ENTRY_KEY, it.name) }
+    }
+
     /** Синхронизация: при каждом возвращении в приложение — обмен сразу, чтобы увидеть внесённое на других устройствах. */
     override fun onStart() {
         super.onStart()
@@ -54,9 +63,13 @@ class MainActivity : FragmentActivity() {
         super.onCreate(savedInstanceState)
         // A2.8: при пересоздании (поворот, смерть процесса) intent ярлыка всё ещё лежит в getIntent() —
         // повторно его обрабатывать нельзя: стек навигации сбросился бы на экран ярлыка.
-        // Запуск с виджета «−/+» — форма ввода стартовым экраном, без deep link. Читается и при пересоздании:
-        // стартовый экран графа должен остаться тем же, иначе восстановленный стек не совпадёт с графом.
-        val widgetEntry = com.corriente.app.navigation.widgetEntryKind(intent.dataString)
+        // Запуск с виджета «−/+» — форма ввода стартовым экраном, без deep link. При пересоздании берётся из
+        // сохранённого состояния: стартовый экран графа должен остаться тем же, иначе стек не совпадёт с графом.
+        widgetEntry = savedInstanceState?.getString(WIDGET_ENTRY_KEY)?.let { name -> EntryKind.entries.firstOrNull { it.name == name } }
+            ?: com.corriente.app.navigation.widgetEntryKind(intent.dataString)
+        // NavController сам открывает deep link из getIntent() при создании графа — поверх стартовой формы легла бы
+        // вторая такая же, и первое «Назад» закрывало только её. Поэтому URI виджета из intent убирается.
+        if (widgetEntry != null) setIntent(Intent(intent).apply { data = null })
         if (savedInstanceState == null && widgetEntry == null) pendingDeepLinkIntent = intent
         // «Первый запуск» для подписей переключателя расход/доход отмечается здесь, при открытии приложения,
         // а не при первом заходе на экран ввода.
@@ -96,3 +109,5 @@ class MainActivity : FragmentActivity() {
         pendingDeepLinkIntent = intent
     }
 }
+
+private const val WIDGET_ENTRY_KEY = "widget_entry"
