@@ -42,6 +42,8 @@ class MainActivity : FragmentActivity() {
     override fun onStart() {
         super.onStart()
         val app = application as CorrienteApplication
+        // W7: открыли приложение — наступившие повторяющиеся операции создаются сразу (суточная задача могла не дойти).
+        com.corriente.app.recurring.RecurrenceScheduler.runNow(app)
         lifecycleScope.launch {
             if (app.container.syncController.enabled.first()) com.corriente.app.sync.SyncScheduler.requestSoon(app, delaySeconds = 0)
         }
