@@ -189,6 +189,8 @@ fun TxnEntryScreen(
     var categoriesOpen by rememberSaveable { mutableStateOf(false) }
     var discardDialogOpen by remember { mutableStateOf(false) }
     val showKindLabels = UiPrefs.showKindLabels(LocalContext.current)
+    val context = LocalContext.current
+    val leftHanded by remember(context) { UiPrefs.leftHanded(context) }.collectAsState()
 
     LaunchedEffect(finished) { if (finished) onDone() }
     val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
@@ -478,39 +480,45 @@ fun TxnEntryScreen(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min),
                     ) {
-                        CategoryField(
-                            category = selectedCategory,
-                            enabled = interactive,
-                            onToggle = { categoriesOpen = !categoriesOpen },
-                            onSwipeUp = { categoriesOpen = true },
-                            onSwipeDown = { categoriesOpen = false },
-                            modifier = Modifier.weight(1f).fillMaxHeight(),
-                        )
-                        // Основная кнопка — цвета вида: «Добавить расход» красноватая, «Добавить доход» зеленоватая.
-                        val saveTone = if (state.kind == EntryKind.INCOME) LocalCorrienteColors.current.income else LocalCorrienteColors.current.expense
-                        Button(
-                            onClick = { viewModel.save() },
-                            enabled = state.canSave && interactive,
-                            shape = MaterialTheme.shapes.large,
-                            colors = ButtonDefaults.buttonColors(containerColor = saveTone, contentColor = MaterialTheme.colorScheme.surface),
-                            modifier = Modifier.weight(1f).heightIn(min = 56.dp).fillMaxHeight(),
-                        ) {
-                            if (state.saving) {
-                                CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = LocalContentColor.current)
-                                Spacer(Modifier.width(8.dp))
-                                Text(stringResource(R.string.txn_entry_saving))
-                            } else {
-                                Text(
-                                    when {
-                                        viewModel.isEditing -> stringResource(R.string.save)
-                                        quickCategory != null -> stringResource(R.string.txn_entry_add_to_category, quickCategory.name)
-                                        state.kind == EntryKind.INCOME -> stringResource(R.string.txn_entry_add_income)
-                                        else -> stringResource(R.string.txn_entry_add_expense)
-                                    },
-                                    textAlign = TextAlign.Center,
-                                    maxLines = 2,
-                                    overflow = TextOverflow.Ellipsis,
+                        entryActionOrder(leftHanded).forEach { action ->
+                            when (action) {
+                                EntryAction.CATEGORY -> CategoryField(
+                                    category = selectedCategory,
+                                    enabled = interactive,
+                                    onToggle = { categoriesOpen = !categoriesOpen },
+                                    onSwipeUp = { categoriesOpen = true },
+                                    onSwipeDown = { categoriesOpen = false },
+                                    modifier = Modifier.weight(1f).fillMaxHeight(),
                                 )
+                                // Основная кнопка — цвета вида: «Добавить расход» красноватая, «Добавить доход» зеленоватая.
+                                EntryAction.SAVE -> {
+                                    val saveTone = if (state.kind == EntryKind.INCOME) LocalCorrienteColors.current.income else LocalCorrienteColors.current.expense
+                                    Button(
+                                        onClick = { viewModel.save() },
+                                        enabled = state.canSave && interactive,
+                                        shape = MaterialTheme.shapes.large,
+                                        colors = ButtonDefaults.buttonColors(containerColor = saveTone, contentColor = MaterialTheme.colorScheme.surface),
+                                        modifier = Modifier.weight(1f).heightIn(min = 56.dp).fillMaxHeight(),
+                                    ) {
+                                        if (state.saving) {
+                                            CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = LocalContentColor.current)
+                                            Spacer(Modifier.width(8.dp))
+                                            Text(stringResource(R.string.txn_entry_saving))
+                                        } else {
+                                            Text(
+                                                when {
+                                                    viewModel.isEditing -> stringResource(R.string.save)
+                                                    quickCategory != null -> stringResource(R.string.txn_entry_add_to_category, quickCategory.name)
+                                                    state.kind == EntryKind.INCOME -> stringResource(R.string.txn_entry_add_income)
+                                                    else -> stringResource(R.string.txn_entry_add_expense)
+                                                },
+                                                textAlign = TextAlign.Center,
+                                                maxLines = 2,
+                                                overflow = TextOverflow.Ellipsis,
+                                            )
+                                        }
+                                    }
+                                }
                             }
                         }
                     }

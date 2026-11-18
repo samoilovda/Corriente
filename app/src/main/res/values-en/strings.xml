@@ -359,7 +359,7 @@
     <string name="start_account_pinned_header">Always open account:</string>
     <string name="start_account_pinned">Pinned account</string>
     <string name="left_handed_title">Left-handed mode</string>
-    <string name="left_handed_hint">The − and + buttons on the left, in the order −, +</string>
+    <string name="left_handed_hint">The − and + buttons on the left, in the order −, +; Category on the left in the entry form</string>
     <string name="app_lock_title">App lock</string>
     <string name="app_lock_hint">Lock screen when returning to the app</string>
     <string name="app_lock_disclaimer">The lock protects against a casual glance if the phone ends up in someone else\'s hands — nothing more. The app\'s data is NOT encrypted: anyone with direct access to the device\'s files (e.g. physical seizure or root) can read it without going through this screen. This is not protection against device theft.</string>
