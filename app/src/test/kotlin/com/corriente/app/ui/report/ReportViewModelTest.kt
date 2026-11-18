@@ -313,4 +313,38 @@ class ReportViewModelTest {
         assertTrue(csv, csv.startsWith("К,С,Д,И"))
         assertTrue(csv, csv.contains("Без категории"))
     }
+
+    @Test
+    fun `вкладка Все валюты - доходы и расходы месяца в каждой валюте отдельно`() = runTest(dispatcher) {
+        val fakes = Fakes().apply { seed() }
+        val r = repo(fakes)
+        val usd = CurrencyCode("USD")
+        r.addExpense("acc", Money(Minor(30_000), rub), "food", LocalDate.of(2026, 5, 3), null)
+        r.addExpense("acc", Money(Minor(10_000), rub), null, LocalDate.of(2026, 5, 4), null)
+        r.addIncome("acc", Money(Minor(500_000), rub), null, LocalDate.of(2026, 5, 5), null)
+        r.addExpense("accu", Money(Minor(2_500), usd), null, LocalDate.of(2026, 5, 6), null)
+        r.addExpense("accu", Money(Minor(7_700), usd), null, LocalDate.of(2026, 4, 30), null) // прошлый месяц
+
+        val model = vm(fakes)
+        backgroundScope.observe(model)
+        model.setView(ReportView.CURRENCIES)
+        advanceUntilIdle()
+
+        val state = model.uiState.value
+        assertEquals(ReportView.CURRENCIES, state.view)
+        assertEquals(listOf("RUB", "USD"), state.currencyTotals.map { it.currencyCode })
+        val rubRow = state.currencyTotals[0]
+        assertEquals(2, rubRow.expenseCount)
+        assertEquals(1, rubRow.incomeCount)
+        assertTrue(rubRow.expenseText, rubRow.expenseText.startsWith("400") && rubRow.expenseText.endsWith("₽"))
+        assertTrue(rubRow.incomeText, rubRow.incomeText.startsWith("5") && rubRow.incomeText.endsWith("₽"))
+        val usdRow = state.currencyTotals[1]
+        assertEquals(1, usdRow.expenseCount)
+        assertEquals("", usdRow.incomeText) // доходов в долларах не было — строки в «Доходах» нет
+        assertTrue(usdRow.expenseText, usdRow.expenseText.startsWith("25") && usdRow.expenseText.endsWith("$"))
+
+        model.shiftPeriod(-1)
+        advanceUntilIdle()
+        assertEquals(listOf("USD"), model.uiState.value.currencyTotals.map { it.currencyCode })
+    }
 }

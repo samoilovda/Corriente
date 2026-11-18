@@ -13,6 +13,7 @@ import com.corriente.data.usecase.CategoryTotal
 import com.corriente.data.usecase.ReportKind
 import com.corriente.data.usecase.budgetProgress
 import com.corriente.data.usecase.categoryReport
+import com.corriente.data.usecase.currencyTotals
 import com.corriente.data.usecase.monthlySeries
 import com.corriente.data.usecase.periodOverPeriodChange
 import com.corriente.data.usecase.largestRemainderShares
@@ -74,7 +75,23 @@ data class BudgetBar(
     val isOverBudget: Boolean,
 )
 
+/** Вкладки «Отчёта»: по категориям в одной валюте или сводка по всем валютам сразу. */
+enum class ReportView { CATEGORIES, CURRENCIES }
+
+/**
+ * Строка вкладки «Все валюты»: доходы и расходы за период в своей валюте (I-8: без пересчёта). Пустой текст —
+ * операций этого вида в валюте не было (экран такую строку в соответствующем разделе не показывает).
+ */
+data class CurrencyTotalsRow(
+    val currencyCode: String,
+    val incomeText: String,
+    val expenseText: String,
+    val incomeCount: Int,
+    val expenseCount: Int,
+)
+
 data class ReportUiState(
+    val view: ReportView = ReportView.CATEGORIES,
     val kind: ReportKind = ReportKind.EXPENSE,
     val periodMode: PeriodMode = PeriodMode.MONTH,
     val periodLabel: String = "",
@@ -92,6 +109,8 @@ data class ReportUiState(
      */
     val categoryBudgetBars: Map<String, BudgetBar> = emptyMap(),
     val wholeCurrencyBudgetBar: BudgetBar? = null,
+    /** Вкладка «Все валюты»: строка на каждую валюту, где за период были доходы или расходы. */
+    val currencyTotals: List<CurrencyTotalsRow> = emptyList(),
 )
 
 internal fun withShares(
@@ -137,6 +156,7 @@ class ReportViewModel(
 ) : WritingViewModel(io) {
 
     private data class Form(
+        val view: ReportView = ReportView.CATEGORIES,
         val kind: ReportKind = ReportKind.EXPENSE,
         val mode: PeriodMode = PeriodMode.MONTH,
         val anchor: LocalDate,
@@ -271,7 +291,19 @@ class ReportViewModel(
             null
         }
 
+        val totalsByCurrency = currencyTotals(allTxns, range).map { t ->
+            val cur = byCode[t.currency.code] ?: fallbackCurrency(t.currency.code)
+            CurrencyTotalsRow(
+                currencyCode = t.currency.code,
+                incomeText = if (t.incomeCount == 0) "" else MoneyFormatter.format(t.income, cur),
+                expenseText = if (t.expenseCount == 0) "" else MoneyFormatter.format(t.expense, cur),
+                incomeCount = t.incomeCount,
+                expenseCount = t.expenseCount,
+            )
+        }
+
         ReportUiState(
+            view = f.view,
             kind = f.kind,
             periodMode = f.mode,
             periodLabel = periodLabel(f.mode, range),
@@ -284,9 +316,12 @@ class ReportViewModel(
             slices = slices,
             categoryBudgetBars = categoryBudgetBars,
             wholeCurrencyBudgetBar = wholeCurrencyBudgetBar,
+            currencyTotals = totalsByCurrency,
         )
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ReportUiState())
+
+    fun setView(view: ReportView) = form.update { it.copy(view = view, drilldownActive = false) }
 
     fun setKind(kind: ReportKind) = form.update { it.copy(kind = kind, drilldownActive = false) }
 

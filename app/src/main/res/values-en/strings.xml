@@ -294,6 +294,16 @@
     <string name="csv_header_note">Note</string>
     <string name="report_open_fx">Exchange rates</string>
     <string name="report_export_csv">CSV</string>
+    <string name="report_tab_categories">By category</string>
+    <string name="report_tab_currencies">All currencies</string>
+    <string name="report_currencies_expenses">Expenses</string>
+    <string name="report_currencies_incomes">Income</string>
+    <string name="report_currencies_none">None in this period</string>
+    <string name="report_currencies_empty">No income or expenses in this period.</string>
+    <plurals name="report_currencies_count">
+        <item quantity="one">%1$d transaction</item>
+        <item quantity="other">%1$d transactions</item>
+    </plurals>
 
     <string name="account_balance_title">Account balance over time</string>
     <string name="account_balance_current">Balance at end of period</string>

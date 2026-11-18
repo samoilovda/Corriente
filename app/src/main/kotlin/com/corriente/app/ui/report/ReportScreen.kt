@@ -27,7 +27,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.CurrencyExchange
 import androidx.compose.material.icons.outlined.FileDownload
+import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.Tab
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material.icons.outlined.PieChart
@@ -105,6 +107,19 @@ fun ReportScreen(
         snackbarHost = { SnackbarHost(snackbarState) },
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
+            PrimaryTabRow(selectedTabIndex = state.view.ordinal) {
+                Tab(
+                    selected = state.view == ReportView.CATEGORIES,
+                    onClick = { viewModel.setView(ReportView.CATEGORIES) },
+                    text = { Text(stringResource(R.string.report_tab_categories)) },
+                )
+                Tab(
+                    selected = state.view == ReportView.CURRENCIES,
+                    onClick = { viewModel.setView(ReportView.CURRENCIES) },
+                    text = { Text(stringResource(R.string.report_tab_currencies)) },
+                )
+            }
+            if (state.view == ReportView.CATEGORIES) {
             // UI-2.6: «Расход/Доход» — сегментная кнопка на всю ширину, период ниже — чипы: разные по смыслу
             // переключатели выглядят по-разному.
             Row(
@@ -129,6 +144,7 @@ fun ReportScreen(
             }
             IconButton(onClick = onOpenFxReport) {
                 Icon(Icons.Outlined.CurrencyExchange, contentDescription = stringResource(R.string.report_open_fx))
+            }
             }
             }
 
@@ -158,6 +174,9 @@ fun ReportScreen(
                 }
             }
 
+            if (state.view == ReportView.CURRENCIES) {
+                CurrencyTotalsList(state.currencyTotals)
+            } else {
             if (state.currencyCodes.size > 1) {
                 ScrollableChips {
                     state.currencyCodes.forEach { code ->
@@ -306,6 +325,7 @@ fun ReportScreen(
                     }
                 }
             }
+            }
         }
     }
 
@@ -358,6 +378,92 @@ fun ReportScreen(
                         )
                     }
                     HorizontalDivider()
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Вкладка «Все валюты»: два раздела — все расходы и все доходы за период, по строке на валюту, каждая сумма в своей
+ * валюте (I-8: без пересчёта и без общего итога).
+ */
+@Composable
+private fun CurrencyTotalsList(rows: List<CurrencyTotalsRow>) {
+    if (rows.isEmpty()) {
+        com.corriente.app.ui.common.EmptyState(
+            icon = Icons.Outlined.PieChart,
+            title = stringResource(R.string.report_empty_title),
+            body = stringResource(R.string.report_currencies_empty),
+        )
+        return
+    }
+    val expenses = rows.filter { it.expenseCount > 0 }
+    val incomes = rows.filter { it.incomeCount > 0 }
+    LazyColumn(Modifier.fillMaxSize()) {
+        item(key = "expenses") {
+            CurrencyTotalsSection(
+                title = stringResource(R.string.report_currencies_expenses),
+                lines = expenses.map { Triple(it.currencyCode, it.expenseText, it.expenseCount) },
+                kind = com.corriente.app.ui.common.MoneyKind.EXPENSE,
+            )
+        }
+        item(key = "incomes") {
+            CurrencyTotalsSection(
+                title = stringResource(R.string.report_currencies_incomes),
+                lines = incomes.map { Triple(it.currencyCode, it.incomeText, it.incomeCount) },
+                kind = com.corriente.app.ui.common.MoneyKind.INCOME,
+            )
+        }
+    }
+}
+
+/** Раздел «Расходы»/«Доходы»: код валюты, число операций и сумма в этой валюте. */
+@Composable
+private fun CurrencyTotalsSection(
+    title: String,
+    lines: List<Triple<String, String, Int>>,
+    kind: com.corriente.app.ui.common.MoneyKind,
+) {
+    Surface(
+        shape = MaterialTheme.shapes.large,
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
+    ) {
+        Column(Modifier.padding(vertical = 8.dp)) {
+            Text(
+                title,
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+            )
+            if (lines.isEmpty()) {
+                Text(
+                    stringResource(R.string.report_currencies_none),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                )
+            }
+            lines.forEach { (code, amountText, count) ->
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text(code, style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium))
+                        Text(
+                            androidx.compose.ui.res.pluralStringResource(R.plurals.report_currencies_count, count, count),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    com.corriente.app.ui.common.MoneyText(
+                        amountText,
+                        kind,
+                        style = MaterialTheme.typography.titleMedium,
+                        deemphasizeFraction = true,
+                    )
                 }
             }
         }

@@ -294,6 +294,18 @@
     <string name="csv_header_note">Заметка</string>
     <string name="report_open_fx">Курсы обмена</string>
     <string name="report_export_csv">CSV</string>
+    <string name="report_tab_categories">По категориям</string>
+    <string name="report_tab_currencies">Все валюты</string>
+    <string name="report_currencies_expenses">Расходы</string>
+    <string name="report_currencies_incomes">Доходы</string>
+    <string name="report_currencies_none">Нет за этот период</string>
+    <string name="report_currencies_empty">За этот период нет ни доходов, ни расходов.</string>
+    <plurals name="report_currencies_count">
+        <item quantity="one">%1$d операция</item>
+        <item quantity="few">%1$d операции</item>
+        <item quantity="many">%1$d операций</item>
+        <item quantity="other">%1$d операции</item>
+    </plurals>
 
     <string name="account_balance_title">Динамика по счёту</string>
     <string name="account_balance_current">Остаток на конец периода</string>
